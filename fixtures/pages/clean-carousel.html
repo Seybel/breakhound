@@ -9,6 +9,10 @@
 .slide { flex: 0 0 280px; height: 180px; scroll-snap-align: start; background: #dde; border: 1px solid #99a; }
 .table-wrap { overflow-x: auto; margin: 16px; }
 table { width: 900px; border-collapse: collapse; }
+.full-table { overflow-x: auto; }
+.slider { overflow: hidden; }
+.slider-track { display: flex; transform: translateX(-40px); }
+.slider-track > div { flex: 0 0 85vw; height: 160px; margin-right: 12px; background: #eed; }
 td { border: 1px solid #ccc; padding: 8px; }
 </style>
 </head>
@@ -21,5 +25,12 @@ td { border: 1px solid #ccc; padding: 8px; }
 <div class="table-wrap">
   <table><tr><td>Plan</td><td>Seats</td><td>Storage</td><td>Support</td><td>Price</td></tr></table>
 </div>
+<div class="full-table">
+  <table><tr><td>Region</td><td>Q1</td><td>Q2</td><td>Q3</td><td>Q4</td><td>Total</td></tr></table>
+</div>
+<section class="slider">
+  <h2>Customer stories</h2>
+  <div class="slider-track"><div>First story</div><div>Second story</div><div>Third story</div></div>
+</section>
 </body>
 </html>

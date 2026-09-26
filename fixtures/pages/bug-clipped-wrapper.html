@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layout wrapper that hides overflow</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.page { overflow: hidden; }
+.hero { display: flex; gap: 24px; padding: 24px 16px; }
+.hero h1 { margin: 0; white-space: nowrap; font-size: 40px; }
+.cta { width: 420px; flex-shrink: 0; padding: 12px; background: #333; color: #fff; }
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="hero">
+    <div><h1>Plan</h1></div>
+  </section>
+  <div class="cta" data-bh-expect="page-overflow@320-419">Start your free trial today</div>
+</div>
+</body>
+</html>

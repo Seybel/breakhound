@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layout wrapper that scrolls sideways</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.shell { display: flex; overflow-x: auto; min-height: 100vh; }
+.login { width: 350px; flex-shrink: 0; padding: 0 16px; }
+.login input, .login button { display: block; width: 100%; margin: 8px 0; padding: 10px; font: inherit; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <form class="login" data-bh-expect="page-overflow@320-349">
+    <h1>Sign in</h1>
+    <input type="email" placeholder="Email">
+    <input type="password" placeholder="Password">
+    <button type="submit">Log in</button>
+  </form>
+</div>
+</body>
+</html>
