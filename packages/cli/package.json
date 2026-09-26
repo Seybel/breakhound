@@ -7,10 +7,13 @@
     "breakhound": "./src/index.ts"
   },
   "dependencies": {
-    "@breakhound/engine": "*"
+    "@breakhound/engine": "*",
+    "@breakhound/report": "*",
+    "jiti": "^2.7.0",
+    "playwright": "^1.63.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.16"
   },
   "keywords": [
     "responsive",

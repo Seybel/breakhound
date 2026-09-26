@@ -112,7 +112,7 @@ export function smallTapTargets(snap: Snapshot): Finding[] {
     if (!nested) targets.push(rec);
   }
 
-  const findings: Finding[] = [];
+  const failing: ElementRecord[] = [];
   for (const rec of targets) {
     const { width, height } = rec.rect;
     if (width >= MIN_TARGET && height >= MIN_TARGET) continue;
@@ -125,15 +125,36 @@ export function smallTapTargets(snap: Snapshot): Finding[] {
       const oc = center(other.rect);
       return small && Math.hypot(oc.x - c.x, oc.y - c.y) < MIN_TARGET;
     });
-    if (!crowded) continue;
+    if (crowded) failing.push(rec);
+  }
+
+  // A toolbar of tiny icon buttons is one problem, reported once on the toolbar.
+  const byParent = new Map<ElementRecord | null, ElementRecord[]>();
+  for (const rec of failing) {
+    const list = byParent.get(rec.parent);
+    if (list) list.push(rec);
+    else byParent.set(rec.parent, [rec]);
+  }
+
+  const findings: Finding[] = [];
+  for (const [parent, list] of byParent) {
+    const first = list[0];
+    if (!first) continue;
+    const grouped = list.length > 1 && parent !== null;
+    const minW = Math.min(...list.map((r) => r.rect.width));
+    const minH = Math.min(...list.map((r) => r.rect.height));
     findings.push({
       detector: 'small-tap-target',
       severity: 'warning',
-      title: `Tap target is ${px(width)}×${px(height)}px and too close to its neighbours`,
-      element: describe(rec.el),
-      evidence: { width: px(width), height: px(height), minimum: MIN_TARGET },
-      styles: pick(rec.style, ['width', 'height', 'padding', 'font-size', 'gap']),
-      suggestion: 'Make it at least 24×24px (44×44px is better for touch), or add space around it.',
+      title: grouped
+        ? `${list.length} tap targets are ${px(minW)}×${px(minH)}px and crowd each other`
+        : `Tap target is ${px(first.rect.width)}×${px(first.rect.height)}px and too close to its neighbours`,
+      element: describe(grouped ? parent.el : first.el),
+      ...(grouped ? { related: describe(first.el) } : {}),
+      evidence: { width: px(minW), height: px(minH), minimum: MIN_TARGET, targets: list.length },
+      styles: pick(first.style, ['width', 'height', 'padding', 'font-size']),
+      suggestion:
+        'Make each target at least 24×24px (44×44px is better for touch), or add space between them.',
     });
   }
   return findings;

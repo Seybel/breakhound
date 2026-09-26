@@ -10,6 +10,7 @@ import { RESIZE_PROBE, settlePage } from './settle';
 import { coarseWidths, Sweeper, splitWidths } from './sweep';
 import type { Issue, PageResult, ScanOptions } from './types';
 
+export { DETECTOR_IDS } from '@breakhound/analyzers/types';
 export { createScanResult, type ResultMeta } from './result';
 export type * from './types';
 

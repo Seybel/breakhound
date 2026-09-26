@@ -9,7 +9,7 @@
     "packages/cli"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.16"
   },
   "scripts": {
     "build:analyzers": "node packages/analyzers/build.mjs",
