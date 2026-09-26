@@ -1,0 +1,12 @@
+{
+  "name": "@breakhound/analyzers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "In-page layout detectors for breakhound. Pure DOM, no Node APIs.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./inject": "./dist/inject.js"
+  },
+  "license": "MIT"
+}
