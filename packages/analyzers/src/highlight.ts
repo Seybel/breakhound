@@ -1,3 +1,5 @@
+import { resolveSelector } from './selector';
+
 const OVERLAY_ATTR = 'data-breakhound-overlay';
 
 export interface HighlightOptions {
@@ -17,12 +19,7 @@ export interface Region {
 }
 
 function find(selector: string | null): Element | null {
-  if (!selector) return null;
-  try {
-    return document.querySelector(selector);
-  } catch {
-    return null;
-  }
+  return selector ? resolveSelector(selector) : null;
 }
 
 function overlay(style: Partial<CSSStyleDeclaration>): void {

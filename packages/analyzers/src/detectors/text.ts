@@ -51,12 +51,26 @@ function findClipper(
   return null;
 }
 
+/** Clipping containers that show at least some of their text. */
+function clippersWithVisibleText(snap: Snapshot): Set<ElementRecord> {
+  const out = new Set<ElementRecord>();
+  for (const rec of snap.records) {
+    if (!rec.textRect) continue;
+    for (let p = rec.parent; p; p = p.parent) {
+      if (out.has(p)) break;
+      if (clipsOn(p.style, 'y')) out.add(p);
+    }
+  }
+  return out;
+}
+
 /**
- * Text partly hidden by a container with overflow hidden and a fixed size.
- * Deliberate truncation (ellipsis, line-clamp), scrollable containers, sliders
- * and full-width wrappers (reported as page overflow) are skipped. The engine
- * additionally drops clips that already exist at the widest width, since those
- * are part of the design rather than a responsive bug.
+ * Text hidden by a container with overflow hidden and a fixed size, whether a
+ * line is cut in half or whole paragraphs are pushed below the bottom edge.
+ * Deliberate truncation (ellipsis, line-clamp), scrollable containers, sliders,
+ * collapsed panels and full-width wrappers (reported as page overflow) are
+ * skipped. The engine additionally drops clips that already exist at the widest
+ * width, since those are part of the design rather than a responsive bug.
  */
 export function clippedText(snap: Snapshot): Finding[] {
   const byClipper = new Map<
@@ -64,18 +78,32 @@ export function clippedText(snap: Snapshot): Finding[] {
     { rec: ElementRecord; axis: 'x' | 'y'; cut: number; count: number }
   >();
   const vw = snap.viewportWidth;
+  let showing: Set<ElementRecord> | null = null;
 
   for (const rec of snap.records) {
     const raw = rec.rawTextRect;
     if (!raw || rec.outOfFlow === 'fixed' || isVisuallyHidden(rec)) continue;
     const visible = intersectBox(raw, rec.innerClip);
-    if (!visible) continue; // fully hidden on purpose (collapsed panel, off-screen slide)
-    const cutX = raw.width - visible.width;
-    const cutY = raw.height - visible.height;
-    const axis = cutY > CUT_TOLERANCE ? 'y' : cutX > CUT_TOLERANCE ? 'x' : null;
-    if (!axis) continue;
-
-    const clipper = findClipper(rec, raw, axis);
+    let axis: 'x' | 'y' | null;
+    let clipper: ElementRecord | null;
+    let cut: number;
+    if (visible) {
+      const cutX = raw.width - visible.width;
+      const cutY = raw.height - visible.height;
+      axis = cutY > CUT_TOLERANCE ? 'y' : cutX > CUT_TOLERANCE ? 'x' : null;
+      if (!axis) continue;
+      clipper = findClipper(rec, raw, axis);
+      cut = axis === 'x' ? cutX : cutY;
+    } else {
+      // Entirely hidden. Only a problem when it was pushed out below content
+      // that is still showing; otherwise it's a collapsed panel or a hidden slide.
+      axis = 'y';
+      clipper = findClipper(rec, raw, 'y');
+      if (!clipper || raw.top < clipper.rect.bottom - CUT_TOLERANCE) continue;
+      showing ??= clippersWithVisibleText(snap);
+      if (!showing.has(clipper)) continue;
+      cut = raw.bottom - clipper.rect.bottom;
+    }
     if (!clipper || scrollsOn(clipper.style, axis) || clipper.rect.height < 2) continue;
     if (axis === 'x' && clipper.rect.left <= 1 && clipper.rect.right >= vw - 1) continue;
 
@@ -89,7 +117,6 @@ export function clippedText(snap: Snapshot): Finding[] {
     }
     if (deliberate) continue;
 
-    const cut = axis === 'x' ? cutX : cutY;
     const prev = byClipper.get(clipper);
     if (prev) {
       prev.count++;
@@ -105,9 +132,9 @@ export function clippedText(snap: Snapshot): Finding[] {
     findings.push({
       detector: 'clipped-text',
       severity: 'warning',
-      title: `Text is cut off by its container (${px(cut)}px hidden ${axis === 'y' ? 'below' : 'to the side'})`,
-      element: describe(rec.el),
-      related: describe(clipper.el),
+      title: `Container cuts off its text (${px(cut)}px hidden ${axis === 'y' ? 'below' : 'to the side'})`,
+      element: describe(clipper.el),
+      related: describe(rec.el),
       evidence: { hiddenPx: px(cut), axis, clippedTextElements: count },
       styles: pick(clipper.style, [
         'height',
@@ -186,9 +213,10 @@ export function tinyText(snap: Snapshot): Finding[] {
     findings.push({
       detector: 'tiny-text',
       severity: 'info',
-      title: grouped
-        ? `${g.count} pieces of text are ${size}px on small screens`
-        : `Text is ${size}px on small screens`,
+      title:
+        g.count > 1
+          ? `${g.count} pieces of text are ${size}px on small screens`
+          : `Text is ${size}px on small screens`,
       element: describe(grouped ? parent.el : g.rec.el),
       ...(grouped ? { related: describe(g.rec.el) } : {}),
       evidence: { fontSizePx: size, textElements: g.count },

@@ -73,6 +73,8 @@ export interface Snapshot {
   rootClipsX: boolean;
   /** The document is wider than the viewport. */
   rootScrollsX: boolean;
+  /** Right-to-left page: it scrolls sideways towards the left, not the right. */
+  rtl: boolean;
   scrollWidth: number;
   records: ElementRecord[];
   byElement: Map<Element, ElementRecord>;
@@ -133,6 +135,50 @@ const LEAF_TAGS = new Set([
   'VIDEO',
   'CANVAS',
 ]);
+
+/**
+ * Children as they are rendered: a shadow host shows its shadow tree, and a
+ * <slot> shows the light DOM elements assigned to it (or its fallback content).
+ */
+export function renderedChildren(el: Element): Element[] {
+  if (el.shadowRoot) return Array.from(el.shadowRoot.children);
+  if (el instanceof HTMLSlotElement) {
+    const assigned = el.assignedElements({ flatten: true });
+    if (assigned.length) return assigned;
+  }
+  return Array.from(el.children);
+}
+
+/** Parent in the rendered tree, crossing out of shadow roots and slots. */
+export function composedParent(el: Element): Element | null {
+  if (el.assignedSlot) return el.assignedSlot;
+  if (el.parentElement) return el.parentElement;
+  const root = el.parentNode;
+  return root instanceof ShadowRoot ? root.host : null;
+}
+
+/** Like Element.closest, but continues up through shadow hosts. */
+export function closestComposed(el: Element, selector: string): Element | null {
+  for (let p: Element | null = el; p; p = composedParent(p)) {
+    if (p.matches(selector)) return p;
+  }
+  return null;
+}
+
+/** Every open shadow root in the document, outermost first. */
+export function shadowRoots(): ShadowRoot[] {
+  const out: ShadowRoot[] = [];
+  const walk = (root: Document | ShadowRoot) => {
+    for (const el of root.querySelectorAll('*')) {
+      if (el.shadowRoot) {
+        out.push(el.shadowRoot);
+        walk(el.shadowRoot);
+      }
+    }
+  };
+  walk(document);
+  return out;
+}
 
 export function toBox(r: DOMRect | DOMRectReadOnly): Box {
   return {
@@ -238,7 +284,7 @@ export function snapshot(): Snapshot {
     const style = getComputedStyle(el);
     if (!isRendered(el, style)) return;
     if (style.display === 'contents') {
-      for (const child of el.children) visit(child, parent, depth);
+      for (const child of renderedChildren(el)) visit(child, parent, depth);
       return;
     }
 
@@ -280,11 +326,11 @@ export function snapshot(): Snapshot {
     byElement.set(el, rec);
 
     if (LEAF_TAGS.has(el.tagName)) return;
-    for (const child of el.children) visit(child, rec, depth + 1);
+    for (const child of renderedChildren(el)) visit(child, rec, depth + 1);
   };
 
   if (body) {
-    for (const child of body.children) visit(child, null, 1);
+    for (const child of renderedChildren(body)) visit(child, null, 1);
   }
 
   return {
@@ -292,10 +338,28 @@ export function snapshot(): Snapshot {
     viewportHeight: html.clientHeight,
     rootClipsX,
     rootScrollsX: !rootClipsX && scrollWidth > viewportWidth,
+    rtl: bodyStyle.direction === 'rtl',
     scrollWidth,
     records,
     byElement,
   };
+}
+
+/** Moved out of normal flow on purpose: negative margins, transforms, relative offsets. */
+export function isDeliberateOffset(rec: ElementRecord): boolean {
+  const s = rec.style;
+  if ((Number.parseFloat(s.marginLeft) || 0) < 0) return true;
+  if ((Number.parseFloat(s.marginRight) || 0) < 0) return true;
+  if ((Number.parseFloat(s.marginTop) || 0) < 0) return true;
+  if ((Number.parseFloat(s.marginBottom) || 0) < 0) return true;
+  if (s.transform && s.transform !== 'none') return true;
+  if (
+    s.position === 'relative' &&
+    ((s.top !== 'auto' && s.top !== '0px') || (s.left !== 'auto' && s.left !== '0px'))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /** Content box (inside border and padding) of an element record. */

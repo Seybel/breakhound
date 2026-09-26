@@ -2,6 +2,7 @@ import {
   type Box,
   type ElementRecord,
   intersectBox,
+  isDeliberateOffset,
   isVisuallyHidden,
   px,
   type Snapshot,
@@ -11,6 +12,8 @@ import type { Finding } from '../types';
 import { pick } from './page-overflow';
 
 const MIN_OVERLAP = 4;
+/** Height of the page slices used to find candidate pairs quickly. */
+const BAND_PX = 200;
 /** Text must be covered by this share of one line's height, so tight line-height descenders don't count. */
 const MIN_TEXT_LINE_SHARE = 0.3;
 
@@ -50,23 +53,6 @@ function ancestors(rec: ElementRecord): ElementRecord[] {
   return chain;
 }
 
-/** A layout technique that overlaps on purpose. */
-function isDeliberate(rec: ElementRecord): boolean {
-  const s = rec.style;
-  if ((Number.parseFloat(s.marginLeft) || 0) < 0) return true;
-  if ((Number.parseFloat(s.marginRight) || 0) < 0) return true;
-  if ((Number.parseFloat(s.marginTop) || 0) < 0) return true;
-  if ((Number.parseFloat(s.marginBottom) || 0) < 0) return true;
-  if (s.transform && s.transform !== 'none') return true;
-  if (
-    s.position === 'relative' &&
-    ((s.top !== 'auto' && s.top !== '0px') || (s.left !== 'auto' && s.left !== '0px'))
-  ) {
-    return true;
-  }
-  return false;
-}
-
 function isExplicitlyPlacedGridItem(rec: ElementRecord): boolean {
   const s = rec.style;
   return s.gridRowStart !== 'auto' || s.gridColumnStart !== 'auto';
@@ -89,8 +75,8 @@ function branches(a: ElementRecord, b: ElementRecord): Branches | null {
   if (!branchA || !branchB) return null;
   const lca = i > 0 ? (chainA[i - 1] ?? null) : null;
   // Anything between the item and the split point that overlaps deliberately excuses the pair.
-  for (const rec of chainA.slice(i)) if (isDeliberate(rec)) return null;
-  for (const rec of chainB.slice(i)) if (isDeliberate(rec)) return null;
+  for (const rec of chainA.slice(i)) if (isDeliberateOffset(rec)) return null;
+  for (const rec of chainB.slice(i)) if (isDeliberateOffset(rec)) return null;
   if (lca?.style.display.includes('grid')) {
     if (isExplicitlyPlacedGridItem(branchA) && isExplicitlyPlacedGridItem(branchB)) return null;
   }
@@ -118,8 +104,6 @@ export function overlap(snap: Snapshot): Finding[] {
     const isText = !REPLACED.has(rec.el.tagName);
     items.push({ rec, box, lineHeight: isText ? box.height / Math.max(1, rec.textLines) : 0 });
   }
-  items.sort((x, y) => x.box.left - y.box.left);
-
   const groups = new Map<
     string,
     { a: ElementRecord; b: ElementRecord; w: number; h: number; pairs: number }
@@ -127,33 +111,47 @@ export function overlap(snap: Snapshot): Finding[] {
   const index = new Map<ElementRecord, number>();
   for (const [i, r] of snap.records.entries()) index.set(r, i);
 
-  for (let i = 0; i < items.length; i++) {
-    const x = items[i];
-    if (!x) continue;
-    for (let j = i + 1; j < items.length; j++) {
-      const y = items[j];
-      if (!y) continue;
-      if (y.box.left >= x.box.right - MIN_OVERLAP) break;
-      const { w, h } = intersect(x.box, y.box);
-      const minH = Math.max(
-        MIN_OVERLAP,
-        MIN_TEXT_LINE_SHARE * Math.max(x.lineHeight, y.lineHeight),
-      );
-      if (w < MIN_OVERLAP || h < minH) continue;
-      const split = branches(x.rec, y.rec);
-      if (!split) continue;
-      const [first, second] =
-        (index.get(split.a) ?? 0) < (index.get(split.b) ?? 0)
-          ? [split.a, split.b]
-          : [split.b, split.a];
-      const key = `${index.get(first)}:${index.get(second)}`;
-      const g = groups.get(key);
-      if (g) {
-        g.w = Math.max(g.w, w);
-        g.h = Math.max(g.h, h);
-        g.pairs++;
-      } else {
-        groups.set(key, { a: first, b: second, w, h, pairs: 1 });
+  // Only items sharing a horizontal band of the page can overlap. Each pair is
+  // examined in the band where the lower of the two tops falls, so exactly once.
+  const bands = new Map<number, Item[]>();
+  for (const item of items) {
+    const last = Math.floor(item.box.bottom / BAND_PX);
+    for (let b = Math.floor(item.box.top / BAND_PX); b <= last; b++) {
+      const list = bands.get(b);
+      if (list) list.push(item);
+      else bands.set(b, [item]);
+    }
+  }
+
+  for (const [band, list] of bands) {
+    list.sort((x, y) => x.box.left - y.box.left);
+    for (let i = 0; i < list.length; i++) {
+      const x = list[i] as Item;
+      for (let j = i + 1; j < list.length; j++) {
+        const y = list[j] as Item;
+        if (y.box.left >= x.box.right - MIN_OVERLAP) break;
+        if (Math.floor(Math.max(x.box.top, y.box.top) / BAND_PX) !== band) continue;
+        const { w, h } = intersect(x.box, y.box);
+        const minH = Math.max(
+          MIN_OVERLAP,
+          MIN_TEXT_LINE_SHARE * Math.max(x.lineHeight, y.lineHeight),
+        );
+        if (w < MIN_OVERLAP || h < minH) continue;
+        const split = branches(x.rec, y.rec);
+        if (!split) continue;
+        const [first, second] =
+          (index.get(split.a) ?? 0) < (index.get(split.b) ?? 0)
+            ? [split.a, split.b]
+            : [split.b, split.a];
+        const key = `${index.get(first)}:${index.get(second)}`;
+        const g = groups.get(key);
+        if (g) {
+          g.w = Math.max(g.w, w);
+          g.h = Math.max(g.h, h);
+          g.pairs++;
+        } else {
+          groups.set(key, { a: first, b: second, w, h, pairs: 1 });
+        }
       }
     }
   }

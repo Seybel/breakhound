@@ -1,4 +1,10 @@
-import { type ElementRecord, isVisuallyHidden, type Snapshot } from '../dom';
+import {
+  closestComposed,
+  type ElementRecord,
+  isVisuallyHidden,
+  renderedChildren,
+  type Snapshot,
+} from '../dom';
 import { describe } from '../selector';
 import type { WrapStat } from '../types';
 
@@ -21,7 +27,7 @@ function inlineChildren(
   byElement: Map<Element, ElementRecord>,
 ): ElementRecord[] {
   const out: ElementRecord[] = [];
-  for (const child of rec.el.children) {
+  for (const child of renderedChildren(rec.el)) {
     const c = byElement.get(child);
     if (!c || c.outOfFlow || isVisuallyHidden(c)) continue;
     out.push(c);
@@ -53,6 +59,9 @@ function textLinesDeep(el: Element): number {
   const range = document.createRange();
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.textContent?.trim()) continue;
+    // Screen-reader-only text is squeezed into a 1px box and would count as many lines.
+    const box = node.parentElement?.getBoundingClientRect();
+    if (box && (box.width <= 1 || box.height <= 1)) continue;
     range.selectNodeContents(node);
     for (const r of range.getClientRects()) {
       if (r.width === 0 || r.height === 0) continue;
@@ -76,7 +85,7 @@ export function wrapStats(snap: Snapshot): WrapStat[] {
     const children = inlineChildren(rec, snap.byElement);
     if (children.length >= 2 && (isRowContainer(rec) || allInlineLevel(children))) {
       // Chip lists and button groups wrap by design; navigation rows almost never should.
-      if (rec.el.closest(NAV_CONTEXT)) {
+      if (closestComposed(rec.el, NAV_CONTEXT)) {
         stats.push({
           element: describe(rec.el),
           kind: 'row',
@@ -87,7 +96,8 @@ export function wrapStats(snap: Snapshot): WrapStat[] {
     }
 
     const isLabel =
-      rec.el.matches(LABEL) || (rec.el.matches('a[href]') && rec.el.closest(NAV_CONTEXT) !== null);
+      rec.el.matches(LABEL) ||
+      (rec.el.matches('a[href]') && closestComposed(rec.el, NAV_CONTEXT) !== null);
     if (isLabel) {
       const text = rec.el.textContent?.replace(/\s+/g, ' ').trim() ?? '';
       if (text && text.length <= MAX_LABEL_CHARS && text.includes(' ')) {

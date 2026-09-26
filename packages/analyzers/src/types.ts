@@ -51,6 +51,8 @@ export interface Finding {
   styles: Record<string, string>;
   /** Plain-language hint at the likely fix. */
   suggestion?: string;
+  /** Selectors of the element's ancestors, nearest first, so nested findings can be merged. */
+  lineage?: string[];
 }
 
 /** Line counts for elements that should normally stay on one line. */

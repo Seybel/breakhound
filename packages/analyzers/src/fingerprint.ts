@@ -1,4 +1,4 @@
-import type { ElementRecord, Snapshot } from './dom';
+import { type ElementRecord, type Snapshot, shadowRoots } from './dom';
 
 const LANDMARKS = new Set([
   'HEADER',
@@ -81,37 +81,53 @@ export function layoutSignature(snap: Snapshot, index: (el: Element) => string):
   return parts.join('|');
 }
 
-/** Widths at which the CSS declares a change, from min-width/max-width media and container queries. */
+/** Media queries resolve em and rem against the browser default, not the page's root font size. */
+const MEDIA_EM = 16;
+
+/**
+ * Widths at which the CSS declares a change, from min-width/max-width and
+ * range syntax media queries, in documents, shadow roots and adopted sheets.
+ */
 export function declaredBreakpoints(): number[] {
   const found = new Set<number>();
-  const rootFont = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-
   const toPx = (value: string, unit: string) =>
-    unit === 'px'
-      ? Number.parseFloat(value)
-      : Number.parseFloat(value) * (unit === 'rem' ? rootFont : 16);
+    Number.parseFloat(value) * (unit === 'px' ? 1 : MEDIA_EM);
+  // A change "after" w (max-width: 767px, width > 767px) shows up at the next whole pixel.
+  const after = (w: number) => Math.floor(w) + 1;
 
   const read = (text: string) => {
-    const re = /(min|max)-width\s*:\s*([\d.]+)(px|em|rem)/g;
-    for (let m = re.exec(text); m; m = re.exec(text)) {
+    const legacy = /(min|max)-width\s*:\s*([\d.]+)(px|em|rem)/g;
+    for (let m = legacy.exec(text); m; m = legacy.exec(text)) {
       const [, kind, value = '0', unit = 'px'] = m;
       const w = toPx(value, unit);
-      // max-width: 767px means the layout changes at 768.
-      found.add(Math.round(kind === 'max' ? Math.floor(w) + 1 : w));
+      found.add(Math.round(kind === 'max' ? after(w) : w));
     }
+    // width >= 48rem, width < 768px
     const range = /width\s*(>=|>|<=|<)\s*([\d.]+)(px|em|rem)/g;
     for (let m = range.exec(text); m; m = range.exec(text)) {
       const [, op, value = '0', unit = 'px'] = m;
       const w = toPx(value, unit);
-      found.add(Math.round(op === '<=' || op === '>' ? Math.floor(w) + 1 : w));
+      found.add(Math.round(op === '<=' || op === '>' ? after(w) : w));
+    }
+    // 48rem <= width, 768px > width
+    const reversed = /([\d.]+)(px|em|rem)\s*(>=|>|<=|<)\s*width/g;
+    for (let m = reversed.exec(text); m; m = reversed.exec(text)) {
+      const [, value = '0', unit = 'px', op] = m;
+      const w = toPx(value, unit);
+      found.add(Math.round(op === '<' || op === '>=' ? after(w) : w));
     }
   };
 
   const walk = (rules: CSSRuleList) => {
     for (const rule of rules) {
+      if (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule) {
+        // Container queries depend on container size, not the viewport.
+        continue;
+      }
       if (rule instanceof CSSMediaRule) read(rule.conditionText ?? rule.media.mediaText);
-      else if (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule) {
-        // Container queries depend on container size, not viewport; not viewport breakpoints.
+      else if (rule instanceof CSSImportRule) {
+        read(rule.media.mediaText);
+        readSheet(rule.styleSheet);
         continue;
       }
       if ('cssRules' in rule && (rule as CSSGroupingRule).cssRules)
@@ -119,12 +135,21 @@ export function declaredBreakpoints(): number[] {
     }
   };
 
-  for (const sheet of document.styleSheets) {
+  const readSheet = (sheet: CSSStyleSheet | null) => {
+    if (!sheet) return;
+    // <link media="(min-width: 768px)">
+    read(sheet.media.mediaText);
     try {
       walk(sheet.cssRules);
     } catch {
       // Cross-origin stylesheet; its rules are not readable.
     }
+  };
+
+  const roots: (Document | ShadowRoot)[] = [document, ...shadowRoots()];
+  for (const root of roots) {
+    for (const sheet of root.styleSheets) readSheet(sheet);
+    for (const sheet of root.adoptedStyleSheets ?? []) readSheet(sheet);
   }
   return [...found].filter((w) => w > 0).sort((a, b) => a - b);
 }

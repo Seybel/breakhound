@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixed-height cards spill out of the bottom</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.profile { border: 1px solid #ccc; padding: 12px; margin: 56px 16px 16px; }
+.avatar { width: 64px; height: 64px; border-radius: 50%; background: #99f; margin-top: -44px; }
+.offer { border: 1px solid #ccc; padding: 12px; margin: 16px 16px 48px; height: 90px; }
+.offer .cta { display: block; transform: translateY(40px); margin-top: 8px; }
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 16px 400px; }
+.plan { height: 150px; border: 1px solid #ccc; padding: 12px; }
+.plan h3, .plan p { margin: 0 0 8px; }
+@media (max-width: 599px) { .plans { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body data-breakhound-ignore="edge-gutter">
+<!-- The avatar is pulled up out of its card on purpose. -->
+<section class="profile"><div class="avatar"></div><p>Ada Lovelace</p></section>
+<!-- The button is shifted half out of the box on purpose. -->
+<section class="offer"><strong>Spring offer</strong><a class="cta" href="#">Claim it</a></section>
+<section class="plans">
+  <div class="plan"><h3>Basic</h3><p>For one person.</p></div>
+  <div class="plan"><h3>Team</h3><p data-bh-expect="content-overflow">Everything in Basic, plus shared projects, roles and permissions, audit history and priority support for your whole team.</p></div>
+  <div class="plan"><h3>Custom</h3><p>Talk to us.</p></div>
+</section>
+</body>
+</html>

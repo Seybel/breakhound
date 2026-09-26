@@ -6,7 +6,7 @@ import {
   px,
   type Snapshot,
 } from '../dom';
-import { describe } from '../selector';
+import { describe, lineage } from '../selector';
 import type { Finding } from '../types';
 
 /** Ignore sub-pixel rounding, but a real 1px horizontal scroll is still a bug. */
@@ -103,7 +103,9 @@ export function pageOverflow(snap: Snapshot): Finding[] {
     const amount = px(Math.max(overflowRight, overflowLeft));
     if (amount < 1) continue;
 
-    const scrolls = side === 'right' && (edge.kind === 'root' ? snap.rootScrollsX : edge.scrolls);
+    // Content past the start edge can't be scrolled to; past the end edge it adds a scrollbar.
+    const endSide = snap.rtl ? 'left' : 'right';
+    const scrolls = side === endSide && (edge.kind === 'root' ? snap.rootScrollsX : edge.scrolls);
     // Decorative shapes bleeding off an edge are intentional unless they cause a scrollbar.
     if (!scrolls && rec.outOfFlow === 'absolute' && isDecorative(rec.el)) continue;
     const textOnly = rec.rect.right <= vw + TOLERANCE && rec.rect.left >= -TOLERANCE;
@@ -120,6 +122,7 @@ export function pageOverflow(snap: Snapshot): Finding[] {
       severity: scrolls ? 'error' : 'warning',
       title,
       element: describe(rec.el),
+      lineage: lineage(rec.el),
       ...(edge.kind === 'wrapper' ? { related: describe(edge.container.el) } : {}),
       evidence: {
         overflowPx: amount,
@@ -178,7 +181,11 @@ const CONTENT_SELECTOR = 'img,video,canvas,iframe,input,button,select,textarea,a
 export function isDecorative(el: Element): boolean {
   if (el.matches(CONTENT_SELECTOR)) return false;
   if (el.textContent?.trim()) return false;
-  return !el.querySelector(CONTENT_SELECTOR);
+  if (el.querySelector(CONTENT_SELECTOR)) return false;
+  // A web component draws its content in a shadow root we can't see from here.
+  if (el.shadowRoot) return false;
+  for (const child of el.querySelectorAll('*')) if (child.shadowRoot) return false;
+  return true;
 }
 
 /** Browser defaults that tell nobody anything about why a layout broke. */

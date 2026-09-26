@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en" style="font-size: 62.5%">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breakpoints in rem with a small root font</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 1.6rem; line-height: 1.4; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
+.grid > div { border: 1px solid #ddd; padding: 16px; }
+/* Media queries use the browser's 16px, not the 10px root font: 48rem is 768px. */
+@media (min-width: 48rem) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (1024px <= width) { .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+</style>
+</head>
+<body data-bh-breakpoints="768,1024">
+<section class="grid"><div>One</div><div>Two</div><div>Three</div></section>
+</body>
+</html>

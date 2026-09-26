@@ -1,3 +1,4 @@
+import { composedParent } from './dom';
 import type { ElementInfo } from './types';
 
 const cache = new WeakMap<Element, ElementInfo>();
@@ -50,24 +51,31 @@ function segment(el: Element, withClasses: boolean, withNth: boolean): string {
     s += usefulClasses(el)
       .map((c) => `.${cssEscape(c)}`)
       .join('');
-  if (withNth && el.parentElement) {
-    const same = Array.from(el.parentElement.children).filter((c) => c.tagName === el.tagName);
+  if (withNth) {
+    const siblings = el.parentElement?.children ?? el.parentNode?.children;
+    const same = Array.from(siblings ?? []).filter((c) => c.tagName === el.tagName);
     if (same.length > 1) s += `:nth-of-type(${same.indexOf(el) + 1})`;
   }
   return s;
 }
 
-function isUnique(selector: string, el: Element): boolean {
+type Root = Document | ShadowRoot;
+
+function isUnique(selector: string, el: Element, root: Root): boolean {
   try {
-    const found = document.querySelectorAll(selector);
+    const found = root.querySelectorAll(selector);
     return found.length === 1 && found[0] === el;
   } catch {
     return false;
   }
 }
 
-export function selectorFor(el: Element): string {
-  if (el.id && isStableId(el.id) && isUnique(`#${cssEscape(el.id)}`, el))
+/** Separates the host's selector from the selector inside its shadow root. */
+export const SHADOW_SEPARATOR = ' >>> ';
+
+/** Shortest unique selector for `el` within its own document or shadow root. */
+function selectorWithin(el: Element, root: Root): string {
+  if (el.id && isStableId(el.id) && isUnique(`#${cssEscape(el.id)}`, el, root))
     return `#${cssEscape(el.id)}`;
 
   const parts: string[] = [];
@@ -76,7 +84,7 @@ export function selectorFor(el: Element): string {
     if (current !== el && current.id && isStableId(current.id)) {
       parts.unshift(`#${cssEscape(current.id)}`);
       const candidate = parts.join(' > ');
-      if (isUnique(candidate, el)) return candidate;
+      if (isUnique(candidate, el, root)) return candidate;
       parts.shift();
     }
     // Try the cheapest segment that makes the chain unique.
@@ -85,12 +93,65 @@ export function selectorFor(el: Element): string {
       [true, true],
     ] as const) {
       const candidate = [segment(current, cls, nth), ...parts].join(' > ');
-      if (isUnique(candidate, el)) return candidate;
+      if (isUnique(candidate, el, root)) return candidate;
     }
     parts.unshift(segment(current, true, true));
     current = current.parentElement;
   }
   return parts.join(' > ');
+}
+
+/**
+ * A selector that finds `el` again. Inside a shadow root it is the host's
+ * selector and the inner selector joined by " >>> ".
+ */
+export function selectorFor(el: Element): string {
+  const root = el.getRootNode();
+  if (root instanceof ShadowRoot) {
+    return `${selectorFor(root.host)}${SHADOW_SEPARATOR}${selectorWithin(el, root)}`;
+  }
+  return selectorWithin(el, document);
+}
+
+const selectors = new WeakMap<Element, string>();
+
+/** selectorFor, computed once per element: stable across widths and cheap to repeat. */
+export function cachedSelector(el: Element): string {
+  let s = selectors.get(el);
+  if (s === undefined) {
+    s = selectorFor(el);
+    selectors.set(el, s);
+  }
+  return s;
+}
+
+/** Selectors of an element's ancestors below <body>, nearest first. */
+export function lineage(el: Element, max = 16): string[] {
+  const out: string[] = [];
+  for (
+    let p = composedParent(el);
+    p && p !== document.body && out.length < max;
+    p = composedParent(p)
+  ) {
+    out.push(cachedSelector(p));
+  }
+  return out;
+}
+
+/** Resolves a selector made by selectorFor, entering shadow roots at each " >>> ". */
+export function resolveSelector(selector: string): Element | null {
+  let root: Root | null = document;
+  let found: Element | null = null;
+  for (const part of selector.split(SHADOW_SEPARATOR)) {
+    if (!root) return null;
+    try {
+      found = root.querySelector(part);
+    } catch {
+      return null;
+    }
+    root = found?.shadowRoot ?? null;
+  }
+  return found;
 }
 
 function readablePath(el: Element): string {
@@ -99,19 +160,21 @@ function readablePath(el: Element): string {
   while (current && current !== document.body && parts.length < 4) {
     const cls = usefulClasses(current)[0];
     parts.unshift(current.tagName.toLowerCase() + (cls ? `.${cls}` : ''));
-    current = current.parentElement;
+    current = composedParent(current);
   }
   return parts.join(' > ');
 }
 
+/** The element's opening tag, with long attribute values shortened. */
 function openingTag(el: Element): string {
-  const html = el.outerHTML;
-  const end = html.indexOf('>');
-  const tag = (end === -1 ? html : html.slice(0, end + 1)).replace(
-    /="([^"]{60})[^"]+"/g,
-    (_, head: string) => `="${head}..."`,
-  );
-  return tag.length > 200 ? `${tag.slice(0, 197)}...>` : tag;
+  const tag = el.tagName.toLowerCase();
+  let out = `<${tag}`;
+  for (const attr of el.attributes) {
+    const value = attr.value.length > 60 ? `${attr.value.slice(0, 60)}...` : attr.value;
+    out += value ? ` ${attr.name}="${value.replace(/"/g, '&quot;')}"` : ` ${attr.name}`;
+  }
+  out += '>';
+  return out.length > 200 ? `${out.slice(0, 197)}...>` : out;
 }
 
 export function describe(el: Element): ElementInfo {
@@ -119,7 +182,7 @@ export function describe(el: Element): ElementInfo {
   if (cached) return cached;
   const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
   const info: ElementInfo = {
-    selector: selectorFor(el),
+    selector: cachedSelector(el),
     path: readablePath(el),
     html: openingTag(el),
     text: text ? (text.length > 80 ? `${text.slice(0, 77)}...` : text) : null,

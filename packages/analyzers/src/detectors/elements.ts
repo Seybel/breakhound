@@ -129,6 +129,10 @@ export function smallTapTargets(snap: Snapshot): Finding[] {
   }
 
   // A toolbar of tiny icon buttons is one problem, reported once on the toolbar.
+  // Whether to group depends on the markup, not on how many fail at this width,
+  // so the issue keeps the same identity as the screen gets wider.
+  const siblings = new Map<ElementRecord | null, number>();
+  for (const rec of targets) siblings.set(rec.parent, (siblings.get(rec.parent) ?? 0) + 1);
   const byParent = new Map<ElementRecord | null, ElementRecord[]>();
   for (const rec of failing) {
     const list = byParent.get(rec.parent);
@@ -140,15 +144,16 @@ export function smallTapTargets(snap: Snapshot): Finding[] {
   for (const [parent, list] of byParent) {
     const first = list[0];
     if (!first) continue;
-    const grouped = list.length > 1 && parent !== null;
+    const grouped = parent !== null && (siblings.get(parent) ?? 0) > 1;
     const minW = Math.min(...list.map((r) => r.rect.width));
     const minH = Math.min(...list.map((r) => r.rect.height));
     findings.push({
       detector: 'small-tap-target',
       severity: 'warning',
-      title: grouped
-        ? `${list.length} tap targets are ${px(minW)}×${px(minH)}px and crowd each other`
-        : `Tap target is ${px(first.rect.width)}×${px(first.rect.height)}px and too close to its neighbours`,
+      title:
+        list.length > 1
+          ? `${list.length} tap targets are ${px(minW)}×${px(minH)}px and crowd each other`
+          : `Tap target is ${px(first.rect.width)}×${px(first.rect.height)}px and too close to its neighbours`,
       element: describe(grouped ? parent.el : first.el),
       ...(grouped ? { related: describe(first.el) } : {}),
       evidence: { width: px(minW), height: px(minH), minimum: MIN_TARGET, targets: list.length },

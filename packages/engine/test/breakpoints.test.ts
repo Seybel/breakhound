@@ -21,6 +21,13 @@ describe('behavioural breakpoints', () => {
     expect(result.breakpoints.unexplained).toEqual([]);
   });
 
+  it('reads rem media queries against 16px and understands range syntax', async () => {
+    const result = await scanPage(pathToFileURL(join(PAGES, 'clean-rem-breakpoints.html')).href);
+    expect(result.breakpoints.declared).toEqual([768, 1024]);
+    expect(result.breakpoints.observed).toEqual([768, 1024]);
+    expect(result.breakpoints.unexplained).toEqual([]);
+  });
+
   it('does not treat wrapping flex content as a breakpoint', async () => {
     const result = await scanPage(pathToFileURL(join(PAGES, 'clean-text.html')).href);
     expect(result.breakpoints.observed).toEqual([]);

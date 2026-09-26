@@ -4,9 +4,16 @@ import { overlap } from './detectors/overlap';
 import { pageOverflow } from './detectors/page-overflow';
 import { clippedText, edgeGutter, squishedText, tinyText } from './detectors/text';
 import { wrapStats } from './detectors/wrap';
-import { type Snapshot, snapshot } from './dom';
+import {
+  closestComposed,
+  composedParent,
+  DEV_OVERLAYS,
+  renderedChildren,
+  type Snapshot,
+  snapshot,
+} from './dom';
 import { declaredBreakpoints, layoutSignature } from './fingerprint';
-import { elementOf, selectorFor } from './selector';
+import { cachedSelector, elementOf, resolveSelector } from './selector';
 import {
   type AnalyzeOptions,
   type AnalyzeResult,
@@ -36,17 +43,6 @@ const DETECTORS: Record<Exclude<DetectorId, 'unexpected-wrap'>, (s: Snapshot) =>
 };
 
 const IGNORE_ATTR = 'data-breakhound-ignore';
-const signatureIds = new WeakMap<Element, string>();
-
-/** Stable per-element key for the layout signature, reused across widths. */
-function signatureId(el: Element): string {
-  let id = signatureIds.get(el);
-  if (!id) {
-    id = selectorFor(el);
-    signatureIds.set(el, id);
-  }
-  return id;
-}
 
 function parseDetectors(value: string | null): Set<string> | 'all' {
   const list = (value ?? '').split(/[\s,]+/).filter(Boolean);
@@ -65,7 +61,7 @@ function isIgnored(
   if (!info) return false;
   const el = elementOf(info);
   if (!el) return false;
-  for (let p: Element | null = el; p; p = p.parentElement) {
+  for (let p: Element | null = el; p; p = composedParent(p)) {
     if (!p.hasAttribute(IGNORE_ATTR)) continue;
     const scope = parseDetectors(p.getAttribute(IGNORE_ATTR));
     if (scope === 'all' || scope.has(detector)) return true;
@@ -73,7 +69,7 @@ function isIgnored(
   for (const rule of rules) {
     if (rule.detectors && !rule.detectors.includes(detector)) continue;
     try {
-      if (el.closest(rule.selector)) return true;
+      if (closestComposed(el, rule.selector)) return true;
     } catch {
       // An invalid selector in config shouldn't break the scan.
     }
@@ -103,10 +99,41 @@ export function analyze(options: AnalyzeOptions = {}): AnalyzeResult {
     width: snap.viewportWidth,
     findings,
     wraps,
-    signature: layoutSignature(snap, signatureId),
+    signature: layoutSignature(snap, cachedSelector),
   };
+}
+
+const MEDIA_CONTENT = new Set([
+  'IMG',
+  'SVG',
+  'svg',
+  'CANVAS',
+  'VIDEO',
+  'IFRAME',
+  'OBJECT',
+  'EMBED',
+]);
+
+/** True when the page paints any text or media, including inside shadow roots. */
+export function hasContent(): boolean {
+  const visit = (el: Element): boolean => {
+    if (el.matches(DEV_OVERLAYS)) return false;
+    if (MEDIA_CONTENT.has(el.tagName)) {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    }
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        if (range.getClientRects().length > 0) return true;
+      }
+    }
+    return renderedChildren(el).some(visit);
+  };
+  return document.body ? visit(document.body) : false;
 }
 
 export { clearHighlights, highlight } from './highlight';
 export { settleAfterResize } from './settle';
-export { declaredBreakpoints };
+export { declaredBreakpoints, resolveSelector };
