@@ -1,0 +1,15 @@
+{
+  "name": "@breakhound/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Drives a real browser across viewport widths and turns analyzer output into issues.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@breakhound/analyzers": "*",
+    "playwright": "^1.63.0"
+  },
+  "license": "MIT"
+}
