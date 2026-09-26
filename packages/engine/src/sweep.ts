@@ -1,4 +1,9 @@
-import type { AnalyzeOptions, AnalyzeResult } from '@breakhound/analyzers';
+import type {
+  AnalyzeOptions,
+  AnalyzeResult,
+  HighlightOptions,
+  Region,
+} from '@breakhound/analyzers';
 import type { Page } from 'playwright';
 import { settleResize } from './settle';
 
@@ -7,10 +12,30 @@ export type Measurements = Map<number, AnalyzeResult>;
 export interface SweepSettings {
   minWidth: number;
   maxWidth: number;
-  step: number;
   height: number;
   maxSettleMs: number;
   analyze: AnalyzeOptions;
+}
+
+/** Coarse widths from min to max (inclusive), `step` apart. */
+export function coarseWidths(minWidth: number, maxWidth: number, step: number): number[] {
+  const out: number[] = [];
+  for (let w = minWidth; w < maxWidth; w += step) out.push(w);
+  out.push(maxWidth);
+  return out;
+}
+
+/**
+ * Splits the coarse widths into contiguous chunks, one per worker. Neighbouring
+ * chunks share their boundary width so every interval is refined by someone.
+ */
+export function splitWidths(coarse: number[], workers: number): number[][] {
+  const n = Math.max(1, Math.min(workers, Math.floor(coarse.length / 4)));
+  if (n === 1) return [coarse];
+  const size = Math.ceil((coarse.length - 1) / n);
+  const chunks: number[][] = [];
+  for (let i = 0; i < coarse.length - 1; i += size) chunks.push(coarse.slice(i, i + size + 1));
+  return chunks;
 }
 
 /** Everything that, if it changes between two widths, is worth locating to the pixel. */
@@ -68,13 +93,8 @@ export class Sweeper {
     return this.keys.get(width) ?? '';
   }
 
-  /** Coarse pass, then bisect every interval whose state changed. */
-  async run(): Promise<void> {
-    const { minWidth, maxWidth, step } = this.settings;
-    const coarse: number[] = [];
-    for (let w = minWidth; w < maxWidth; w += step) coarse.push(w);
-    coarse.push(maxWidth);
-
+  /** Coarse pass over the given widths, then bisect every interval whose state changed. */
+  async run(coarse: number[]): Promise<void> {
     for (const w of coarse) await this.measure(w);
     for (let i = 0; i < coarse.length - 1; i++) {
       const a = coarse[i];
@@ -102,6 +122,8 @@ declare global {
       analyze: (options?: AnalyzeOptions) => AnalyzeResult;
       declaredBreakpoints: () => number[];
       settleAfterResize: (maxWaitMs: number) => Promise<void>;
+      highlight: (opts: HighlightOptions) => Region | null;
+      clearHighlights: () => void;
     };
   }
 }

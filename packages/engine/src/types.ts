@@ -25,6 +25,8 @@ export interface Issue {
   styles: Record<string, string>;
   /** Plain-language hint at the likely fix. */
   suggestion?: string;
+  /** Screenshot file name inside the scan's screenshot directory. */
+  screenshot?: string;
 }
 
 export interface Breakpoints {
@@ -67,4 +69,10 @@ export interface ScanOptions {
   route?: string;
   /** Elements to leave out of the scan. */
   ignore?: IgnoreRule[];
+  /** Browser tabs used to measure widths in parallel. */
+  concurrency?: number;
+  /** Where to write issue screenshots. No screenshots when omitted. */
+  screenshotDir?: string;
+  /** Most screenshots to take for one page. */
+  screenshotLimit?: number;
 }

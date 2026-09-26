@@ -1,13 +1,17 @@
-import { analyze, declaredBreakpoints, settleAfterResize } from './index';
+import {
+  analyze,
+  clearHighlights,
+  declaredBreakpoints,
+  highlight,
+  settleAfterResize,
+} from './index';
+
+const api = { analyze, declaredBreakpoints, settleAfterResize, highlight, clearHighlights };
 
 declare global {
   interface Window {
-    __breakhound?: {
-      analyze: typeof analyze;
-      declaredBreakpoints: typeof declaredBreakpoints;
-      settleAfterResize: typeof settleAfterResize;
-    };
+    __breakhound?: typeof api;
   }
 }
 
-window.__breakhound = { analyze, declaredBreakpoints, settleAfterResize };
+window.__breakhound = api;

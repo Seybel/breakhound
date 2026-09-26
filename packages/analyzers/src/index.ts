@@ -17,6 +17,7 @@ import {
   type IgnoreRule,
 } from './types';
 
+export type { HighlightOptions, Region } from './highlight';
 export type * from './types';
 export { DETECTOR_IDS };
 
@@ -106,5 +107,6 @@ export function analyze(options: AnalyzeOptions = {}): AnalyzeResult {
   };
 }
 
+export { clearHighlights, highlight } from './highlight';
 export { settleAfterResize } from './settle';
 export { declaredBreakpoints };
