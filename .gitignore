@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# Scan output, saved login sessions, local-only notes
+.breakhound/
+.private/
+CLAUDE.local.md
