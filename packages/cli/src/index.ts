@@ -54,7 +54,7 @@ function print(result: PageResult): void {
   const label = result.url.startsWith('file:')
     ? decodeURIComponent(new URL(result.url).pathname)
     : result.url;
-  if (result.status === 'error') {
+  if (result.status !== 'scanned') {
     console.log(`\n  ${styleText('red', '✖')} ${label}\n    ${result.error}`);
     return;
   }
@@ -138,7 +138,7 @@ async function main(): Promise<number> {
     ),
   );
 
-  if (result.status === 'error') return 2;
+  if (result.status !== 'scanned') return 2;
   if (failOn === 'none') return 0;
   const threshold = SEVERITY_RANK[failOn as Severity];
   return result.issues.some((i) => SEVERITY_RANK[i.severity] <= threshold) ? 1 : 0;

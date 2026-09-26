@@ -34,8 +34,13 @@ export interface Breakpoints {
 
 export interface PageResult {
   url: string;
-  status: 'scanned' | 'error';
+  /** Where the page ended up after redirects (e.g. a login page). */
+  finalUrl: string;
+  /** `empty` means the page rendered (almost) nothing, usually because it crashed. */
+  status: 'scanned' | 'empty' | 'error';
   error?: string;
+  /** Uncaught exceptions thrown by the page while it was scanned. */
+  pageErrors: string[];
   breakpoints: Breakpoints;
   issues: Issue[];
   /** Number of distinct widths that were measured. */
@@ -50,8 +55,8 @@ export interface ScanOptions {
   step?: number;
   height?: number;
   detectors?: DetectorId[];
-  /** Extra wait after each resize when the page listens for window resize events. */
-  resizeDebounceMs?: number;
+  /** Longest to wait for a page's own resize handlers (e.g. debounced ones) after each resize. */
+  maxSettleMs?: number;
   /** Max time to wait for network idle after load. */
   networkIdleMs?: number;
   /** Used to salt issue ids; defaults to the URL path. */

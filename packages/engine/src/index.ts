@@ -13,12 +13,13 @@ const DEFAULTS = {
   maxWidth: 1920,
   step: 16,
   height: 900,
-  resizeDebounceMs: 150,
+  maxSettleMs: 1000,
   networkIdleMs: 5000,
 } satisfies ScanOptions;
 
 /** Ranges this narrow get re-measured before being reported. */
 const CONFIRM_BELOW_PX = 3;
+const MAX_PAGE_ERRORS = 10;
 
 let analyzerScript: string | undefined;
 
@@ -49,19 +50,48 @@ export class Scanner {
       reducedMotion: 'reduce',
     });
 
+    const pageErrors: string[] = [];
     try {
       await context.addInitScript({ content: RESIZE_PROBE });
       await context.addInitScript({ content: loadAnalyzerScript() });
       const page = await context.newPage();
+      page.on('pageerror', (e) => {
+        if (pageErrors.length < MAX_PAGE_ERRORS)
+          pageErrors.push(e.message.split('\n')[0] ?? e.message);
+      });
       await page.goto(url, { waitUntil: 'load' });
       await settlePage(page, opts.networkIdleMs);
+
+      const rendered = await page.evaluate(() => {
+        const body = document.body;
+        if (!body) return false;
+        return (
+          body.innerText.trim().length > 0 ||
+          !!body.querySelector('img, svg, canvas, video, iframe')
+        );
+      });
+      if (!rendered) {
+        return {
+          url,
+          finalUrl: page.url(),
+          status: 'empty',
+          error: pageErrors[0]
+            ? `The page rendered nothing. It threw: ${pageErrors[0]}`
+            : 'The page rendered nothing.',
+          pageErrors,
+          breakpoints: { observed: [], declared: [], unexplained: [] },
+          issues: [],
+          measurements: 0,
+          durationMs: Date.now() - started,
+        };
+      }
 
       const sweeper = new Sweeper(page, {
         minWidth: opts.minWidth,
         maxWidth: opts.maxWidth,
         step: opts.step,
         height: opts.height,
-        resizeDebounceMs: opts.resizeDebounceMs,
+        maxSettleMs: opts.maxSettleMs,
         analyze: opts.detectors ? { detectors: opts.detectors } : {},
       });
       await sweeper.run();
@@ -73,7 +103,9 @@ export class Scanner {
       const declared = await page.evaluate(() => window.__breakhound?.declaredBreakpoints() ?? []);
       return {
         url,
+        finalUrl: page.url(),
         status: 'scanned',
+        pageErrors,
         breakpoints: buildBreakpoints(
           widths,
           sweeper.results,
@@ -88,8 +120,10 @@ export class Scanner {
     } catch (error) {
       return {
         url,
+        finalUrl: url,
         status: 'error',
         error: error instanceof Error ? error.message : String(error),
+        pageErrors,
         breakpoints: { observed: [], declared: [], unexplained: [] },
         issues: [],
         measurements: 0,
