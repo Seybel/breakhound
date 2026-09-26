@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixed-height cards cut their text</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.cards { display: flex; gap: 16px; padding: 16px; }
+.card { width: 40vw; border: 1px solid #ccc; padding: 0 8px; }
+.card p { margin: 0; }
+.fixed { height: 50px; overflow: hidden; }
+.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.teaser { height: 44px; overflow: hidden; }
+</style>
+</head>
+<body>
+<section class="cards">
+  <div class="card fixed"><p data-bh-expect="clipped-text">Our onboarding call walks your team through setup.</p></div>
+  <div class="card"><p class="clamped">A clamped description that is allowed to be cut after two lines because that is the design, even on narrow screens.</p></div>
+  <div class="card teaser"><p>This teaser is always clipped, at every width, because it is meant to fade into a read more link below it. It keeps going for a long time so that even the widest layout clips it.</p></div>
+</section>
+</body>
+</html>

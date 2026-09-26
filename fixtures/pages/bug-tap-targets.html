@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tiny crowded tap targets</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 16px; }
+.toolbar { display: flex; gap: 4px; }
+.toolbar button { width: 18px; height: 18px; padding: 0; border: 1px solid #999; background: #eee; }
+.lonely { width: 18px; height: 18px; padding: 0; margin-top: 40px; }
+label { display: block; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="toolbar">
+    <button type="button" aria-label="Bold" class="bold" data-bh-expect="small-tap-target@320-767"></button>
+    <button type="button" aria-label="Italic" class="italic" data-bh-expect="small-tap-target@320-767"></button>
+    <button type="button" aria-label="Underline" class="underline" data-bh-expect="small-tap-target@320-767"></button>
+  </div>
+  <button type="button" class="lonely" aria-label="Help"></button>
+  <p>Read the <a href="#terms">terms of service</a> before you continue with the rest of the form.</p>
+  <label><input type="checkbox"> Remember me</label>
+</main>
+</body>
+</html>

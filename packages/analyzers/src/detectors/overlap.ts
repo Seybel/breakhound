@@ -167,6 +167,8 @@ export function overlap(snap: Snapshot): Finding[] {
       element: describe(g.a.el),
       related: describe(g.b.el),
       evidence: { overlapWidth: px(g.w), overlapHeight: px(g.h), overlappingPairs: g.pairs },
+      suggestion:
+        'These two areas stop making room for each other at this width. Stack them earlier with a media query, or let the narrower one shrink (min-width: 0).',
       styles: pick(g.a.style, [
         'display',
         'position',

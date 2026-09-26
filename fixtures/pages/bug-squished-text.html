@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Column squeezed until words break</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.row { display: grid; grid-template-columns: 1fr 9vw; gap: 8px; padding: 16px; }
+.status { overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<div class="row">
+  <div>Invoice 2041 for annual plan</div>
+  <div class="status" data-bh-expect="squished-text">Overdue payment</div>
+</div>
+</body>
+</html>

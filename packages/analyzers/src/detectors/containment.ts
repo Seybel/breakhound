@@ -11,7 +11,7 @@ import {
 } from '../dom';
 import { describe } from '../selector';
 import type { Finding } from '../types';
-import { pick } from './page-overflow';
+import { pick, shrinkSuggestion } from './page-overflow';
 
 const TOLERANCE = 1;
 const MEDIA = new Set(['IMG', 'VIDEO', 'IFRAME', 'CANVAS', 'EMBED', 'OBJECT', 'svg', 'PICTURE']);
@@ -83,6 +83,7 @@ export function contentOverflow(snap: Snapshot): Finding[] {
       rec.rect.right <= container.rect.right + TOLERANCE &&
       rec.rect.left >= container.rect.left - TOLERANCE;
     findings.push({
+      suggestion: shrinkSuggestion(rec, textOnly),
       detector: 'content-overflow',
       severity: 'error',
       title: textOnly
@@ -147,6 +148,7 @@ export function mediaOverflow(snap: Snapshot): Finding[] {
         containerWidth: px(box.width),
       },
       styles: pick(rec.style, ['width', 'min-width', 'max-width', 'height', 'object-fit']),
+      suggestion: 'Add max-width: 100% and height: auto so it scales down with its container.',
     });
   }
   return findings;

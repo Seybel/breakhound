@@ -5,7 +5,29 @@ export type DetectorId =
   | 'content-overflow'
   | 'media-overflow'
   | 'overlap'
-  | 'unexpected-wrap';
+  | 'unexpected-wrap'
+  | 'clipped-text'
+  | 'squished-text'
+  | 'distorted-media'
+  | 'small-tap-target'
+  | 'tiny-text'
+  | 'edge-gutter'
+  | 'viewport-meta';
+
+export const DETECTOR_IDS: readonly DetectorId[] = [
+  'page-overflow',
+  'content-overflow',
+  'media-overflow',
+  'overlap',
+  'unexpected-wrap',
+  'clipped-text',
+  'squished-text',
+  'distorted-media',
+  'small-tap-target',
+  'tiny-text',
+  'edge-gutter',
+  'viewport-meta',
+];
 
 export interface ElementInfo {
   /** Shortest unique CSS selector, stable across viewport widths. */
@@ -27,6 +49,8 @@ export interface Finding {
   /** Detector specific numbers, e.g. `{ overflowPx: 38 }`. */
   evidence: Record<string, number | string | boolean>;
   styles: Record<string, string>;
+  /** Plain-language hint at the likely fix. */
+  suggestion?: string;
 }
 
 /** Line counts for elements that should normally stay on one line. */
@@ -37,8 +61,16 @@ export interface WrapStat {
   items: number;
 }
 
+export interface IgnoreRule {
+  /** CSS selector; matching elements and everything inside them are ignored. */
+  selector: string;
+  /** Limit the rule to these detectors. Omit to ignore every detector. */
+  detectors?: DetectorId[];
+}
+
 export interface AnalyzeOptions {
   detectors?: DetectorId[];
+  ignore?: IgnoreRule[];
 }
 
 export interface AnalyzeResult {

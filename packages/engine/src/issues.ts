@@ -2,6 +2,14 @@ import { createHash } from 'node:crypto';
 import type { AnalyzeResult, Finding } from '@breakhound/analyzers';
 import type { Breakpoints, Issue, WidthRange } from './types';
 
+/**
+ * Detectors whose findings are only responsive bugs if they appear at narrower
+ * widths. Present at the widest width means the design does it on purpose
+ * (a teaser that fades into "read more", for example).
+ */
+const DESIGNED_IF_AT_WIDEST = new Set(['clipped-text']);
+const FIXED_WIDTH_DETECTORS = new Set(['page-overflow', 'content-overflow']);
+
 /** When several overflow detectors blame the same element, keep the most specific. */
 const OVERFLOW_PRIORITY = ['page-overflow', 'media-overflow', 'content-overflow'] as const;
 
@@ -53,6 +61,10 @@ function wrapFindings(
         element: w.element,
         evidence: { lines: w.lines, linesAtWidest: base, items: w.items },
         styles: {},
+        suggestion:
+          w.kind === 'row'
+            ? 'Collapse this row into a menu below this width, tighten its spacing, or let it scroll sideways.'
+            : 'Shorten the label, reduce its padding, or give the button room to grow at this width.',
       });
     }
     out.set(width, list);
@@ -97,15 +109,21 @@ export function buildIssues(
   const keys = new Set<string>();
   for (const m of perWidth.values()) for (const k of m.keys()) keys.add(k);
 
+  const widest = widths[widths.length - 1];
   const issues: Issue[] = [];
   for (const key of keys) {
     const ranges: WidthRange[] = [];
     let worst: { width: number; finding: Finding } | null = null;
     let open: WidthRange | null = null;
+    const elementWidths = new Set<number>();
+
+    const atWidest = widest !== undefined ? perWidth.get(widest)?.get(key) : undefined;
+    if (atWidest && DESIGNED_IF_AT_WIDEST.has(atWidest.detector)) continue;
 
     for (const width of widths) {
       const f = perWidth.get(width)?.get(key);
       if (f) {
+        if (typeof f.evidence.elementWidth === 'number') elementWidths.add(f.evidence.elementWidth);
         if (open) open.to = width;
         else {
           open = { from: width, to: width };
@@ -120,8 +138,25 @@ export function buildIssues(
     if (!worst) continue;
 
     const f = worst.finding;
+    let evidence = f.evidence;
+    let suggestion = f.suggestion;
+    // Same width everywhere it overflows: the element has a hard-coded size.
+    const spansWidths = ranges.some((r) => r.to > r.from);
+    const [onlyWidth] = elementWidths;
+    if (
+      FIXED_WIDTH_DETECTORS.has(f.detector) &&
+      elementWidths.size === 1 &&
+      spansWidths &&
+      onlyWidth !== undefined &&
+      !f.evidence.causedByText
+    ) {
+      evidence = { ...evidence, fixedWidthPx: onlyWidth };
+      suggestion = `It stays ${onlyWidth}px wide no matter the screen size. Replace the fixed width with max-width: 100% (or a fluid width) so it can shrink.`;
+    }
+
     issues.push({
       id: issueId(route, f),
+      fingerprint: findingKey(f),
       detector: f.detector,
       severity: f.severity,
       title: f.title,
@@ -129,8 +164,9 @@ export function buildIssues(
       worstAt: worst.width,
       element: { ...f.element, source: null },
       ...(f.related ? { related: f.related } : {}),
-      evidence: f.evidence,
+      evidence,
       styles: f.styles,
+      ...(suggestion ? { suggestion } : {}),
     });
   }
 

@@ -92,7 +92,10 @@ export class Scanner {
         step: opts.step,
         height: opts.height,
         maxSettleMs: opts.maxSettleMs,
-        analyze: opts.detectors ? { detectors: opts.detectors } : {},
+        analyze: {
+          ...(opts.detectors ? { detectors: opts.detectors } : {}),
+          ...(opts.ignore ? { ignore: opts.ignore } : {}),
+        },
       });
       await sweeper.run();
 

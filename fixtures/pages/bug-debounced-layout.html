@@ -9,7 +9,7 @@
 .compact .panel { width: 720px; }
 </style>
 </head>
-<body>
+<body data-breakhound-ignore="edge-gutter">
 <div class="panel" data-bh-expect="page-overflow@320-699">Panel sized by JavaScript</div>
 <script>
   const apply = () => document.body.classList.toggle('compact', window.innerWidth < 700);

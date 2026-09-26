@@ -115,6 +115,7 @@ export function pageOverflow(snap: Snapshot): Finding[] {
     else title = `Content scrolls sideways inside a full-width container (${amount}px too wide)`;
 
     findings.push({
+      suggestion: shrinkSuggestion(rec, textOnly),
       detector: 'page-overflow',
       severity: scrolls ? 'error' : 'warning',
       title,
@@ -144,6 +145,31 @@ export function pageOverflow(snap: Snapshot): Finding[] {
     });
   }
   return findings;
+}
+
+/** Names the computed style most likely to stop an element from shrinking. */
+export function shrinkSuggestion(rec: ElementRecord, textOnly: boolean): string {
+  const s = rec.style;
+  if (textOnly) {
+    return s.whiteSpace === 'nowrap' || s.whiteSpace === 'pre'
+      ? `white-space: ${s.whiteSpace} keeps this text on one line. Allow it to wrap on small screens.`
+      : 'Long unbreakable text (a URL, email or code). Add overflow-wrap: anywhere to its container.';
+  }
+  const minWidth = Number.parseFloat(s.minWidth);
+  if (minWidth > 0) {
+    return `min-width: ${s.minWidth} stops it from shrinking. Lower it or drop it on small screens.`;
+  }
+  if (s.flexShrink === '0') {
+    return 'flex-shrink: 0 stops it from shrinking. Let it shrink, or wrap the row.';
+  }
+  if (s.whiteSpace === 'nowrap') {
+    return 'white-space: nowrap keeps its content on one line. Allow wrapping on small screens.';
+  }
+  const parent = rec.parent?.style.display ?? '';
+  if (parent.includes('flex') || parent.includes('grid')) {
+    return 'It is a flex/grid item that will not shrink below its content. Add min-width: 0 to it, or replace its fixed width with max-width: 100%.';
+  }
+  return 'It is wider than the screen here. Replace any fixed width with max-width: 100% or a fluid width.';
 }
 
 const CONTENT_SELECTOR = 'img,video,canvas,iframe,input,button,select,textarea,a[href]';

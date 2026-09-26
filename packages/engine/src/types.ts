@@ -1,6 +1,6 @@
-import type { DetectorId, ElementInfo, Severity } from '@breakhound/analyzers';
+import type { DetectorId, ElementInfo, IgnoreRule, Severity } from '@breakhound/analyzers';
 
-export type { DetectorId, ElementInfo, Severity };
+export type { DetectorId, ElementInfo, IgnoreRule, Severity };
 
 export interface WidthRange {
   from: number;
@@ -10,6 +10,8 @@ export interface WidthRange {
 export interface Issue {
   /** Stable across scans: hash of route, detector and element. */
   id: string;
+  /** Route-independent key (detector + element), used to group the same issue across pages. */
+  fingerprint: string;
   detector: DetectorId;
   severity: Severity;
   title: string;
@@ -21,6 +23,8 @@ export interface Issue {
   related?: ElementInfo;
   evidence: Record<string, number | string | boolean>;
   styles: Record<string, string>;
+  /** Plain-language hint at the likely fix. */
+  suggestion?: string;
 }
 
 export interface Breakpoints {
@@ -61,4 +65,6 @@ export interface ScanOptions {
   networkIdleMs?: number;
   /** Used to salt issue ids; defaults to the URL path. */
   route?: string;
+  /** Elements to leave out of the scan. */
+  ignore?: IgnoreRule[];
 }

@@ -1,6 +1,12 @@
 import type { ElementInfo } from './types';
 
 const cache = new WeakMap<Element, ElementInfo>();
+const owners = new WeakMap<ElementInfo, Element>();
+
+/** The element an ElementInfo was created for (used to apply ignore rules). */
+export function elementOf(info: ElementInfo): Element | undefined {
+  return owners.get(info);
+}
 
 /** ids that look generated (React useId, Radix, Headless UI, numeric suffixes). */
 function isStableId(id: string): boolean {
@@ -116,5 +122,6 @@ export function describe(el: Element): ElementInfo {
     text: text ? (text.length > 80 ? `${text.slice(0, 77)}...` : text) : null,
   };
   cache.set(el, info);
+  owners.set(info, el);
   return info;
 }
