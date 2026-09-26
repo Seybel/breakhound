@@ -92,6 +92,31 @@ const SKIP_TAGS = new Set([
   'DATALIST',
 ]);
 
+/**
+ * Overlays injected by framework dev servers and devtools. They float over the
+ * page, change on their own timers, and are never part of the app's layout.
+ */
+export const DEV_OVERLAYS = [
+  'nextjs-portal',
+  '[data-nextjs-toast]',
+  '[data-nextjs-dev-tools-button]',
+  '#__next-build-watcher',
+  '#__next-prerender-indicator',
+  '#nuxt-devtools-container',
+  '#vue-inspector-container',
+  '#__vue-devtools-container__',
+  'vite-error-overlay',
+  'vite-plugin-checker-error-overlay',
+  'astro-dev-toolbar',
+  'astro-dev-overlay',
+  '#webpack-dev-server-client-overlay',
+  '#react-refresh-overlay',
+  '.tsqd-parent-container',
+  '.TanStackRouterDevtools',
+  '#svelte-inspector-host',
+  'vercel-live-feedback',
+].join(',');
+
 /** Tags whose inner nodes are not layout content we should inspect. */
 const LEAF_TAGS = new Set([
   'svg',
@@ -201,7 +226,7 @@ export function snapshot(): Snapshot {
   const byElement = new Map<Element, ElementRecord>();
 
   const visit = (el: Element, parent: ElementRecord | null, depth: number) => {
-    if (SKIP_TAGS.has(el.tagName)) return;
+    if (SKIP_TAGS.has(el.tagName) || el.matches(DEV_OVERLAYS)) return;
     const style = getComputedStyle(el);
     if (!isRendered(el, style)) return;
     if (style.display === 'contents') {

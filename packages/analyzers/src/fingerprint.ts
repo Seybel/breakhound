@@ -13,11 +13,11 @@ const LANDMARKS = new Set([
 const MAX_DEPTH = 5;
 const MAX_ELEMENTS = 400;
 
-function isStructural(rec: ElementRecord): boolean {
-  if (rec.depth <= 3) return true;
+function isStructural(rec: ElementRecord, depth: number): boolean {
+  if (depth <= 3) return true;
   if (LANDMARKS.has(rec.el.tagName)) return true;
   const d = rec.style.display;
-  return rec.depth <= MAX_DEPTH && (d.includes('flex') || d.includes('grid'));
+  return depth <= MAX_DEPTH && (d.includes('flex') || d.includes('grid'));
 }
 
 function rowsAndColumns(children: ElementRecord[]): string {
@@ -51,10 +51,21 @@ export function layoutSignature(snap: Snapshot, index: (el: Element) => string):
     else children.set(rec.parent, [rec]);
   }
 
+  // Depth counted only where the tree branches, so single-child wrapper chains
+  // (framework roots, providers, layout shells) don't push real layout out of view.
+  const branchDepth = new Map<ElementRecord, number>();
+  for (const rec of snap.records) {
+    const parent = rec.parent;
+    const parentDepth = parent ? (branchDepth.get(parent) ?? 0) : 0;
+    const branches = parent ? (children.get(parent)?.length ?? 0) > 1 : true;
+    branchDepth.set(rec, parentDepth + (branches ? 1 : 0));
+  }
+
   const parts: string[] = [];
   for (const rec of snap.records) {
     if (parts.length >= MAX_ELEMENTS) break;
-    if (!isStructural(rec)) continue;
+    // Fixed overlays (toasts, chat widgets, cookie bars) float over the layout rather than being part of it.
+    if (rec.outOfFlow === 'fixed' || !isStructural(rec, branchDepth.get(rec) ?? 0)) continue;
     // Inline children reflow with the text at almost every width; only block-level arrangement counts.
     const kids = (children.get(rec) ?? []).filter(
       (c) => !c.outOfFlow && !c.style.display.startsWith('inline'),
