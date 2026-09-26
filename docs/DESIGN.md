@@ -203,16 +203,17 @@ Each detector is a pure function `(document, context) → Finding[]`. It must na
 |---|---|---|---|
 | `page-overflow` | Page scrolls horizontally | `scrollWidth > clientWidth` on the root; blame the outermost elements whose right edge passes the viewport and that aren't inside a scroll container | error |
 | `content-overflow` | Content spilling out of its container | Child box exceeds parent box where parent `overflow` is visible, not a scroll container, not positioned intentionally | error |
-| `clipped-text` | Text cut off | `overflow: hidden` + `scrollWidth > clientWidth` on text, without `text-overflow: ellipsis` or line-clamp | warning |
 | `overlap` | Elements unintentionally covering each other | Box intersection between in-flow siblings, confirmed by `elementFromPoint` sampling; ignores absolute/fixed overlays, badges, and `z-index` layers | error |
 | `unexpected-wrap` | Rows/navs breaking onto extra lines | Children of a flex (`nowrap` or inline) container on different line boxes, where the container was single-line at wider widths | warning |
-| `squished-text` | Text columns too narrow | Container narrower than ~6 characters of its font size, or words breaking mid-word | warning |
+| `squished-text` | Text columns too narrow | Column narrower than 10em with more lines than words (words breaking apart), or under 3 characters per line | warning |
 | `distorted-media` | Stretched/squashed images and video | Rendered aspect ratio vs natural aspect ratio differs > 3% without `object-fit` | warning |
 | `media-overflow` | Images wider than their container | Special case of content-overflow for `img`, `video`, `iframe`, `svg`, `canvas` | error |
-| `small-tap-target` | Buttons/links too small on touch widths (< 768px) | Interactive element box < 24×24 (error) or < 44×44 (info) | warning |
-| `tiny-text` | Unreadable text on small widths | Computed font size < 12px | info |
+| `small-tap-target` | Buttons/links too small on touch widths (< 768px) | WCAG 2.2 target size: box < 24×24 and a 24px circle around it touches another target. Inline text links and labelled checkboxes are exempt. Grouped per parent | warning |
+| `tiny-text` | Unreadable text on small widths | Computed font size < 12px, grouped per parent | info |
+| `edge-gutter` | Text pressed against a phone screen edge | The text's block container has < 4px between its content box and the screen edge (< 768px) | warning |
+| `clipped-text` | Text cut off by a fixed-size container | Painted text box extends past a non-scrolling clip ancestor; skips ellipsis, line-clamp, sliders and clips already present at the widest width | warning |
 | `viewport-meta` | Missing/incorrect viewport tag | DOM check, once per page | error |
-| `fixed-width` | Hard-coded widths wider than the viewport | Computed width in px > viewport, with a matching fixed `width`/`min-width` | error |
+
 
 **False-positive controls** (built in, not optional):
 
@@ -220,6 +221,8 @@ Each detector is a pure function `(document, context) → Finding[]`. It must na
 - An issue is reported only if it persists for at least 2 consecutive coarse widths (or is confirmed by bisection), filtering 1px rounding noise.
 - The same element + detector across adjacent widths merges into one issue with a width range.
 - User `ignore` rules in config and an HTML attribute escape hatch: `data-breakhound-ignore="overlap"`.
+
+**Merging:** overflow reported by several detectors on the same element (page, media and content overflow) becomes one issue with joined ranges. When an overflowing element keeps the same width everywhere it overflows, the issue records `fixedWidthPx` and says so in the suggestion.
 
 **Detection quality bar (measured against the fixture corpus and Projects A/B/C):**
 
@@ -241,7 +244,7 @@ interface ScanResult {
   startedAt: string; durationMs: number;
   settings: { minWidth: number; maxWidth: number; step: number; browsers: string[] };
   routes: RouteResult[];
-  summary: { routes: number; issues: number; bySeverity: Record<Severity, number> };
+  summary: { routes: number; issues: number; uniqueIssues: number; bySeverity: Record<Severity, number> }; // bySeverity counts unique issues
 }
 
 interface RouteResult {
@@ -256,6 +259,7 @@ type Severity = 'error' | 'warning' | 'info';
 
 interface Issue {
   id: string;               // stable hash: route + detector + selector
+  fingerprint: string;      // route-independent key, groups the same issue across pages
   detector: string;         // e.g. 'page-overflow'
   severity: Severity;
   title: string;            // "Nav wraps onto 2 lines"
@@ -270,7 +274,7 @@ interface Issue {
   };
   evidence: Record<string, unknown>;  // detector-specific numbers (e.g. overflowPx: 38)
   styles: Record<string, string>;     // relevant computed styles
-  screenshots?: { element: string; context: string; before?: string };
+  screenshot?: string;      // file in .breakhound/screenshots, element outlined, screen edge marked
   suggestion?: string;      // plain-language hint, e.g. "flex child needs min-width: 0"
 }
 ```
@@ -361,8 +365,8 @@ We build in phases but don't stop until v1.0 is launched.
 
 | Phase | Deliverable | Exit criteria |
 |---|---|---|
-| **0 · Foundation + spike** | Monorepo, CI, fixture corpus (~30 labelled bugs), analyzers for `page-overflow`, `content-overflow`, `overlap`, `unexpected-wrap`, `media-overflow`; sweep + bisect on one URL; JSON output | Meets the precision/recall bar on fixtures; manual review of Projects A/B/C shows ≥ 90% precision. **If not, revise detectors before continuing.** |
-| **1 · CLI + reports (MVP)** | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
+| **0 · Foundation + spike** ✅ | Monorepo, CI, fixture corpus (~30 labelled bugs), analyzers for `page-overflow`, `content-overflow`, `overlap`, `unexpected-wrap`, `media-overflow`; sweep + bisect on one URL; JSON output | Meets the precision/recall bar on fixtures; manual review of Projects A/B/C shows ≥ 90% precision. **If not, revise detectors before continuing.** |
+| **1 · CLI + reports (MVP)** ✅ | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
 | **2 · Whole-app** | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
 | **3 · Agent loop** | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
 | **4 · Depth** | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
