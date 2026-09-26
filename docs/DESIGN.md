@@ -108,7 +108,7 @@ routes ──► engine ──(injects)──► analyzers (in page)
 | Build | tsup | Simple bundling for CLI + injected analyzer script |
 | Tests | Vitest + Playwright against `fixtures/` | Fast unit tests, real layout in integration tests |
 | Lint/format | Biome | One fast tool |
-| CLI framework | citty or commander (decide in Phase 1) | Small |
+| CLI framework | Node's built-in `util.parseArgs` and `util.styleText` | Zero dependencies |
 | MCP | `@modelcontextprotocol/sdk` (stdio) | Works with Claude Code, Cursor, Copilot, Codex, Windsurf |
 | Releases | Changesets + GitHub Actions | Versioning and changelogs |
 | Node | ≥ 20 | Current LTS range |
@@ -259,7 +259,7 @@ interface Issue {
   detector: string;         // e.g. 'page-overflow'
   severity: Severity;
   title: string;            // "Nav wraps onto 2 lines"
-  widths: { from: number; to: number };   // inclusive range where it occurs
+  ranges: { from: number; to: number }[]; // inclusive width ranges where it occurs
   worstAt: number;          // width where it's most severe
   element: {
     selector: string;       // shortest unique selector
@@ -395,6 +395,5 @@ We build in phases but don't stop until v1.0 is launched.
 
 ## 14. Open items
 
-- CLI framework (citty vs commander): decide in Phase 1.
 - Whether to publish internal packages separately: decide at launch.
 - Repo lives at `github.com/Seybel/breakhound`; the unscoped npm package `breakhound` is published from the `seybel` npm account. An org can be created later (GitHub redirects transferred repos).
