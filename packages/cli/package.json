@@ -1,0 +1,25 @@
+{
+  "name": "breakhound",
+  "version": "0.0.0",
+  "description": "Find where your layout breaks across every viewport width, then hand the fix to your coding agent.",
+  "type": "module",
+  "bin": {
+    "breakhound": "./src/index.ts"
+  },
+  "dependencies": {
+    "@breakhound/engine": "*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "responsive",
+    "breakpoints",
+    "layout",
+    "overflow",
+    "css",
+    "playwright",
+    "mcp"
+  ],
+  "license": "MIT"
+}
