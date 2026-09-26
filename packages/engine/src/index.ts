@@ -165,7 +165,12 @@ export class Scanner {
         finalUrl: first.url(),
         status: 'scanned',
         pageErrors,
-        breakpoints: buildBreakpoints(widths, results, declared, opts.minWidth, opts.maxWidth),
+        breakpoints: buildBreakpoints(
+          sweepers.map((sw) => sw.results),
+          declared,
+          opts.minWidth,
+          opts.maxWidth,
+        ),
         issues,
         measurements: widths.length,
         durationMs: Date.now() - started,

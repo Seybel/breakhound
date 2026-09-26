@@ -2,8 +2,9 @@ import { type ElementRecord, isVisuallyHidden, type Snapshot } from '../dom';
 import { describe } from '../selector';
 import type { WrapStat } from '../types';
 
+/** Where a row wrapping onto a second line is almost always a bug. Filter toolbars wrap by design. */
 const NAV_CONTEXT =
-  'nav, header, [role="navigation"], [role="toolbar"], [role="tablist"], [role="menubar"], [role="banner"]';
+  'nav, header, [role="navigation"], [role="tablist"], [role="menubar"], [role="banner"]';
 const LABEL = 'button, [role="button"], [role="tab"], [role="menuitem"]';
 const MAX_LABEL_CHARS = 40;
 

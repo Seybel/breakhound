@@ -228,20 +228,27 @@ function mergeOverflowFamily(issues: Issue[]): Issue[] {
   return out;
 }
 
-/** Widths where the layout signature changes, compared with what the CSS declares. */
+/**
+ * Widths where the layout signature changes, compared with what the CSS
+ * declares. Each tab loaded the page separately and dynamic content can differ
+ * between loads, so layouts are only compared within the tab that measured them.
+ */
 export function buildBreakpoints(
-  widths: number[],
-  results: Map<number, AnalyzeResult>,
+  tabs: Map<number, AnalyzeResult>[],
   declared: number[],
   minWidth: number,
   maxWidth: number,
 ): Breakpoints {
-  const observed: number[] = [];
-  for (let i = 1; i < widths.length; i++) {
-    const prev = results.get(widths[i - 1] as number);
-    const cur = results.get(widths[i] as number);
-    if (prev && cur && prev.signature !== cur.signature) observed.push(widths[i] as number);
+  const found = new Set<number>();
+  for (const results of tabs) {
+    const widths = [...results.keys()].sort((a, b) => a - b);
+    for (let i = 1; i < widths.length; i++) {
+      const prev = results.get(widths[i - 1] as number);
+      const cur = results.get(widths[i] as number);
+      if (prev && cur && prev.signature !== cur.signature) found.add(widths[i] as number);
+    }
   }
+  const observed = [...found].sort((a, b) => a - b);
   const inRange = declared.filter((w) => w > minWidth && w <= maxWidth);
   return {
     observed,

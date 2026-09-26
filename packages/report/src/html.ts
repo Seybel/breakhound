@@ -191,15 +191,16 @@ code, .mono { font-family: var(--mono); font-size: 13px; }
 #map { padding: 8px 18px 16px; }
 .map-row { display: grid; grid-template-columns: minmax(90px, 180px) minmax(0, 1fr); gap: 12px; align-items: center; padding: 6px 0; }
 .map-row .label { font-family: var(--mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.map-row .label a { color: inherit; text-decoration: none; }
+.map-row .label button { all: unset; cursor: pointer; display: block; min-height: 24px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.map-row .label button:hover { text-decoration: underline; }
+.map-row .label button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .track { position: relative; height: 22px; background: var(--track); border-radius: 6px; overflow: hidden; }
-.bar { position: absolute; top: 3px; height: 16px; border-radius: 4px; min-width: 3px; cursor: pointer; border: 0; padding: 0; opacity: .85; }
-.bar:hover { opacity: 1; }
+.bar { position: absolute; top: 3px; height: 16px; border-radius: 4px; min-width: 3px; opacity: .85; }
 .bar.error { background: var(--error); } .bar.warning { background: var(--warning); } .bar.info { background: var(--info); }
 .tick { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--tick); opacity: .7; pointer-events: none; }
 .axis { position: relative; height: 34px; }
 .axis-row { align-items: start; }
-.axis span { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; text-align: center; line-height: 1.3; }
+.axis span { position: absolute; transform: translateX(-50%); font-size: 12px; color: var(--muted); white-space: nowrap; text-align: center; line-height: 1.3; }
 .axis span:first-child { transform: none; } .axis span:last-child { transform: translateX(-100%); }
 .map-legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 0 18px 16px; color: var(--muted); font-size: 12px; }
 .map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
@@ -344,25 +345,23 @@ const JS = String.raw`
 
   // Width map
   const map = $('map');
-  const groupIndex = new Map(D.groups.map((g, i) => [g.fingerprint, i]));
   for (const r of D.routes) {
-    const track = el('div', { class: 'track' });
+    const described = r.issues.length ? r.issues.map((i) => i.title + ' at ' + ranges(i.ranges)).join('; ') : 'no issues';
+    const track = el('div', { class: 'track', role: 'img', 'aria-label': r.route + ': ' + described });
     for (const w of r.breakpoints.observed) track.append(el('span', { class: 'tick', style: 'left:calc(' + pct(w) + '% - 1px)' }));
     for (const i of r.issues) for (const rg of i.ranges) {
       const left = pct(rg.from), width = Math.max(pct(rg.to + 1) - left, 0.4);
-      track.append(el('button', {
-        type: 'button', class: 'bar ' + i.severity, title: i.title + ' (' + range(rg) + ')',
-        'aria-label': i.title + ' at ' + range(rg),
-        style: 'left:' + left + '%;width:' + width + '%',
-        onclick: () => {
-          if (state.view !== 'issue') { state.view = 'issue'; render(); }
-          const card = document.getElementById('issue-' + groupIndex.get(i.fingerprint));
-          if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); card.focus({ preventScroll: true }); }
-        },
-      }));
+      track.append(el('span', { class: 'bar ' + i.severity, title: i.title + ' (' + range(rg) + ')', style: 'left:' + left + '%;width:' + width + '%' }));
     }
+    const showPage = () => {
+      state.view = 'page'; render();
+      const head = document.getElementById('route-' + D.routes.indexOf(r));
+      if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    const summary = r.issues.length ? r.issues.length + ' issue' + (r.issues.length === 1 ? '' : 's') : 'no issues';
     map.append(el('div', { class: 'map-row' },
-      el('div', { class: 'label', title: r.url }, el('a', { href: r.url, text: r.route })), track));
+      el('div', { class: 'label' }, el('button', { type: 'button', title: r.url, 'aria-label': r.route + ': ' + summary + '. Show its issues', text: r.route, onclick: showPage })),
+      track));
   }
   const axis = el('div', { class: 'axis', 'aria-hidden': 'true' });
   // Keep marks at least 7% of the track apart so their labels never collide.
@@ -489,7 +488,7 @@ const JS = String.raw`
     for (const r of D.routes) {
       const mine = shown.filter(([g]) => g.pages.some((p) => p.route === r.route));
       if (!mine.length) continue;
-      root.append(el('div', { class: 'route-head' }, el('h3', { text: r.route }), el('a', { href: r.url, text: r.url })));
+      root.append(el('div', { class: 'route-head', id: 'route-' + D.routes.indexOf(r) }, el('h3', { text: r.route }), el('a', { href: r.url, text: r.url })));
       for (const [g, i] of mine) root.append(card(g, i, r.route));
     }
   }

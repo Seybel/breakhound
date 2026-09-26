@@ -158,22 +158,41 @@ export function squishedText(snap: Snapshot): Finding[] {
   return findings;
 }
 
-/** Text below 12px on phone-sized screens. */
+/** Text below 12px on phone-sized screens, one finding per parent (a row of captions is one fix). */
 export function tinyText(snap: Snapshot): Finding[] {
   if (snap.viewportWidth > TOUCH_MAX_WIDTH) return [];
-  const findings: Finding[] = [];
+  const byParent = new Map<
+    ElementRecord | null,
+    { rec: ElementRecord; size: number; count: number }
+  >();
   for (const rec of snap.records) {
-    if (findings.length >= MAX_TINY_FINDINGS) break;
     if (!rec.textRect || rec.text.length < 3 || isVisuallyHidden(rec)) continue;
     const size = fontSize(rec);
     if (size >= MIN_TINY_FONT) continue;
+    const g = byParent.get(rec.parent);
+    if (g) {
+      g.count++;
+      if (size < g.size) Object.assign(g, { rec, size });
+    } else {
+      byParent.set(rec.parent, { rec, size, count: 1 });
+    }
+  }
+
+  const findings: Finding[] = [];
+  for (const [parent, g] of byParent) {
+    if (findings.length >= MAX_TINY_FINDINGS) break;
+    const grouped = g.count > 1 && parent !== null;
+    const size = Math.round(g.size * 10) / 10;
     findings.push({
       detector: 'tiny-text',
       severity: 'info',
-      title: `Text is ${Math.round(size * 10) / 10}px on small screens`,
-      element: describe(rec.el),
-      evidence: { fontSizePx: Math.round(size * 10) / 10 },
-      styles: pick(rec.style, ['font-size', 'line-height']),
+      title: grouped
+        ? `${g.count} pieces of text are ${size}px on small screens`
+        : `Text is ${size}px on small screens`,
+      element: describe(grouped ? parent.el : g.rec.el),
+      ...(grouped ? { related: describe(g.rec.el) } : {}),
+      evidence: { fontSizePx: size, textElements: g.count },
+      styles: pick(g.rec.style, ['font-size', 'line-height']),
       suggestion: 'Use at least 12px (16px for body text) on small screens.',
     });
   }
