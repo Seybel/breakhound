@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fixed width block</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.pricing-table { width: 600px; height: 200px; background: #eef; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Pricing</h1>
+  <div class="pricing-table" data-bh-expect="page-overflow@320-599">A table that never shrinks</div>
+</main>
+</body>
+</html>

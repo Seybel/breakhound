@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card content overflows</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 40px; }
+.card { border: 1px solid #ccc; min-height: 120px; }
+.badge-row { width: 220px; height: 24px; background: #fdd; }
+@media (max-width: 719px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<section class="grid">
+  <div class="card"><h3>Basic</h3></div>
+  <div class="card"><h3>Pro</h3><div class="badge-row" data-bh-expect="content-overflow@720-739"></div></div>
+  <div class="card"><h3>Team</h3></div>
+</section>
+</body>
+</html>

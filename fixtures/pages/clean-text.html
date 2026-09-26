@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text that handles narrow widths</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 16px; max-width: 760px; margin: 0 auto; }
+.truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: 1px solid #ccc; padding: 8px; }
+.wrap-anywhere { overflow-wrap: anywhere; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips button { font: inherit; padding: 4px 10px; border-radius: 12px; border: 1px solid #aaa; background: #fff; }
+h1 { font-size: clamp(24px, 6vw, 48px); line-height: 1.1; }
+</style>
+</head>
+<body>
+<main>
+  <h1>A heading that is allowed to wrap onto several lines</h1>
+  <p class="truncate">https://example.com/a/very/long/path/that/gets/truncated/with/an/ellipsis/instead/of/overflowing</p>
+  <p class="wrap-anywhere">https://example.com/another/very/long/path/that/is/allowed/to/break/anywhere/in/the/middle</p>
+  <p class="clamp">A long description that is clamped to two lines. It keeps going and going so that it definitely needs more than two lines on a narrow phone screen and gets cut with an ellipsis.</p>
+  <div class="chips"><button type="button">Design</button><button type="button">Engineering</button><button type="button">Product</button><button type="button">Marketing</button><button type="button">Sales</button><button type="button">Support</button></div>
+</main>
+</body>
+</html>

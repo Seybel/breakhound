@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Off-canvas drawer and hidden content</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+html, body { overflow-x: hidden; }
+.drawer { position: absolute; top: 0; right: -320px; width: 300px; height: 100vh; background: #333; color: #fff; }
+.slide-panel { position: fixed; top: 0; left: 100%; width: 400px; height: 100vh; background: #eee; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.hidden { display: none; width: 2000px; }
+.invisible { visibility: hidden; width: 2000px; height: 10px; }
+</style>
+</head>
+<body>
+<header><h1>Store</h1><span class="sr-only">Skip to a very long accessible label that would overflow if it were visible on screen</span></header>
+<nav class="drawer"><a href="#">Account</a><a href="#">Orders</a></nav>
+<aside class="slide-panel">Cart</aside>
+<div class="hidden">Hidden wide thing</div>
+<div class="invisible">Invisible wide thing</div>
+<main><p>Products</p></main>
+</body>
+</html>

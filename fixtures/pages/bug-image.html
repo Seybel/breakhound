@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Image does not shrink</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+article { max-width: 800px; margin: 0 auto; padding: 16px; }
+.hero { display: block; }
+</style>
+</head>
+<body>
+<article>
+  <h1>Launch notes</h1>
+  <img class="hero" width="500" height="300" alt="Chart"
+    src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='300'%3E%3Crect width='500' height='300' fill='%2399c'/%3E%3C/svg%3E"
+    data-bh-expect="page-overflow@320-515 media-overflow@516-530">
+  <p>Text after the image.</p>
+</article>
+</body>
+</html>

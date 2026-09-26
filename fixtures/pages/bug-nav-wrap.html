@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nav wraps</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+header { display: flex; align-items: center; background: #222; color: #fff; }
+.logo { width: 200px; flex-shrink: 0; padding: 12px; }
+nav { flex: 1; min-width: 0; }
+.menu { display: flex; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.menu li { width: 120px; flex-shrink: 0; }
+.menu a { display: block; padding: 12px; color: inherit; text-decoration: none; }
+.burger { display: none; }
+@media (max-width: 767px) {
+  nav { display: none; }
+  .burger { display: block; margin-left: auto; padding: 12px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Acme</div>
+  <nav>
+    <ul class="menu" data-bh-expect="unexpected-wrap@768-919">
+      <li><a href="#">Home</a></li>
+      <li><a href="#">Product</a></li>
+      <li><a href="#">Pricing</a></li>
+      <li><a href="#">Customers</a></li>
+      <li><a href="#">Blog</a></li>
+      <li><a href="#">Contact</a></li>
+    </ul>
+  </nav>
+  <button class="burger" type="button" aria-label="Menu">Menu</button>
+</header>
+<main><p>Content</p></main>
+</body>
+</html>

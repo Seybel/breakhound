@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scroll-snap carousel</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.track { display: flex; gap: 16px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 16px; }
+.slide { flex: 0 0 280px; height: 180px; scroll-snap-align: start; background: #dde; border: 1px solid #99a; }
+.table-wrap { overflow-x: auto; margin: 16px; }
+table { width: 900px; border-collapse: collapse; }
+td { border: 1px solid #ccc; padding: 8px; }
+</style>
+</head>
+<body>
+<h1>Featured</h1>
+<div class="track">
+  <div class="slide">One</div><div class="slide">Two</div><div class="slide">Three</div>
+  <div class="slide">Four</div><div class="slide">Five</div><div class="slide">Six</div>
+</div>
+<div class="table-wrap">
+  <table><tr><td>Plan</td><td>Seats</td><td>Storage</td><td>Support</td><td>Price</td></tr></table>
+</div>
+</body>
+</html>

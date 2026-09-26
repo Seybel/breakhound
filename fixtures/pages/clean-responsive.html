@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Well behaved responsive page</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #222; color: #fff; }
+header nav ul { display: flex; gap: 16px; list-style: none; margin: 0; padding: 0; }
+header nav a { color: inherit; text-decoration: none; }
+.burger { display: none; font: inherit; }
+.grid { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+.card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; min-width: 0; }
+.card img { max-width: 100%; height: auto; display: block; }
+.layout { display: block; padding: 16px; }
+.layout aside { background: #f4f4f4; padding: 16px; }
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) {
+  .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
+}
+@media (max-width: 767px) {
+  header nav { display: none; }
+  .burger { display: block; }
+}
+</style>
+</head>
+<body data-bh-breakpoints="640,768,1024">
+<header>
+  <strong>Acme</strong>
+  <nav><ul><li><a href="#">Home</a></li><li><a href="#">Pricing</a></li><li><a href="#">About us</a></li></ul></nav>
+  <button class="burger" type="button" aria-label="Open menu">Menu</button>
+</header>
+<section class="grid">
+  <div class="card"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='240'%3E%3Crect width='400' height='240' fill='%23bcd'/%3E%3C/svg%3E"><h3>First</h3><p>Some text for the card.</p></div>
+  <div class="card"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='240'%3E%3Crect width='400' height='240' fill='%23bcd'/%3E%3C/svg%3E"><h3>Second</h3><p>Some text for the card.</p></div>
+  <div class="card"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='240'%3E%3Crect width='400' height='240' fill='%23bcd'/%3E%3C/svg%3E"><h3>Third</h3><p>Some text for the card.</p></div>
+</section>
+<div class="layout">
+  <aside>Filters</aside>
+  <main><p>Results appear here.</p></main>
+</div>
+</body>
+</html>

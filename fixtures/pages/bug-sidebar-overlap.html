@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidebar overlaps content</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.layout { display: grid; grid-template-columns: 30% 1fr; }
+.promo { width: 260px; height: 80px; background: #ffe; }
+main p { margin: 0; }
+@media (max-width: 639px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" data-bh-expect="overlap@640-853"><img class="promo" data-bh-expect="media-overflow@640-863" alt="Promo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='80'/%3E"></aside>
+  <main><p>Main column text that starts right where the sidebar column ends and keeps going for a while.</p></main>
+</div>
+</body>
+</html>
