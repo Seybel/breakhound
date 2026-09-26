@@ -1,4 +1,4 @@
-import type { DetectorId, ElementInfo, IgnoreRule, Severity } from '@breakhound/analyzers';
+import type { DetectorId, ElementInfo, IgnoreRule, Severity } from '@breakhound/analyzers/types';
 
 export type { DetectorId, ElementInfo, IgnoreRule, Severity };
 

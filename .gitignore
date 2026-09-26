@@ -8,3 +8,7 @@ coverage/
 .breakhound/
 .private/
 CLAUDE.local.md
+
+# Copied into the published package at pack time
+packages/cli/README.md
+packages/cli/LICENSE

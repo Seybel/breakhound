@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { DetectorId, IgnoreRule, Severity } from '@breakhound/engine';
+import type { DetectorId, IgnoreRule, Severity } from '@breakhound/engine/types';
 
 export interface BreakhoundConfig {
   /** Where your app is running, e.g. http://localhost:3000. */

@@ -2,19 +2,6 @@
   "name": "breakhound",
   "version": "0.0.0",
   "description": "Find where your layout breaks across every viewport width, then hand the fix to your coding agent.",
-  "type": "module",
-  "bin": {
-    "breakhound": "./src/index.ts"
-  },
-  "dependencies": {
-    "@breakhound/engine": "*",
-    "@breakhound/report": "*",
-    "jiti": "^2.7.0",
-    "playwright": "^1.63.0"
-  },
-  "engines": {
-    "node": ">=20.16"
-  },
   "keywords": [
     "responsive",
     "breakpoints",
@@ -24,5 +11,48 @@
     "playwright",
     "mcp"
   ],
-  "license": "MIT"
+  "homepage": "https://github.com/Seybel/breakhound#readme",
+  "bugs": {
+    "url": "https://github.com/Seybel/breakhound/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Seybel/breakhound.git",
+    "directory": "packages/cli"
+  },
+  "license": "MIT",
+  "author": "Seybel",
+  "type": "module",
+  "bin": {
+    "breakhound": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node ../analyzers/build.mjs && tsup && dts-bundle-generator --silent --no-banner --project tsconfig.dts.json --external-inlines @breakhound/engine @breakhound/analyzers -o dist/index.d.ts src/lib.ts",
+    "prepack": "npm run build && cp ../../README.md ../../LICENSE ."
+  },
+  "engines": {
+    "node": ">=20.16"
+  },
+  "dependencies": {
+    "jiti": "^2.7.0",
+    "playwright": "^1.63.0"
+  },
+  "devDependencies": {
+    "@breakhound/engine": "*",
+    "@breakhound/report": "*"
+  }
 }

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs, styleText } from 'node:util';

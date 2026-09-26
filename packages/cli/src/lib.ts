@@ -5,5 +5,5 @@ export type {
   RouteResult,
   ScanResult,
   Severity,
-} from '@breakhound/engine';
+} from '@breakhound/engine/types';
 export { type BreakhoundConfig, defineConfig } from './config';
