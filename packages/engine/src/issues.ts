@@ -13,8 +13,17 @@ const FIXED_WIDTH_DETECTORS = new Set(['page-overflow', 'content-overflow']);
 /** When several overflow detectors blame the same element, keep the most specific. */
 const OVERFLOW_PRIORITY = ['page-overflow', 'media-overflow', 'content-overflow'] as const;
 
-function findingKey(f: Finding): string {
-  return `${f.detector}|${f.element.selector}|${f.related?.selector ?? ''}`;
+/**
+ * Findings that group several elements under one container name one member as
+ * `related` just as an example. That example can change from width to width,
+ * so it is not part of what makes the finding the same issue.
+ */
+const RELATED_IS_EXAMPLE = new Set(['clipped-text', 'small-tap-target', 'tiny-text']);
+
+/** Identity of a finding across widths, tabs and (with the route) scans. */
+export function findingKey(f: Finding): string {
+  const related = RELATED_IS_EXAMPLE.has(f.detector) ? '' : (f.related?.selector ?? '');
+  return `${f.detector}|${f.element.selector}|${related}`;
 }
 
 function severityScore(f: Finding): number {
@@ -111,6 +120,7 @@ export function buildIssues(
 
   const widest = widths[widths.length - 1];
   const issues: Issue[] = [];
+  const lineages = new Map<Issue, string[]>();
   for (const key of keys) {
     const ranges: WidthRange[] = [];
     let worst: { width: number; finding: Finding } | null = null;
@@ -154,7 +164,7 @@ export function buildIssues(
       suggestion = `It stays ${onlyWidth}px wide no matter the screen size. Replace the fixed width with max-width: 100% (or a fluid width) so it can shrink.`;
     }
 
-    issues.push({
+    const issue: Issue = {
       id: issueId(route, f),
       fingerprint: findingKey(f),
       detector: f.detector,
@@ -167,11 +177,13 @@ export function buildIssues(
       evidence,
       styles: f.styles,
       ...(suggestion ? { suggestion } : {}),
-    });
+    };
+    issues.push(issue);
+    if (f.lineage) lineages.set(issue, f.lineage);
   }
 
   const order = { error: 0, warning: 1, info: 2 };
-  return mergeOverflowFamily(issues).sort(
+  return mergeOverflowFamily(issues, lineages).sort(
     (a, b) =>
       order[a.severity] - order[b.severity] || (a.ranges[0]?.from ?? 0) - (b.ranges[0]?.from ?? 0),
   );
@@ -195,10 +207,11 @@ function joinRanges(ranges: WidthRange[]): WidthRange[] {
  * of its column up to 530px). That's one problem with one fix, so it becomes
  * one issue covering all of those widths, keeping the most severe details.
  */
-function mergeOverflowFamily(issues: Issue[]): Issue[] {
+function mergeOverflowFamily(issues: Issue[], lineages: Map<Issue, string[]>): Issue[] {
   const family = new Set<string>(OVERFLOW_PRIORITY);
   const byElement = new Map<string, Issue[]>();
   const out: Issue[] = [];
+  const leads: Issue[] = [];
   for (const issue of issues) {
     if (!family.has(issue.detector)) {
       out.push(issue);
@@ -222,10 +235,52 @@ function mergeOverflowFamily(issues: Issue[]): Issue[] {
         const withRelated = rest.find((i) => i.related);
         if (withRelated?.related) lead.related = withRelated.related;
       }
+      const lineage = rest.map((i) => lineages.get(i)).find(Boolean);
+      if (!lineages.has(lead) && lineage) lineages.set(lead, lineage);
     }
-    out.push(lead);
+    leads.push(lead);
   }
-  return out;
+  return [...out, ...mergeNested(leads, lineages)];
+}
+
+function touches(a: WidthRange[], b: WidthRange[]): boolean {
+  return a.some((x) => b.some((y) => x.from <= y.to + 1 && y.from <= x.to + 1));
+}
+
+/**
+ * As the screen narrows, the outermost element sticking out changes: first a
+ * fixed-width input, then the row holding it, then the form. Those are one
+ * problem, so inner elements are folded into the outermost one when their
+ * widths meet, and named in the evidence as places to look.
+ */
+function mergeNested(leads: Issue[], lineages: Map<Issue, string[]>): Issue[] {
+  const bySelector = new Map(leads.map((i) => [i.element.selector, i]));
+  const inner = new Map<Issue, string[]>();
+  const absorbed = new Set<Issue>();
+  const deepestFirst = [...leads].sort(
+    (a, b) => (lineages.get(b)?.length ?? 0) - (lineages.get(a)?.length ?? 0),
+  );
+  const rank = { error: 0, warning: 1, info: 2 };
+  for (const issue of deepestFirst) {
+    for (const selector of lineages.get(issue) ?? []) {
+      const outer = bySelector.get(selector);
+      if (!outer || outer === issue || absorbed.has(outer)) continue;
+      if (!touches(issue.ranges, outer.ranges)) continue;
+      outer.ranges = joinRanges([...outer.ranges, ...issue.ranges]);
+      if (rank[issue.severity] < rank[outer.severity]) outer.severity = issue.severity;
+      inner.set(outer, [
+        ...(inner.get(outer) ?? []),
+        issue.element.selector,
+        ...(inner.get(issue) ?? []),
+      ]);
+      absorbed.add(issue);
+      break;
+    }
+  }
+  for (const [outer, selectors] of inner) {
+    outer.evidence = { ...outer.evidence, alsoOverflowing: selectors.join(', ') };
+  }
+  return leads.filter((i) => !absorbed.has(i));
 }
 
 /**

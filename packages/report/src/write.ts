@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ScanResult } from '@breakhound/engine';
+import { groupIssues } from './format';
 import { renderHtml } from './html';
 import { renderDetailed, renderPrompt, renderSummary } from './markdown';
 
@@ -21,19 +22,18 @@ export interface WrittenReports {
   pdf?: string;
 }
 
+/** Screenshots shown in the HTML report: one per unique issue, from the first page it was found on. */
 function loadImages(result: ScanResult, dir: string | undefined): Map<string, string> {
   const images = new Map<string, string>();
   if (!dir) return images;
-  for (const route of result.routes) {
-    for (const issue of route.issues) {
-      if (!issue.screenshot || images.has(issue.screenshot)) continue;
-      const file = join(dir, issue.screenshot);
-      if (existsSync(file)) {
-        images.set(
-          issue.screenshot,
-          `data:image/png;base64,${readFileSync(file).toString('base64')}`,
-        );
-      }
+  for (const { issue } of groupIssues(result)) {
+    if (!issue.screenshot) continue;
+    const file = join(dir, issue.screenshot);
+    if (existsSync(file)) {
+      images.set(
+        issue.screenshot,
+        `data:image/png;base64,${readFileSync(file).toString('base64')}`,
+      );
     }
   }
   return images;

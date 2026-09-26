@@ -47,6 +47,8 @@ export interface PageResult {
   error?: string;
   /** Uncaught exceptions thrown by the page while it was scanned. */
   pageErrors: string[];
+  /** Things that made this page's results less exact than usual. */
+  warnings: string[];
   breakpoints: Breakpoints;
   issues: Issue[];
   /** Number of distinct widths that were measured. */

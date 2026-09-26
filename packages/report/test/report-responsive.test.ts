@@ -13,6 +13,7 @@ function page(route: string): RouteResult {
     finalUrl: `http://localhost:3000${route}`,
     status: 'scanned',
     pageErrors: [],
+    warnings: [],
     breakpoints: { observed: [640, 1024], declared: [640, 1024], unexplained: [] },
     measurements: 110,
     durationMs: 3000,

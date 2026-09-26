@@ -112,8 +112,14 @@ export async function settlePage(page: Page, networkIdleMs: number): Promise<voi
     for (const media of document.querySelectorAll('video, audio'))
       (media as HTMLMediaElement).pause();
     // Walk down the page once so lazy content loads, then return to the top.
+    // Capped, because an infinite feed grows every time we reach its end.
     const step = window.innerHeight;
-    for (let y = 0; y < document.documentElement.scrollHeight; y += step) {
+    const stopAt = performance.now() + 3000;
+    for (
+      let y = 0, i = 0;
+      y < document.documentElement.scrollHeight && i < 20 && performance.now() < stopAt;
+      y += step, i++
+    ) {
       window.scrollTo(0, y);
       await new Promise((r) => setTimeout(r, 30));
     }

@@ -42,6 +42,11 @@ function alsoOn(group: IssueGroup): string {
     : '';
 }
 
+/** Keeps a value from ending a Markdown table cell early. */
+function cell(text: string): string {
+  return text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+}
+
 /** One line per unique issue: quick to scan, easy to paste into a ticket. */
 export function renderSummary(result: ScanResult): string {
   const lines = ['# Responsive report', '', headline(result), ''];
@@ -51,7 +56,7 @@ export function renderSummary(result: ScanResult): string {
     for (const g of groups) {
       const pages = g.routes.map((r) => routeLabel(r.route)).join(', ');
       lines.push(
-        `| ${SEVERITY_ICON[g.issue.severity]} | ${formatRanges(g.issue.ranges)} | ${g.issue.title} | \`${g.issue.element.selector}\` | ${pages} |`,
+        `| ${SEVERITY_ICON[g.issue.severity]} | ${formatRanges(g.issue.ranges)} | ${cell(g.issue.title)} | \`${cell(g.issue.element.selector)}\` | ${cell(pages)} |`,
       );
     }
     lines.push('');
@@ -111,6 +116,7 @@ export function renderDetailed(result: ScanResult, imageBase = 'screenshots/'): 
           : ''),
       '',
     );
+    for (const w of route.warnings ?? []) lines.push(`> ${w}`, '');
     if (!route.issues.length) {
       lines.push('No issues found.', '');
       continue;

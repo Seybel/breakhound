@@ -32,6 +32,7 @@ function route(path: string, issues: Issue[], extra: Partial<RouteResult> = {}):
     finalUrl: `http://localhost:3000${path}`,
     status: 'scanned',
     pageErrors: [],
+    warnings: [],
     breakpoints: { observed: [768], declared: [768], unexplained: [] },
     issues,
     measurements: 110,

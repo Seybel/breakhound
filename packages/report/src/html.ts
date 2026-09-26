@@ -52,6 +52,7 @@ function buildData(result: ScanResult, options: HtmlOptions) {
       url: r.url,
       status: r.status,
       error: r.error ?? null,
+      warnings: r.warnings ?? [],
       breakpoints: r.breakpoints,
       issues: r.issues.map((i) => ({
         fingerprint: i.fingerprint,
@@ -384,12 +385,18 @@ const JS = String.raw`
     el('span', {}, el('i', { style: 'background:var(--info)' }), 'Info'),
     el('span', {}, el('i', { class: 't' }), 'Layout breakpoint')));
 
-  // Pages that couldn't be scanned
+  // Pages that couldn't be scanned, or only approximately
   const failed = D.routes.filter((r) => r.status !== 'scanned');
   if (failed.length) {
     $('failed').append(el('div', { class: 'callout' },
       el('h2', { text: plural(failed.length, 'page') + ' could not be checked' }),
       el('ul', {}, failed.map((r) => el('li', {}, el('code', { text: r.route }), ' ' + (r.error || r.status))))));
+  }
+  const shaky = D.routes.filter((r) => r.warnings.length);
+  if (shaky.length) {
+    $('failed').append(el('div', { class: 'callout' },
+      el('h2', { text: 'Some results are approximate' }),
+      el('ul', {}, shaky.map((r) => el('li', {}, el('code', { text: r.route }), ' ' + r.warnings.join(' '))))));
   }
 
   // Filters

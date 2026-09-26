@@ -5,6 +5,7 @@ import type {
   Region,
 } from '@breakhound/analyzers';
 import type { Page } from 'playwright';
+import { findingKey } from './issues';
 import { settleResize } from './settle';
 
 export type Measurements = Map<number, AnalyzeResult>;
@@ -38,12 +39,16 @@ export function splitWidths(coarse: number[], workers: number): number[][] {
   return chunks;
 }
 
+/**
+ * Extra widths one tab may measure per coarse width while bisecting. Real pages
+ * use well under one; a page whose layout keeps changing on its own would
+ * otherwise be bisected down to every single pixel.
+ */
+const REFINE_BUDGET_PER_WIDTH = 6;
+
 /** Everything that, if it changes between two widths, is worth locating to the pixel. */
 export function stateKey(r: AnalyzeResult): string {
-  const findings = r.findings
-    .map((f) => `${f.detector}|${f.element.selector}|${f.related?.selector ?? ''}`)
-    .sort()
-    .join(',');
+  const findings = r.findings.map(findingKey).sort().join(',');
   const wraps = r.wraps
     .map((w) => `${w.kind}|${w.element.selector}|${w.lines}`)
     .sort()
@@ -53,6 +58,12 @@ export function stateKey(r: AnalyzeResult): string {
 
 export class Sweeper {
   readonly results: Measurements = new Map();
+  /**
+   * True when the page's layout changed while nobody resized it (an
+   * auto-playing carousel, live data): measuring the same width twice
+   * disagreed, or bisection ran out of budget chasing changes.
+   */
+  unstable = false;
   private readonly keys = new Map<number, string>();
 
   constructor(
@@ -60,19 +71,23 @@ export class Sweeper {
     private readonly settings: SweepSettings,
   ) {}
 
-  async measure(width: number, fresh = false): Promise<AnalyzeResult> {
+  async measure(width: number): Promise<AnalyzeResult> {
     const cached = this.results.get(width);
-    if (cached && !fresh) return cached;
+    if (cached) return cached;
+    const result = await this.analyzeAt(width);
+    this.results.set(width, result);
+    this.keys.set(width, stateKey(result));
+    return result;
+  }
+
+  private async analyzeAt(width: number): Promise<AnalyzeResult> {
     await this.page.setViewportSize({ width, height: this.settings.height });
     await settleResize(this.page, this.settings.maxSettleMs);
-    const result = await this.page.evaluate((opts) => {
+    return this.page.evaluate((opts) => {
       const api = window.__breakhound;
       if (!api) throw new Error('breakhound analyzers were not injected into the page');
       return api.analyze(opts);
     }, this.settings.analyze);
-    this.results.set(width, result);
-    this.keys.set(width, stateKey(result));
-    return result;
   }
 
   /** Measures a width from a different starting layout without touching the cache. */
@@ -96,23 +111,29 @@ export class Sweeper {
   /** Coarse pass over the given widths, then bisect every interval whose state changed. */
   async run(coarse: number[]): Promise<void> {
     for (const w of coarse) await this.measure(w);
+    let budget = Math.max(64, coarse.length * REFINE_BUDGET_PER_WIDTH);
+    // Breadth first, so running out of budget leaves every change roughly located.
+    const queue: [number, number][] = [];
     for (let i = 0; i < coarse.length - 1; i++) {
-      const a = coarse[i];
-      const b = coarse[i + 1];
-      if (a !== undefined && b !== undefined) await this.refine(a, b);
+      queue.push([coarse[i] as number, coarse[i + 1] as number]);
     }
-  }
-
-  private async refine(a: number, b: number): Promise<void> {
-    if (b - a <= 1 || this.key(a) === this.key(b)) return;
-    const mid = Math.floor((a + b) / 2);
-    await this.measure(mid);
-    await this.refine(a, mid);
-    await this.refine(mid, b);
-  }
-
-  sortedWidths(): number[] {
-    return [...this.results.keys()].sort((x, y) => x - y);
+    for (let next = queue.shift(); next; next = queue.shift()) {
+      const [a, b] = next;
+      if (b - a <= 1 || this.key(a) === this.key(b)) continue;
+      if (budget-- <= 0) {
+        this.unstable = true;
+        return;
+      }
+      const mid = Math.floor((a + b) / 2);
+      await this.measure(mid);
+      queue.push([a, mid], [mid, b]);
+    }
+    // Coming back to where we started should find the same layout.
+    const start = coarse[0];
+    if (start !== undefined && coarse.length > 1) {
+      const again = await this.analyzeAt(start);
+      if (stateKey(again) !== this.key(start)) this.unstable = true;
+    }
   }
 }
 
@@ -124,6 +145,8 @@ declare global {
       settleAfterResize: (maxWaitMs: number) => Promise<void>;
       highlight: (opts: HighlightOptions) => Region | null;
       clearHighlights: () => void;
+      hasContent: () => boolean;
+      resolveSelector: (selector: string) => Element | null;
     };
   }
 }

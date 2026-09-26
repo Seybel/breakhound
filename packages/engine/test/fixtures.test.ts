@@ -118,6 +118,7 @@ describe('fixture corpus', () => {
       const url = pathToFileURL(join(PAGES, file)).href;
       const result = await scanner.scanPage(url, SCAN);
       expect(result.status, result.error).toBe('scanned');
+      expect(result.warnings).toEqual([]);
 
       const scored = await score(url, result);
       totals.tp += scored.truePositives;

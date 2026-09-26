@@ -4,7 +4,7 @@ import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import type { AnalyzeResult } from '@breakhound/analyzers';
 import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
-import { buildBreakpoints, buildIssues } from './issues';
+import { buildBreakpoints, buildIssues, findingKey } from './issues';
 import { captureIssues } from './screenshots';
 import { RESIZE_PROBE, settlePage } from './settle';
 import { coarseWidths, Sweeper, splitWidths } from './sweep';
@@ -28,6 +28,14 @@ export const DEFAULTS = {
 /** Ranges this narrow get re-measured before being reported. */
 const CONFIRM_BELOW_PX = 3;
 const MAX_PAGE_ERRORS = 10;
+/** Dev servers can take a while to compile a route the first time it is requested. */
+const NAVIGATION_TIMEOUT_MS = 90_000;
+
+/** Options with an explicit `undefined` would otherwise wipe out the defaults. */
+function withDefaults(options: ScanOptions): typeof DEFAULTS & ScanOptions {
+  const defined = Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined));
+  return { ...DEFAULTS, ...defined };
+}
 
 let analyzerScript: string | undefined;
 
@@ -45,20 +53,28 @@ function loadAnalyzerScript(): string {
 }
 
 async function hasContent(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const body = document.body;
-    if (!body) return false;
-    return (
-      body.innerText.trim().length > 0 || !!body.querySelector('img, svg, canvas, video, iframe')
-    );
-  });
+  return page.evaluate(() => window.__breakhound?.hasContent() ?? false);
+}
+
+async function launch(): Promise<Browser> {
+  try {
+    return await chromium.launch({ headless: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/missing dependencies|install-deps|shared libraries/i.test(message)) {
+      throw new Error(
+        'Chromium is installed but this system is missing libraries it needs. Run: npx playwright install-deps chromium',
+      );
+    }
+    throw error;
+  }
 }
 
 export class Scanner {
   private browser: Browser | null = null;
 
   private async ensureBrowser(): Promise<Browser> {
-    if (!this.browser) this.browser = await chromium.launch({ headless: true });
+    if (!this.browser) this.browser = await launch();
     return this.browser;
   }
 
@@ -73,13 +89,17 @@ export class Scanner {
       if (pageErrors.length < MAX_PAGE_ERRORS)
         pageErrors.push(e.message.split('\n')[0] ?? e.message);
     });
-    await page.goto(url, { waitUntil: 'load' });
+    const response = await page.goto(url, { waitUntil: 'load', timeout: NAVIGATION_TIMEOUT_MS });
+    const status = response?.status() ?? 200;
+    if (status >= 400) {
+      throw new Error(`The server answered HTTP ${status} ${response?.statusText() ?? ''}`.trim());
+    }
     await settlePage(page, networkIdleMs);
     return page;
   }
 
   async scanPage(url: string, options: ScanOptions = {}): Promise<PageResult> {
-    const opts = { ...DEFAULTS, ...options };
+    const opts = withDefaults(options);
     const route = opts.route ?? new URL(url).pathname;
     const started = Date.now();
     const browser = await this.ensureBrowser();
@@ -87,6 +107,9 @@ export class Scanner {
       viewport: { width: opts.maxWidth, height: opts.height },
       deviceScaleFactor: 1,
       reducedMotion: 'reduce',
+      // Measuring needs to inject styles and scripts, and local dev servers often use self-signed certificates.
+      bypassCSP: true,
+      ignoreHTTPSErrors: true,
     });
     const empty = {
       breakpoints: { observed: [], declared: [], unexplained: [] },
@@ -110,6 +133,7 @@ export class Scanner {
             ? `The page rendered nothing. It threw: ${pageErrors[0]}`
             : 'The page rendered nothing.',
           pageErrors,
+          warnings: [],
           ...empty,
           durationMs: Date.now() - started,
         };
@@ -160,11 +184,17 @@ export class Scanner {
       }
 
       const declared = await first.evaluate(() => window.__breakhound?.declaredBreakpoints() ?? []);
+      const warnings = sweepers.some((s) => s.unstable)
+        ? [
+            'The layout kept changing on its own (an auto-playing carousel or live content?), so some width ranges are approximate.',
+          ]
+        : [];
       return {
         url,
         finalUrl: first.url(),
         status: 'scanned',
         pageErrors,
+        warnings,
         breakpoints: buildBreakpoints(
           sweepers.map((sw) => sw.results),
           declared,
@@ -182,6 +212,7 @@ export class Scanner {
         status: 'error',
         error: error instanceof Error ? error.message : String(error),
         pageErrors,
+        warnings: [],
         ...empty,
         durationMs: Date.now() - started,
       };
@@ -205,12 +236,7 @@ async function confirmNarrowIssues(issues: Issue[], sweeper: Sweeper): Promise<I
       continue;
     }
     const again = await sweeper.probe(issue.worstAt);
-    const reproduced = again.findings.some(
-      (f) =>
-        f.detector === issue.detector &&
-        f.element.selector === issue.element.selector &&
-        (f.related?.selector ?? '') === (issue.related?.selector ?? ''),
-    );
+    const reproduced = again.findings.some((f) => findingKey(f) === issue.fingerprint);
     if (reproduced) kept.push(issue);
   }
   return kept;
