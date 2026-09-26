@@ -107,7 +107,10 @@ function readablePath(el: Element): string {
 function openingTag(el: Element): string {
   const html = el.outerHTML;
   const end = html.indexOf('>');
-  const tag = end === -1 ? html : html.slice(0, end + 1);
+  const tag = (end === -1 ? html : html.slice(0, end + 1)).replace(
+    /="([^"]{60})[^"]+"/g,
+    (_, head: string) => `="${head}..."`,
+  );
   return tag.length > 200 ? `${tag.slice(0, 197)}...>` : tag;
 }
 

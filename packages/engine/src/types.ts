@@ -76,3 +76,27 @@ export interface ScanOptions {
   /** Most screenshots to take for one page. */
   screenshotLimit?: number;
 }
+
+export interface RouteResult extends PageResult {
+  /** Route pattern, e.g. `/products/[id]`, or the URL path for a plain URL. */
+  route: string;
+}
+
+/** Everything one run of breakhound produced. All reports are rendered from this. */
+export interface ScanResult {
+  schemaVersion: 1;
+  tool: { name: 'breakhound'; version: string };
+  project: { framework: string | null; baseUrl: string | null; root: string | null };
+  startedAt: string;
+  durationMs: number;
+  settings: { minWidth: number; maxWidth: number; step: number; browsers: string[] };
+  routes: RouteResult[];
+  summary: {
+    routes: number;
+    issues: number;
+    /** Issues counted once even when the same element breaks on several routes. */
+    uniqueIssues: number;
+    /** Unique issues by severity. */
+    bySeverity: Record<Severity, number>;
+  };
+}

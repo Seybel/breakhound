@@ -181,11 +181,23 @@ export function isDecorative(el: Element): boolean {
   return !el.querySelector(CONTENT_SELECTOR);
 }
 
+/** Browser defaults that tell nobody anything about why a layout broke. */
+const DEFAULT_VALUES: Record<string, string> = {
+  'flex-shrink': '1',
+  position: 'static',
+  'object-fit': 'fill',
+  overflow: 'visible',
+  'flex-basis': 'auto',
+  transform: 'none',
+};
+
 export function pick(style: CSSStyleDeclaration, props: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const prop of props) {
     const v = style.getPropertyValue(prop);
-    if (v && v !== 'none' && v !== 'normal' && v !== 'auto' && v !== '0px') out[prop] = v;
+    if (!v || v === 'none' || v === 'normal' || v === 'auto' || v === '0px') continue;
+    if (DEFAULT_VALUES[prop] === v) continue;
+    out[prop] = v;
   }
   return out;
 }

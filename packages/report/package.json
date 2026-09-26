@@ -1,0 +1,15 @@
+{
+  "name": "@breakhound/report",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Turns a breakhound scan result into Markdown, HTML, PDF and agent prompts.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@breakhound/engine": "*",
+    "playwright": "^1.63.0"
+  },
+  "license": "MIT"
+}

@@ -171,10 +171,61 @@ export function buildIssues(
   }
 
   const order = { error: 0, warning: 1, info: 2 };
-  return issues.sort(
+  return mergeOverflowFamily(issues).sort(
     (a, b) =>
       order[a.severity] - order[b.severity] || (a.ranges[0]?.from ?? 0) - (b.ranges[0]?.from ?? 0),
   );
+}
+
+/** Joins ranges that touch or overlap into one. */
+function joinRanges(ranges: WidthRange[]): WidthRange[] {
+  const sorted = [...ranges].sort((a, b) => a.from - b.from);
+  const out: WidthRange[] = [];
+  for (const r of sorted) {
+    const last = out[out.length - 1];
+    if (last && r.from <= last.to + 1) last.to = Math.max(last.to, r.to);
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+/**
+ * One element can be reported by several overflow detectors at different
+ * widths (an image that makes the page scroll below 516px and only spills out
+ * of its column up to 530px). That's one problem with one fix, so it becomes
+ * one issue covering all of those widths, keeping the most severe details.
+ */
+function mergeOverflowFamily(issues: Issue[]): Issue[] {
+  const family = new Set<string>(OVERFLOW_PRIORITY);
+  const byElement = new Map<string, Issue[]>();
+  const out: Issue[] = [];
+  for (const issue of issues) {
+    if (!family.has(issue.detector)) {
+      out.push(issue);
+      continue;
+    }
+    const list = byElement.get(issue.element.selector);
+    if (list) list.push(issue);
+    else byElement.set(issue.element.selector, [issue]);
+  }
+  for (const list of byElement.values()) {
+    const [lead, ...rest] = list.sort(
+      (a, b) =>
+        OVERFLOW_PRIORITY.indexOf(a.detector as (typeof OVERFLOW_PRIORITY)[number]) -
+        OVERFLOW_PRIORITY.indexOf(b.detector as (typeof OVERFLOW_PRIORITY)[number]),
+    );
+    if (!lead) continue;
+    if (rest.length) {
+      lead.ranges = joinRanges(list.flatMap((i) => i.ranges));
+      lead.evidence = { ...lead.evidence, alsoReportedAs: rest.map((i) => i.detector).join(', ') };
+      if (!lead.related) {
+        const withRelated = rest.find((i) => i.related);
+        if (withRelated?.related) lead.related = withRelated.related;
+      }
+    }
+    out.push(lead);
+  }
+  return out;
 }
 
 /** Widths where the layout signature changes, compared with what the CSS declares. */
