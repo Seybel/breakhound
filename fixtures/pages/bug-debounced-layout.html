@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layout switched by a debounced resize handler</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.panel { width: 100%; height: 120px; background: #def; }
+.compact .panel { width: 720px; }
+</style>
+</head>
+<body>
+<div class="panel" data-bh-expect="page-overflow@320-699">Panel sized by JavaScript</div>
+<script>
+  const apply = () => document.body.classList.toggle('compact', window.innerWidth < 700);
+  let timer;
+  window.addEventListener('resize', () => {
+    clearTimeout(timer);
+    timer = setTimeout(apply, 300);
+  });
+  apply();
+</script>
+</body>
+</html>

@@ -46,4 +46,5 @@ export function analyze(options: AnalyzeOptions = {}): AnalyzeResult {
   };
 }
 
+export { settleAfterResize } from './settle';
 export { declaredBreakpoints };

@@ -9,7 +9,7 @@ export interface SweepSettings {
   maxWidth: number;
   step: number;
   height: number;
-  resizeDebounceMs: number;
+  maxSettleMs: number;
   analyze: AnalyzeOptions;
 }
 
@@ -39,7 +39,7 @@ export class Sweeper {
     const cached = this.results.get(width);
     if (cached && !fresh) return cached;
     await this.page.setViewportSize({ width, height: this.settings.height });
-    await settleResize(this.page, this.settings.resizeDebounceMs);
+    await settleResize(this.page, this.settings.maxSettleMs);
     const result = await this.page.evaluate((opts) => {
       const api = window.__breakhound;
       if (!api) throw new Error('breakhound analyzers were not injected into the page');
@@ -55,9 +55,9 @@ export class Sweeper {
     const { minWidth, maxWidth, height } = this.settings;
     const away = width - minWidth > maxWidth - width ? minWidth : maxWidth;
     await this.page.setViewportSize({ width: away, height });
-    await settleResize(this.page, this.settings.resizeDebounceMs);
+    await settleResize(this.page, this.settings.maxSettleMs);
     await this.page.setViewportSize({ width, height });
-    await settleResize(this.page, this.settings.resizeDebounceMs);
+    await settleResize(this.page, this.settings.maxSettleMs);
     return this.page.evaluate(
       (opts) => window.__breakhound?.analyze(opts) as AnalyzeResult,
       this.settings.analyze,
@@ -101,6 +101,7 @@ declare global {
     __breakhound?: {
       analyze: (options?: AnalyzeOptions) => AnalyzeResult;
       declaredBreakpoints: () => number[];
+      settleAfterResize: (maxWaitMs: number) => Promise<void>;
     };
   }
 }
