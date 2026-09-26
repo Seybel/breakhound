@@ -6,7 +6,19 @@ export function copyToClipboard(text: string): boolean {
     process.platform === 'darwin'
       ? [['pbcopy', []]]
       : process.platform === 'win32'
-        ? [['clip', []]]
+        ? [
+            // clip.exe mangles anything outside the ANSI code page, like the – and × in our prompts.
+            [
+              'powershell',
+              [
+                '-NoProfile',
+                '-NonInteractive',
+                '-Command',
+                '[Console]::InputEncoding = [Text.Encoding]::UTF8; Set-Clipboard -Value ([Console]::In.ReadToEnd())',
+              ],
+            ],
+            ['clip', []],
+          ]
         : [
             ['wl-copy', []],
             ['xclip', ['-selection', 'clipboard']],

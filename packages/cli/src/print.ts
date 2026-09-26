@@ -43,6 +43,7 @@ export function printRouteLine(route: RouteResult, width: number): void {
       `  ${styleText(worst, '✖')} ${label}  ${styleText(worst, plural(route.issues.length, 'issue'))}${styleText('dim', ` · ${layout}`)}  ${time}${note}`,
     );
   }
+  for (const w of route.warnings) console.log(styleText('yellow', `    ⚠ ${w}`));
 }
 
 export function printIssues(result: ScanResult): void {
@@ -83,7 +84,8 @@ export function printFooter(
   console.log(
     `  ${styleText('dim', 'Report')}  ${rel(paths.html)}  ${styleText('dim', '(breakhound report to open it)')}`,
   );
-  if (result.summary.issues) {
+  // The prompt leaves info-level issues out unless asked, so only offer it when it has something.
+  if (result.summary.bySeverity.error + result.summary.bySeverity.warning > 0) {
     console.log(
       `  ${styleText('dim', 'Fix it')}  breakhound prompt --copy  ${styleText('dim', 'then paste into your coding agent')}`,
     );

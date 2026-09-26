@@ -50,11 +50,11 @@ Chromium is downloaded automatically the first time (about 150 MB).
 | Check | Finds |
 |---|---|
 | `page-overflow` | Anything that makes the page scroll sideways, or gets cut off at the screen edge (including inside full-width wrappers) |
-| `content-overflow` | Content spilling out of a card, panel or bordered box |
+| `content-overflow` | Content spilling out of a card, panel or bordered box, sideways or out of the bottom of a fixed-height box |
 | `media-overflow` | Images, video and embeds that don't shrink with their container |
 | `overlap` | Content painted on top of other content |
 | `unexpected-wrap` | Nav rows and button labels breaking onto extra lines |
-| `clipped-text` | Text cut off by a fixed-size container at narrower widths |
+| `clipped-text` | Text cut off, or pushed out of sight, by a fixed-size container at narrower widths |
 | `squished-text` | Columns so narrow that words break apart |
 | `distorted-media` | Images stretched or squashed out of proportion |
 | `small-tap-target` | Buttons and links under 24×24px that crowd each other on touch screens (WCAG 2.2) |
@@ -64,7 +64,7 @@ Chromium is downloaded automatically the first time (about 150 MB).
 
 Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media query explains.
 
-It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone.
+It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone. It also looks inside web components (open shadow roots) and handles right-to-left pages.
 
 ## Reports
 
@@ -128,7 +128,7 @@ breakhound init                Create a config file
 -q, --quiet             Only print errors
 ```
 
-Exit codes: `0` clean, `1` issues at or above `--fail-on`, `2` a page couldn't be scanned. That makes it CI-friendly as is.
+Exit codes: `0` clean, `1` issues at or above `--fail-on`, `2` a page couldn't be checked (it failed to load, answered with an HTTP error, or rendered nothing). That makes it CI-friendly as is.
 
 ## Development
 

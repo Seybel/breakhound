@@ -59,7 +59,7 @@ Example run:
   Fix with your agent:  npx breakhound prompt | pbcopy
 ```
 
-Exit code is non-zero when issues at or above `--fail-on` severity exist, so the same command works in CI.
+Exit code is non-zero when issues at or above `--fail-on` severity exist (1), or when a page could not be checked at all (2), so the same command works in CI.
 
 ---
 
@@ -202,7 +202,7 @@ Each detector is a pure function `(document, context) → Finding[]`. It must na
 | ID | Detects | Method | Default severity |
 |---|---|---|---|
 | `page-overflow` | Page scrolls horizontally | `scrollWidth > clientWidth` on the root; blame the outermost elements whose right edge passes the viewport and that aren't inside a scroll container | error |
-| `content-overflow` | Content spilling out of its container | Child box exceeds parent box where parent `overflow` is visible, not a scroll container, not positioned intentionally | error |
+| `content-overflow` | Content spilling out of its container | Child box exceeds a visibly bounded parent sideways, or past the bottom of a fixed-height one; parent `overflow` visible, not positioned or offset on purpose (negative margins, transforms, floats) | error |
 | `overlap` | Elements unintentionally covering each other | Box intersection between in-flow siblings, confirmed by `elementFromPoint` sampling; ignores absolute/fixed overlays, badges, and `z-index` layers | error |
 | `unexpected-wrap` | Rows/navs breaking onto extra lines | Children of a flex (`nowrap` or inline) container on different line boxes, where the container was single-line at wider widths | warning |
 | `squished-text` | Text columns too narrow | Column narrower than 10em with more lines than words (words breaking apart), or under 3 characters per line | warning |
@@ -211,7 +211,7 @@ Each detector is a pure function `(document, context) → Finding[]`. It must na
 | `small-tap-target` | Buttons/links too small on touch widths (< 768px) | WCAG 2.2 target size: box < 24×24 and a 24px circle around it touches another target. Inline text links and labelled checkboxes are exempt. Grouped per parent | warning |
 | `tiny-text` | Unreadable text on small widths | Computed font size < 12px, grouped per parent | info |
 | `edge-gutter` | Text pressed against a phone screen edge | The text's block container has < 4px between its content box and the screen edge (< 768px) | warning |
-| `clipped-text` | Text cut off by a fixed-size container | Painted text box extends past a non-scrolling clip ancestor; skips ellipsis, line-clamp, sliders and clips already present at the widest width | warning |
+| `clipped-text` | Text cut off by a fixed-size container | Painted text box extends past a non-scrolling clip ancestor, or is pushed entirely below one that still shows other text; blamed on the container; skips ellipsis, line-clamp, sliders, collapsed panels and clips already present at the widest width | warning |
 | `viewport-meta` | Missing/incorrect viewport tag | DOM check, once per page | error |
 
 

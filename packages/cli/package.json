@@ -52,6 +52,7 @@
     "playwright": "^1.63.0"
   },
   "devDependencies": {
+    "@breakhound/analyzers": "*",
     "@breakhound/engine": "*",
     "@breakhound/report": "*"
   }

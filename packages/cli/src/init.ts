@@ -30,9 +30,9 @@ function guessBaseUrl(cwd: string): string {
     const dev: string = pkg.scripts?.dev ?? '';
     const port = dev.match(/(?:--port|-p)[ =](\d{2,5})/)?.[1];
     if (port) return `http://localhost:${port}`;
-    if (deps.vite && !deps.nuxt && !deps['@sveltejs/kit'] && !deps.astro)
-      return 'http://localhost:5173';
     if (deps.astro) return 'http://localhost:4321';
+    if (deps.nuxt || deps.next) return 'http://localhost:3000';
+    if (deps.vite || deps['@sveltejs/kit']) return 'http://localhost:5173';
     if (deps['@angular/core']) return 'http://localhost:4200';
     if (deps['@vue/cli-service']) return 'http://localhost:8080';
   } catch {

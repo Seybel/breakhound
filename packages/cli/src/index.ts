@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { parseArgs, styleText } from 'node:util';
 import type { Severity } from '@breakhound/engine';
 import { renderPrompt } from '@breakhound/report';
@@ -92,11 +92,12 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
-  const { config: fileConfig } = await loadConfig(cwd, values.config);
+  const { config: fileConfig, warnings } = await loadConfig(cwd, values.config);
+  for (const w of warnings) console.error(styleText('yellow', `⚠ ${w}`));
   const outDir = values.out ?? fileConfig.outDir ?? '.breakhound';
 
   if (command === 'report') {
-    const file = join(cwd, outDir, 'report.html');
+    const file = join(resolve(cwd, outDir), 'report.html');
     if (!existsSync(file)) throw new Error('No report yet. Run breakhound first.');
     openInDefaultApp(file);
     console.log(file);
@@ -127,7 +128,7 @@ async function main(argv: string[]): Promise<number> {
   const step = positiveInt('step', values.step);
   const concurrency = positiveInt('concurrency', values.concurrency);
   const failOn = values['fail-on'] ?? fileConfig.failOn ?? 'error';
-  if (failOn !== 'none' && !(failOn in SEVERITY_RANK)) {
+  if (failOn !== 'none' && !Object.hasOwn(SEVERITY_RANK, failOn)) {
     throw new Error('--fail-on must be one of: error, warning, info, none');
   }
 
@@ -155,7 +156,8 @@ async function main(argv: string[]): Promise<number> {
   });
   if (values.open) openInDefaultApp(reports.html);
 
-  if (result.routes.some((r) => r.status === 'error')) return 2;
+  // A page that failed to load or rendered nothing wasn't checked, so the run can't pass.
+  if (result.routes.some((r) => r.status !== 'scanned')) return 2;
   if (failOn === 'none') return 0;
   const threshold = SEVERITY_RANK[failOn as Severity];
   const failing = result.routes.some((r) =>

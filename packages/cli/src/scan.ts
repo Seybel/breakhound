@@ -1,6 +1,6 @@
-import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { styleText } from 'node:util';
 import {
   createScanResult,
@@ -50,10 +50,24 @@ function toUrl(target: string, baseUrl: string | undefined, cwd: string): string
   );
 }
 
-function routeOf(url: string): string {
+function routeOf(url: string, cwd: string): string {
   const u = new URL(url);
-  if (u.protocol === 'file:') return basename(u.pathname);
+  if (u.protocol === 'file:') {
+    const path = fileURLToPath(u);
+    const rel = relative(cwd, path);
+    return rel.startsWith('..') ? path : rel;
+  }
   return `${u.pathname}${u.search}` || '/';
+}
+
+/** Screenshots are named by issue id; only those are removed, never anything else in the folder. */
+const SCREENSHOT_FILE = /^[0-9a-f]{10}\.png$/;
+
+function clearScreenshots(dir: string): void {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    if (SCREENSHOT_FILE.test(name)) rmSync(join(dir, name), { force: true });
+  }
 }
 
 export function resolveTargets(targets: string[], config: BreakhoundConfig, cwd: string): Target[] {
@@ -69,7 +83,7 @@ export function resolveTargets(targets: string[], config: BreakhoundConfig, cwd:
     const url = toUrl(t, config.baseUrl, cwd);
     if (seen.has(url)) continue;
     seen.add(url);
-    out.push({ url, route: routeOf(url) });
+    out.push({ url, route: routeOf(url, cwd) });
   }
   return out;
 }
@@ -107,7 +121,7 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
   const outDir = resolve(cwd, config.outDir ?? '.breakhound');
   const screenshotDir = join(outDir, 'screenshots');
   // Screenshots from the previous run would pile up otherwise.
-  if (existsSync(screenshotDir)) rmSync(screenshotDir, { recursive: true, force: true });
+  clearScreenshots(screenshotDir);
 
   ensureChromium();
   if (!req.quiet) {
