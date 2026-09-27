@@ -24,7 +24,9 @@ export default defineConfig([
     },
   },
   {
+    // The public API is only defineConfig and types, so it ships for require() too.
     ...shared,
+    format: ['esm', 'cjs'],
     entry: { index: 'src/lib.ts' },
   },
 ]);

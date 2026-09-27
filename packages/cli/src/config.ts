@@ -2,46 +2,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DETECTOR_IDS } from '@breakhound/analyzers/types';
-import type { DetectorId, IgnoreRule, Severity } from '@breakhound/engine/types';
+import type { DetectorId, IgnoreRule } from '@breakhound/engine/types';
+import type { BreakhoundConfig } from './define';
 
-export interface BreakhoundConfig {
-  /** Where your app is running, e.g. http://localhost:3000. */
-  baseUrl?: string;
-  /** Pages to scan: paths (joined to baseUrl) or full URLs. Leave it out to find every route automatically. */
-  routes?: string[];
-  /** Only scan routes matching these globs, e.g. ['/blog/**']. `*` is one segment, `**` any number. */
-  include?: string[];
-  /** Skip routes matching these globs, e.g. ['/admin/**']. */
-  exclude?: string[];
-  /** A real URL for each dynamic route, e.g. { '/products/[id]': '/products/42' }. */
-  samples?: Record<string, string>;
-  /** Most routes to scan in one run (default 100). */
-  maxRoutes?: number;
-  /** How to start the app when it isn't running, if not with its "dev" script. */
-  server?: { command?: string; port?: number; timeout?: number };
-  /** Viewport widths to sweep, in CSS pixels. */
-  widths?: { min?: number; max?: number; step?: number };
-  /** Turn a check off with `false`, or change how serious it is. */
-  detectors?: Partial<Record<DetectorId, boolean | Severity>>;
-  /** Elements to leave out: a CSS selector, or a selector limited to some checks. */
-  ignore?: (string | IgnoreRule)[];
-  /** Exit with code 1 when an issue at this level (or worse) is found. */
-  failOn?: Severity | 'none';
-  /** Where reports are written. */
-  outDir?: string;
-  /** Take a screenshot of every issue. */
-  screenshots?: boolean;
-  /** Also write report.pdf. */
-  pdf?: boolean;
-  /** Browser tabs to use at once (default: half your CPU cores, up to 4). */
-  concurrency?: number;
-  /** How long to wait for the page to settle. */
-  settle?: { networkIdleMs?: number; maxSettleMs?: number };
-}
-
-export function defineConfig(config: BreakhoundConfig): BreakhoundConfig {
-  return config;
-}
+export { type BreakhoundConfig, defineConfig } from './define';
 
 const CONFIG_FILES = [
   'breakhound.config.ts',
@@ -109,7 +73,8 @@ export async function loadConfig(cwd: string, explicit?: string): Promise<Loaded
   return { config: loaded, file, warnings: validateConfig(loaded) };
 }
 
-const KNOWN_KEYS = new Set([
+export const KNOWN_KEYS = new Set([
+  '$schema',
   'baseUrl',
   'routes',
   'include',
@@ -183,6 +148,34 @@ export function validateConfig(config: BreakhoundConfig): string[] {
     const v = config.widths?.[key];
     if (v !== undefined && (!Number.isInteger(v) || v <= 0)) {
       throw new Error(`widths.${key} must be a positive whole number of pixels`);
+    }
+  }
+  if (
+    config.concurrency !== undefined &&
+    (!Number.isInteger(config.concurrency) || config.concurrency <= 0)
+  ) {
+    throw new Error('concurrency must be a positive whole number');
+  }
+  for (const key of ['networkIdleMs', 'maxSettleMs'] as const) {
+    const v = config.settle?.[key];
+    if (v !== undefined && (typeof v !== 'number' || v < 0)) {
+      throw new Error(`settle.${key} must be a number of milliseconds`);
+    }
+  }
+  if (config.ignore !== undefined) {
+    const ok =
+      Array.isArray(config.ignore) &&
+      config.ignore.every(
+        (r) =>
+          typeof r === 'string' ||
+          (r &&
+            typeof r === 'object' &&
+            typeof (r as { selector?: unknown }).selector === 'string'),
+      );
+    if (!ok) {
+      throw new Error(
+        `ignore must be a list of CSS selectors, or { selector, detectors } objects, like [".cookie-banner"]`,
+      );
     }
   }
   for (const [id, value] of Object.entries(config.detectors ?? {})) {

@@ -28,6 +28,35 @@ const TEMPLATE = (
 }${typed ? ')' : ''};
 `;
 
+/** Where editors fetch the schema from, so a JSON config gets completion without installing anything. */
+export const SCHEMA_URL = 'https://cdn.jsdelivr.net/npm/breakhound/dist/schema.json';
+
+const JSON_TEMPLATE = `${JSON.stringify(
+  {
+    $schema: SCHEMA_URL,
+    widths: { min: 320, max: 1920 },
+    ignore: [],
+    failOn: 'error',
+  },
+  null,
+  2,
+)}
+`;
+
+/**
+ * A config that imports from breakhound only type-checks when breakhound is
+ * installed; run through npx it isn't, and the import would break the
+ * project's own type check (and builds like next build that run it).
+ */
+function isInstalled(cwd: string): boolean {
+  try {
+    const pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
+    return Boolean(pkg.dependencies?.breakhound || pkg.devDependencies?.breakhound);
+  } catch {
+    return false;
+  }
+}
+
 function guessBaseUrl(cwd: string): string {
   try {
     const pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
@@ -54,11 +83,23 @@ export function runInit(cwd: string): void {
     console.log(`${existing} already exists. Nothing to do.`);
     return;
   }
+  const installed = isInstalled(cwd);
   const typed = existsSync(join(cwd, 'tsconfig.json'));
-  const file = typed ? 'breakhound.config.ts' : 'breakhound.config.mjs';
-  const baseUrl = guessBaseUrl(cwd);
-  writeFileSync(join(cwd, file), TEMPLATE(baseUrl, typed));
+  const file = !installed
+    ? 'breakhound.config.json'
+    : typed
+      ? 'breakhound.config.ts'
+      : 'breakhound.config.mjs';
+  writeFileSync(join(cwd, file), installed ? TEMPLATE(guessBaseUrl(cwd), typed) : JSON_TEMPLATE);
   console.log(`${styleText('green', '✔')} Created ${file}`);
+  if (!installed) {
+    console.log(
+      styleText(
+        'dim',
+        `  Your editor suggests every option as you type. For a ${typed ? 'TypeScript' : 'JavaScript'} config instead,\n  add breakhound to your dev dependencies and run init again.`,
+      ),
+    );
+  }
 
   if (ignoreBreakhoundFolder(cwd)) {
     console.log(`${styleText('green', '✔')} Added .breakhound/ to .gitignore`);

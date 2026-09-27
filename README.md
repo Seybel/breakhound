@@ -126,7 +126,7 @@ Paste it into Claude Code, Cursor, Copilot or any other agent. The prompt lists 
 
 ## Configuration
 
-Optional. `breakhound.config.ts` (or `.js`, `.mjs`, `.json`), created by `npx breakhound init`:
+Optional. `npx breakhound init` creates one. If breakhound is in your dev dependencies you get `breakhound.config.ts` (or `.mjs` without TypeScript), fully typed:
 
 ```ts
 import { defineConfig } from 'breakhound';
@@ -140,6 +140,17 @@ export default defineConfig({
   failOn: 'error',
 });
 ```
+
+Running breakhound through `npx` without installing it, you get `breakhound.config.json` instead. A TypeScript file importing a package that isn't installed would break your project's own type check (and builds that run it, like `next build`). The JSON file points at breakhound's schema, so your editor still suggests and explains every option:
+
+```json
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/breakhound/dist/schema.json",
+  "exclude": ["/admin/**"]
+}
+```
+
+`.js`, `.cjs` and `.mts` configs work too. The types ship for both `import` and `require`.
 
 | Option | What it does |
 |---|---|

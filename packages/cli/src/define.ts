@@ -1,0 +1,63 @@
+import type { DetectorId, IgnoreRule, Severity } from '@breakhound/engine/types';
+
+/**
+ * The config file's shape. Everything is optional: with no config at all,
+ * breakhound finds the app, its routes and its dev server by itself.
+ */
+export interface BreakhoundConfig {
+  /** Where your app is running, e.g. http://localhost:3000. */
+  baseUrl?: string;
+  /** Pages to scan: paths (joined to baseUrl) or full URLs. Leave it out to find every route automatically. */
+  routes?: string[];
+  /** Only scan routes matching these globs, e.g. ['/blog/**']. `*` is one segment, `**` any number. */
+  include?: string[];
+  /** Skip routes matching these globs, e.g. ['/admin/**']. */
+  exclude?: string[];
+  /** A real URL for each dynamic route, e.g. { '/products/[id]': '/products/42' }. */
+  samples?: Record<string, string>;
+  /** Most routes to scan in one run (default 100). */
+  maxRoutes?: number;
+  /** How to start the app when it isn't running, if not with its "dev" script. */
+  server?: {
+    /** Command that starts the app, e.g. "npm run dev -- --port 4000". */
+    command?: string;
+    /** Port to wait on, when the command doesn't print its URL. */
+    port?: number;
+    /** Seconds to wait for the server to answer (default 120). */
+    timeout?: number;
+  };
+  /** Viewport widths to sweep, in CSS pixels. */
+  widths?: {
+    /** Narrowest width (default 320). */
+    min?: number;
+    /** Widest width (default 1920). */
+    max?: number;
+    /** Step of the first, coarse sweep before narrowing down (default 16). */
+    step?: number;
+  };
+  /** Turn a check off with `false`, or change how serious it is. */
+  detectors?: Partial<Record<DetectorId, boolean | Severity>>;
+  /** Elements to leave out: a CSS selector, or a selector limited to some checks. */
+  ignore?: (string | IgnoreRule)[];
+  /** Exit with code 1 when an issue at this level (or worse) is found. */
+  failOn?: Severity | 'none';
+  /** Where reports are written. */
+  outDir?: string;
+  /** Take a screenshot of every issue. */
+  screenshots?: boolean;
+  /** Also write report.pdf. */
+  pdf?: boolean;
+  /** Browser tabs to use at once (default: half your CPU cores, up to 4). */
+  concurrency?: number;
+  /** How long to wait for the page to settle. */
+  settle?: {
+    /** Most milliseconds to wait for the network to go quiet after load (default 5000). */
+    networkIdleMs?: number;
+    /** Most milliseconds to wait for the layout to stop moving after a resize (default 1000). */
+    maxSettleMs?: number;
+  };
+}
+
+export function defineConfig(config: BreakhoundConfig): BreakhoundConfig {
+  return config;
+}

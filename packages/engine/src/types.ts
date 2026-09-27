@@ -19,7 +19,8 @@ export interface Issue {
   ranges: WidthRange[];
   /** Width where the issue is most severe; details below are taken from here. */
   worstAt: number;
-  element: ElementInfo & { source: null };
+  /** `source` is where the element is written in your code, when a source plugin can tell. */
+  element: ElementInfo & { source: SourceLocation | null };
   related?: ElementInfo;
   evidence: Record<string, number | string | boolean>;
   styles: Record<string, string>;
@@ -36,6 +37,14 @@ export interface Breakpoints {
   declared: number[];
   /** Observed changes with no declared breakpoint nearby. */
   unexplained: number[];
+}
+
+/** A place in the project's source code. */
+export interface SourceLocation {
+  /** Path relative to the project root, with `/` separators. */
+  file: string;
+  line: number;
+  column: number;
 }
 
 export interface PageResult {

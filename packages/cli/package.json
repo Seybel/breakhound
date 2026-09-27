@@ -26,13 +26,20 @@
   "bin": {
     "breakhound": "./dist/cli.js"
   },
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
+    "./schema.json": "./dist/schema.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -41,7 +48,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node ../analyzers/build.mjs && tsup && dts-bundle-generator --silent --no-banner --project tsconfig.dts.json --external-inlines @breakhound/engine @breakhound/analyzers -o dist/index.d.ts src/lib.ts",
+    "build": "node ../analyzers/build.mjs && tsup && dts-bundle-generator --silent --no-banner --project tsconfig.dts.json --external-inlines @breakhound/engine @breakhound/analyzers -o dist/index.d.ts src/lib.ts && cp dist/index.d.ts dist/index.d.cts && node schema.mjs",
     "prepack": "npm run build && cp ../../README.md ../../LICENSE ."
   },
   "engines": {
@@ -57,5 +64,6 @@
     "@breakhound/engine": "*",
     "@breakhound/report": "*",
     "@breakhound/routes": "*"
-  }
+  },
+  "module": "./dist/index.js"
 }
