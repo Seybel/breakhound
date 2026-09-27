@@ -5,6 +5,7 @@
   "workspaces": [
     "packages/analyzers",
     "packages/engine",
+    "packages/routes",
     "packages/report",
     "packages/cli"
   ],
@@ -16,7 +17,7 @@
     "dev": "npm run build:analyzers && tsx packages/cli/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/analyzers && tsc -p packages/engine && tsc -p packages/report && tsc -p packages/cli",
+    "typecheck": "tsc -p packages/analyzers && tsc -p packages/engine && tsc -p packages/routes && tsc -p packages/report && tsc -p packages/cli",
     "lint": "biome check .",
     "format": "biome check --write .",
     "build": "npm run build -w breakhound"

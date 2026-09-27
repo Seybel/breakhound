@@ -1,0 +1,21 @@
+{
+  "name": "@breakhound/routes",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Finds a project's framework, dev server and routes.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router": "^8.4.0",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1"
+  }
+}

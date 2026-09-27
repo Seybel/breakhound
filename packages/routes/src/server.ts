@@ -1,0 +1,211 @@
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { FrameworkId, Project } from './project';
+
+const PROBE_TIMEOUT_MS = 1500;
+const MAX_BODY = 256 * 1024;
+
+interface Probe {
+  status: number;
+  html: string;
+  headers: Headers;
+}
+
+async function probe(url: string, timeoutMs = PROBE_TIMEOUT_MS): Promise<Probe | null> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: 'follow',
+      headers: { accept: 'text/html' },
+    });
+    const reader = res.body?.getReader();
+    let html = '';
+    if (reader) {
+      const decoder = new TextDecoder();
+      while (html.length < MAX_BODY) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        html += decoder.decode(value, { stream: true });
+      }
+      await reader.cancel().catch(() => {});
+    }
+    return { status: res.status, html, headers: res.headers };
+  } catch {
+    return null;
+  }
+}
+
+/** Markers each framework's dev server leaves in the HTML it serves. */
+const FINGERPRINTS: Partial<Record<FrameworkId, RegExp>> = {
+  next: /\/_next\/|__NEXT_DATA__|next-route-announcer/,
+  nuxt: /\/_nuxt\/|__NUXT__|id="__nuxt"/,
+  sveltekit: /__sveltekit|data-sveltekit/,
+  astro: /astro-island|data-astro-|\/@id\/astro:|\/_astro\/|content="Astro/,
+  remix: /__remixContext|__reactRouterContext|virtual:remix|virtual:react-router/,
+  'react-router': /__reactRouterContext|virtual:react-router/,
+  angular: /<app-root|ng-version|\/@vite\/client/,
+  gatsby: /___gatsby|gatsby-/,
+};
+
+/** For plain Vite apps: the dev server serves the project's own index.html, with its entry script. */
+function viteEntry(root: string): string | null {
+  const html = join(root, 'index.html');
+  if (!existsSync(html)) return null;
+  return (
+    readFileSync(html, 'utf8').match(
+      /<script[^>]*type=["']module["'][^>]*src=["']([^"']+)["']/,
+    )?.[1] ?? null
+  );
+}
+
+/** Whether the page served on a port is this project, not some other app left running. */
+export function looksLikeProject(project: Project, page: Probe): boolean {
+  const { html, headers } = page;
+  if (project.framework.id === 'next' && /next\.js/i.test(headers.get('x-powered-by') ?? ''))
+    return true;
+  const fingerprint = FINGERPRINTS[project.framework.id];
+  if (fingerprint) return fingerprint.test(html);
+  const entry = viteEntry(project.root);
+  if (entry) return html.includes(entry);
+  if (/react-scripts/.test(project.devScript?.command ?? ''))
+    return /\/static\/js\/bundle\.js/.test(html);
+  // Unknown setup: any HTML page will do.
+  return /<html|<!doctype html/i.test(html);
+}
+
+/** Whether anything answers at this URL. */
+export async function isReachable(url: string): Promise<boolean> {
+  const page = await probe(url, 5000);
+  return page !== null;
+}
+
+export interface RunningServer {
+  url: string;
+  /** Set when breakhound started the server itself. */
+  command?: string;
+  stop(): Promise<void>;
+}
+
+/** Looks for this project's dev server on the usual ports. */
+export async function findRunningServer(project: Project): Promise<RunningServer | null> {
+  const hosts = ['localhost', '127.0.0.1'];
+  const checks = project.ports.flatMap((port) => hosts.map((host) => ({ port, host })));
+  const results = await Promise.all(
+    checks.map(async ({ port, host }) => {
+      const url = `http://${host}:${port}`;
+      const page = await probe(`${url}/`);
+      return page && page.status < 500 && looksLikeProject(project, page) ? url : null;
+    }),
+  );
+  // Keep the preferred port order; prefer "localhost" on the same port.
+  const url = results.find(Boolean);
+  return url ? { url, stop: async () => {} } : null;
+}
+
+function stripAnsi(text: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal colour codes.
+  return text.replace(/\u001b\[[0-9;?]*[A-Za-z]/g, '');
+}
+
+const LOCAL_URL = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1?\]|0\.0\.0\.0):\d{2,5}[^\s]*/;
+
+export interface StartOptions {
+  /** Command to run instead of the package.json dev script. */
+  command?: string;
+  /** Fixed port to wait on, when the command doesn't print its URL. */
+  port?: number;
+  timeoutMs?: number;
+  /** Receives the server's output, for troubleshooting. */
+  onOutput?: (line: string) => void;
+}
+
+function killTree(child: ChildProcess): void {
+  if (child.exitCode !== null || child.pid === undefined) return;
+  try {
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      // The server was started in its own process group so its children go too.
+      process.kill(-child.pid, 'SIGTERM');
+    }
+  } catch {
+    // Already gone.
+  }
+}
+
+/** Starts the dev server, waits until it answers, and returns how to stop it. */
+export async function startServer(
+  project: Project,
+  options: StartOptions = {},
+): Promise<RunningServer> {
+  const command =
+    options.command ??
+    (project.devScript ? `${project.packageManager} run ${project.devScript.name}` : null);
+  if (!command) {
+    throw new Error(
+      'No dev server is running and there is no "dev" script to start one. Start your app, then pass its URL: npx breakhound http://localhost:3000',
+    );
+  }
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  const child = spawn(command, {
+    cwd: project.root,
+    shell: true,
+    detached: process.platform !== 'win32',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' },
+  });
+  const cleanup = () => killTree(child);
+  process.once('exit', cleanup);
+
+  const output: string[] = [];
+  let printedUrl: string | null = null;
+  const onData = (chunk: Buffer) => {
+    for (const raw of chunk.toString().split(/\r?\n/)) {
+      const line = stripAnsi(raw).trim();
+      if (!line) continue;
+      output.push(line);
+      if (output.length > 40) output.shift();
+      options.onOutput?.(line);
+      const found = line.match(LOCAL_URL)?.[0];
+      if (found && !printedUrl)
+        printedUrl = found.replace('0.0.0.0', 'localhost').replace(/\/$/, '');
+    }
+  };
+  child.stdout?.on('data', onData);
+  child.stderr?.on('data', onData);
+
+  const stop = async () => {
+    process.removeListener('exit', cleanup);
+    if (child.exitCode !== null) return;
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+    killTree(child);
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
+  };
+
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (child.exitCode !== null) {
+      throw new Error(
+        `The dev server (${command}) stopped before it was ready:\n${output.slice(-15).join('\n')}`,
+      );
+    }
+    // Set from the output handler, which TypeScript can't see.
+    const printed = printedUrl as string | null;
+    const candidates = printed
+      ? [printed.replace(/\/+$/, '')]
+      : options.port
+        ? [`http://localhost:${options.port}`]
+        : [];
+    for (const url of candidates) {
+      // The first request can be slow while the dev server compiles the page.
+      const page = await probe(`${url}/`, 30_000);
+      if (page && page.status < 500) return { url, command, stop };
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  await stop();
+  throw new Error(
+    `The dev server (${command}) didn't answer within ${Math.round(timeoutMs / 1000)}s.${output.length ? `\n${output.slice(-15).join('\n')}` : ''}`,
+  );
+}

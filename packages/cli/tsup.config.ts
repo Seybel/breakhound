@@ -7,7 +7,7 @@ const shared = {
   platform: 'node' as const,
   target: 'node20',
   noExternal: [/^@breakhound\//],
-  external: ['playwright', 'jiti'],
+  external: ['playwright', 'jiti', '@babel/parser'],
   sourcemap: false,
   splitting: false,
 };

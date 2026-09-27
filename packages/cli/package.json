@@ -48,12 +48,14 @@
     "node": ">=20.16"
   },
   "dependencies": {
+    "@babel/parser": "^7.29.0",
     "jiti": "^2.7.0",
     "playwright": "^1.63.0"
   },
   "devDependencies": {
     "@breakhound/analyzers": "*",
     "@breakhound/engine": "*",
-    "@breakhound/report": "*"
+    "@breakhound/report": "*",
+    "@breakhound/routes": "*"
   }
 }
