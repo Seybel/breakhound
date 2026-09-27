@@ -1,12 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Scanner } from '@breakhound/engine';
 import { parsePattern } from '@breakhound/routes';
 import { describe, expect, it } from 'vitest';
 import { applyFilters, planRoutes } from '../src/app';
-import { loadConfig, validateConfig } from '../src/config';
-import { runInit } from '../src/init';
+import { KNOWN_KEYS, loadConfig, validateConfig } from '../src/config';
+import { runInit, SCHEMA_URL } from '../src/init';
 import { resolveTargets } from '../src/scan';
 
 function tempDir(): string {
@@ -17,7 +17,7 @@ describe('targets', () => {
   it('uses the routes from the config, as given, instead of discovering them', async () => {
     const plan = await planRoutes(
       { project: null, baseUrl: 'http://localhost:3000', server: null },
-      { routes: ['/', 'pricing', '/blog/[slug]'] },
+      { routes: ['/', 'pricing', '/blog/[slug]', 'https://example.com/landing'] },
       new Scanner(),
       [],
     );
@@ -26,6 +26,7 @@ describe('targets', () => {
       ['/pricing', false],
       ['/blog/[slug]', true],
     ]);
+    expect(plan.urls).toEqual(['https://example.com/landing']);
     expect(plan.crawl).toBe(false);
   });
 
@@ -110,7 +111,10 @@ describe('init', () => {
     const dir = tempDir();
     writeFileSync(
       join(dir, 'package.json'),
-      JSON.stringify({ scripts: { dev: 'next dev -p 4000' } }),
+      JSON.stringify({
+        scripts: { dev: 'next dev -p 4000' },
+        devDependencies: { breakhound: '^1' },
+      }),
     );
     writeFileSync(join(dir, '.gitignore'), 'node_modules\n');
     runInit(dir);
@@ -118,5 +122,23 @@ describe('init', () => {
       "baseUrl: 'http://localhost:4000'",
     );
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('.breakhound/');
+  });
+
+  it("writes a JSON config when breakhound isn't installed, so nothing fails to type-check", async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'vite' } }));
+    writeFileSync(join(dir, 'tsconfig.json'), '{}');
+    runInit(dir);
+    expect(existsSync(join(dir, 'breakhound.config.ts'))).toBe(false);
+    const { config, warnings } = await loadConfig(dir);
+    expect((config as Record<string, unknown>).$schema).toBe(SCHEMA_URL);
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe('config schema', () => {
+  it('lists exactly the options the config accepts', async () => {
+    const { buildSchema } = await import('../schema.mjs');
+    expect(Object.keys(buildSchema().properties).sort()).toEqual([...KNOWN_KEYS].sort());
   });
 });

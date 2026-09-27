@@ -163,7 +163,11 @@ export function readRuntimeRoutes(): RuntimeRoutes {
   return { router: kind, paths: [...paths] };
 }
 
-/** Same-origin links on the page, without hash or query, for sampling dynamic routes and crawling. */
+/**
+ * Same-origin links on the page, without query, for sampling dynamic routes
+ * and crawling. Links into a hash router (`#/about`) also come back whole, as
+ * `/#/about`, for apps that route that way.
+ */
 export function readLinks(): string[] {
   const out = new Set<string>();
   for (const a of document.querySelectorAll('a[href]')) {
@@ -178,6 +182,7 @@ export function readLinks(): string[] {
     if (url.origin !== location.origin) continue;
     if ((a as HTMLAnchorElement).hasAttribute('download')) continue;
     out.add(url.pathname);
+    if (url.hash.startsWith('#/')) out.add(`${url.pathname}${url.hash.split('?')[0]}`);
   }
   return [...out];
 }

@@ -17,6 +17,7 @@ import {
 import { type WrittenReports, writeReports } from '@breakhound/report';
 import {
   Crawler,
+  isCrawlable,
   type RoutePattern,
   readLinks,
   readRuntimeRoutes,
@@ -29,6 +30,7 @@ import {
   applyFilters,
   DEFAULT_MAX_CRAWL,
   DEFAULT_MAX_ROUTES,
+  isWanted,
   planRoutes,
   type RoutePlan,
   resolveServer,
@@ -137,13 +139,14 @@ function applySeverity(routes: RouteResult[], config: BreakhoundConfig): void {
   }
 }
 
-function pathOf(url: string): string {
-  const p = new URL(url).pathname;
-  return p.length > 1 ? p.replace(/\/+$/, '') : p;
+function trimSlash(path: string): string {
+  return path.length > 1 ? path.replace(/\/+$/, '') : path;
 }
 
 interface Job extends Target {
   order: number;
+  /** Only visited to find links, because include or exclude leaves the page itself out. */
+  linksOnly?: boolean;
 }
 
 /**
@@ -166,6 +169,8 @@ class RouteQueue {
     private readonly baseUrl: string | null,
     private readonly samples: Record<string, string>,
     readonly crawler: Crawler | null,
+    /** The app routes by hash, so its paths live after `/#`. */
+    private readonly hashRouting = false,
   ) {
     this.basePath = baseUrl ? new URL(baseUrl).pathname.replace(/\/+$/, '') : '';
   }
@@ -174,25 +179,46 @@ class RouteQueue {
   private urlFor(path: string): string {
     if (/^https?:\/\//i.test(path)) return path;
     const base = (this.baseUrl ?? '').replace(/\/+$/, '');
-    return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+    const clean = path.startsWith('/') ? path : `/${path}`;
+    return this.hashRouting && !clean.includes('#') ? `${base}/#${clean}` : `${base}${clean}`;
   }
 
-  /** The app path for a URL path on the server, or null when it's outside the app. */
+  /** The app path for a path on the server, or null when it's outside the app. */
   private appPath(pathname: string): string | null {
-    const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+    const path = trimSlash(pathname);
     if (!this.basePath) return path;
     if (path === this.basePath) return '/';
     return path.startsWith(`${this.basePath}/`) ? path.slice(this.basePath.length) : null;
   }
 
-  add(target: Target): void {
-    const path = target.url.startsWith('http')
-      ? (this.appPath(pathOf(target.url)) ?? pathOf(target.url))
-      : target.url;
-    if (this.planned.has(path)) return;
-    this.planned.add(path);
-    this.crawler?.claim(path);
-    this.jobs.push({ ...target, order: this.order++ });
+  /** The key a full URL is planned under: its app path, with the hash route when there is one. */
+  private keyOf(url: string): string {
+    const u = new URL(url);
+    const path = this.appPath(u.pathname) ?? trimSlash(u.pathname);
+    if (!u.hash.startsWith('#/')) return path;
+    const hash = trimSlash(u.hash.slice(1).split('?')[0] as string);
+    if (this.hashRouting) return hash;
+    return `${path === '/' ? '' : path}/#${hash}`;
+  }
+
+  /** The app path a link from a page points at, or null when it's outside the app. */
+  private linkPath(link: string): string | null {
+    const [pathname = '/', hash] = link.split('#');
+    if (this.hashRouting) return hash?.startsWith('/') ? trimSlash(hash) : null;
+    return hash === undefined ? this.appPath(pathname) : null;
+  }
+
+  add(target: Target, linksOnly = false): void {
+    const key = target.url.startsWith('http') ? this.keyOf(target.url) : target.url;
+    if (this.planned.has(key)) return;
+    this.planned.add(key);
+    this.crawler?.claim(key);
+    this.jobs.push({ ...target, order: this.order++, ...(linksOnly ? { linksOnly } : {}) });
+  }
+
+  /** The home page when following links but include or exclude leaves it out. */
+  addStart(path: string): void {
+    this.add({ url: this.urlFor(path), route: path }, true);
   }
 
   addPattern(pattern: RoutePattern): void {
@@ -209,9 +235,12 @@ class RouteQueue {
   }
 
   /** Links from a scanned page: samples for dynamic routes, and new pages when crawling. */
-  addLinks(pathnames: string[]): void {
+  addLinks(found: string[]): void {
     if (!this.baseUrl) return;
-    const links = pathnames.map((p) => this.appPath(p)).filter((p): p is string => p !== null);
+    // Never a logout, delete or file link, not even as a sample for a dynamic route.
+    const links = found
+      .map((link) => this.linkPath(link))
+      .filter((p): p is string => p !== null && isCrawlable(p));
     if (this.waiting.size) {
       for (const link of links) {
         const route = routeFor(link, this.patterns.values());
@@ -229,8 +258,8 @@ class RouteQueue {
   /** A redirect to a page that's scanned anyway isn't worth scanning twice. */
   redirectTarget(requested: string, final: string): string | null {
     if (new URL(final).origin !== new URL(requested).origin) return null;
-    const to = this.appPath(pathOf(final));
-    if (to === null || to === this.appPath(pathOf(requested))) return null;
+    const to = this.keyOf(final);
+    if (to === this.keyOf(requested)) return null;
     if (this.planned.has(to)) return to;
     this.planned.add(to);
     return null;
@@ -295,9 +324,14 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
       queue = new RouteQueue(
         app.baseUrl,
         config.samples ?? {},
-        plan.crawl ? new Crawler(max) : null,
+        plan.crawl ? new Crawler(max, (path) => isWanted(path, config)) : null,
+        plan.hashRouting,
       );
-      for (const p of plan.patterns) queue.addPattern(p);
+      for (const url of plan.urls) queue.add({ url, route: routeOf(url, cwd) });
+      for (const p of plan.patterns) {
+        if (plan.crawl && !isWanted(p.path, config)) queue.addStart(p.path);
+        else queue.addPattern(p);
+      }
       if (!quiet) printDiscovery(plan, max);
     }
 
@@ -308,7 +342,7 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
       console.log(
         styleText(
           'dim',
-          `breakhound ${req.version} · ${known === 1 ? '1 page' : `${known} pages`}${plan?.crawl ? ' to start with' : ''} · ${minWidth}–${maxWidth}px\n`,
+          `breakhound ${req.version} · ${plan?.crawl ? 'following links' : known === 1 ? '1 page' : `${known} pages`} · ${minWidth}–${maxWidth}px\n`,
         ),
       );
     }
@@ -321,7 +355,10 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
 
     const detectors = enabledDetectors(config);
     const ignore = normalizeIgnore(config.ignore);
-    const labels = [...queue.jobs.map((j) => j.route), ...queue.waiting.keys()];
+    const labels = [
+      ...queue.jobs.filter((j) => !j.linksOnly).map((j) => j.route),
+      ...queue.waiting.keys(),
+    ];
     const width = Math.min(40, Math.max(12, ...labels.map((l) => l.length)));
     const max = config.maxRoutes ?? DEFAULT_MAX_ROUTES;
     const results: { order: number; route: RouteResult }[] = [];
@@ -338,6 +375,13 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
     };
 
     await drain(queue, parallel, async (job) => {
+      if (job.linksOnly) {
+        const links = await scanner
+          .visit(job.url, (page) => page.evaluate(readLinks))
+          .catch(() => [] as string[]);
+        queue.addLinks(links);
+        return;
+      }
       const afterLoad = pageMode
         ? undefined
         : async (page: import('playwright').Page): Promise<PageSkip | undefined> => {

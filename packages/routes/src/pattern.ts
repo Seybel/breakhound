@@ -95,13 +95,25 @@ export function matchesPattern(pattern: RoutePattern, pathname: string): boolean
   return re.test(path);
 }
 
-/** How specific a pattern is, so `/blog/new` wins over `/blog/[slug]` for the same URL. */
+/** Rank of a segment when two patterns match the same URL; "none" means the pattern already ended. */
+function segmentRank(s: Segment | undefined): number {
+  if (!s) return 4;
+  if (s.kind === 'static') return 5;
+  if (s.kind === 'param') return s.optional ? 2 : 3;
+  return s.optional ? 0 : 1;
+}
+
+const MAX_RANKED_SEGMENTS = 12;
+
+/**
+ * How specific a pattern is, so `/blog/new` wins over `/blog/[slug]`, and
+ * `/blog/[slug]` over `/[[lang]]/blog/[slug]`, for the same URL. Segments
+ * are compared left to right: text beats a parameter, which beats a catch-all.
+ */
 export function specificity(pattern: RoutePattern): number {
   let score = 0;
-  for (const s of pattern.segments) {
-    score *= 4;
-    score += s.kind === 'static' ? 3 : s.kind === 'param' ? (s.optional ? 1 : 2) : 0;
-  }
+  for (let i = 0; i < MAX_RANKED_SEGMENTS; i++)
+    score = score * 6 + segmentRank(pattern.segments[i]);
   return score;
 }
 

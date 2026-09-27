@@ -16,6 +16,7 @@ import {
   nextPagesRoutes,
   nuxtRoutes,
   parsePattern,
+  remixFlatRoutes,
   routeConfigRoutes,
   routeFor,
   sourceRoutes,
@@ -64,6 +65,16 @@ describe('file-based routes', () => {
     expect(routes.find((r) => r.path === '/blog/[slug]')?.dynamic).toBe(true);
   });
 
+  it('keeps a catch-all page at the root, which is usually CMS content', () => {
+    const routes = nextAppRoutes(['page.tsx', '[...slug]/page.tsx', 'about/page.tsx']);
+    expect(paths(routes)).toEqual(['/', '/[...slug]', '/about']);
+    // A link that no other route fits is used to scan it.
+    expect(routeFor('/company/history', routes)?.path).toBe('/[...slug]');
+    expect(routeFor('/about', routes)?.path).toBe('/about');
+    // An optional one is the home page itself when there is no other.
+    expect(paths(nextAppRoutes(['[[...slug]]/page.tsx']))).toEqual(['/[[...slug]]']);
+  });
+
   it('reads the Next.js Pages Router', () => {
     expect(
       paths(
@@ -89,6 +100,7 @@ describe('file-based routes', () => {
       '(auth)/login.vue',
       'docs/[...slug].vue',
       'post-[id].vue',
+      // A 404 page next to the home page: nothing of its own to scan.
       '[...slug].vue',
     ]);
     expect(paths(routes)).toEqual([
@@ -143,6 +155,20 @@ describe('file-based routes', () => {
       expect(flatNameToPattern(name)?.path ?? null).toBe(expected);
   });
 
+  it('only counts route files in Remix route folders, not the modules next to them', () => {
+    expect(
+      paths(
+        remixFlatRoutes([
+          '_index.tsx',
+          'blog.$slug/route.tsx',
+          'blog.$slug/comments.tsx',
+          'api.items/route.ts',
+          'healthcheck.ts',
+        ]),
+      ),
+    ).toEqual(['/', '/blog/[slug]']);
+  });
+
   it('reads the TanStack route tree', () => {
     const tree = `export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -187,6 +213,12 @@ describe('router path syntax', () => {
     const routes = [parsePattern('/blog/[slug]'), parsePattern('/blog/new')];
     expect(routeFor('/blog/new', routes)?.path).toBe('/blog/new');
     expect(routeFor('/blog/first-post', routes)?.path).toBe('/blog/[slug]');
+    // Compared from the left: a fixed first segment beats an optional language prefix.
+    const i18n = [parsePattern('/[[lang]]/blog/[slug]'), parsePattern('/blog/[slug]')];
+    expect(routeFor('/blog/hello', i18n)?.path).toBe('/blog/[slug]');
+    expect(routeFor('/fr/blog/hello', i18n)?.path).toBe('/[[lang]]/blog/[slug]');
+    const docs = [parsePattern('/docs/[[...path]]'), parsePattern('/docs')];
+    expect(routeFor('/docs', docs)?.path).toBe('/docs');
   });
 
   it('matches include and exclude globs', () => {
@@ -315,5 +347,10 @@ describe('crawling', () => {
       '/api/items',
     ]);
     expect(picked).toEqual(['/about', '/pricing', '/blog/a', '/blog/b', '/blog/c']);
+  });
+
+  it('only follows links that include and exclude allow', () => {
+    const crawler = new Crawler(50, (path) => !path.startsWith('/admin'));
+    expect(crawler.add(['/admin', '/admin/users', '/docs'])).toEqual(['/docs']);
   });
 });

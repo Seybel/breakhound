@@ -8,7 +8,7 @@ import {
   type Segment,
   staticSegment,
 } from './pattern';
-import { fromBracketPath, fromTanstackPath } from './syntax';
+import { dropShadowedRoot, fromBracketPath, fromTanstackPath } from './syntax';
 
 /** Folders that never hold routes, and would be slow to walk. */
 const SKIP_DIRS = new Set([
@@ -53,7 +53,7 @@ function isTestFile(file: string): boolean {
 function dedupe(patterns: (RoutePattern | null)[]): RoutePattern[] {
   const seen = new Map<string, RoutePattern>();
   for (const p of patterns) if (p && !seen.has(p.path)) seen.set(p.path, p);
-  return [...seen.values()];
+  return dropShadowedRoot([...seen.values()]);
 }
 
 /** Next.js App Router: folders with a page file. */
@@ -148,14 +148,15 @@ export function remixFlatRoutes(files: string[]): RoutePattern[] {
   const names: string[] = [];
   for (const f of files) {
     if (isTestFile(f)) continue;
-    const folder = f.match(/^(.+)\/route\.(tsx|jsx|js|ts|mdx|md)$/);
+    // A folder is a route when it has a route file; anything else in it is a module it uses.
+    const folder = f.match(/^([^/]+)\/route\.(tsx|jsx|js|mdx|md)$/);
     if (folder?.[1]) {
-      names.push(folder[1].replaceAll('/', '.'));
+      names.push(folder[1]);
       continue;
     }
-    // Remix 1 nested folders read the same as dots.
-    const file = f.match(/^(.+)\.(tsx|jsx|js|mdx|md)$/);
-    if (file?.[1] && !/(^|\/)route$/.test(file[1])) names.push(file[1].replaceAll('/', '.'));
+    // Only files at the top level are routes (.ts files are resource routes, not pages).
+    const file = f.match(/^([^/]+)\.(tsx|jsx|js|mdx|md)$/);
+    if (file?.[1]) names.push(file[1]);
   }
   return dedupe(names.map(flatNameToPattern));
 }

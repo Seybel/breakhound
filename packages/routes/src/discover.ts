@@ -92,6 +92,8 @@ export class Crawler {
 
   constructor(
     private readonly limit: number,
+    /** Pages the user wants scanned (include and exclude). */
+    private readonly wanted: (path: string) => boolean = () => true,
     private readonly perParentLimit = 3,
   ) {}
 
@@ -109,7 +111,8 @@ export class Crawler {
     const out: string[] = [];
     for (const raw of links) {
       const path = normalize(raw);
-      if (this.taken.has(path) || !isCrawlable(path) || this.taken.size >= this.limit) continue;
+      if (this.taken.has(path) || !isCrawlable(path) || !this.wanted(path)) continue;
+      if (this.taken.size >= this.limit) continue;
       const parent = path.replace(/\/[^/]*$/, '') || '/';
       const n = this.perParent.get(parent) ?? 0;
       // Top-level pages are all different; deeper siblings are usually the same template.

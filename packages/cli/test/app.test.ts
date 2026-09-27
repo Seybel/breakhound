@@ -173,4 +173,49 @@ server.listen(0, '127.0.0.1', () => console.log('Local: http://localhost:' + ser
       ['/install', 'scanned', '/docs/install'],
     ]);
   });
+
+  it('follows links from the home page even when include leaves it out', async () => {
+    const root = makeProject();
+    const { result } = await runScan({
+      targets: [],
+      config: { ...QUICK, include: ['/blog/**'] },
+      cwd: root,
+      version: 'test',
+      quiet: true,
+    });
+    expect(result.routes.map((r) => r.route)).toEqual(['/blog/a', '/blog/b', '/blog/c']);
+  });
+
+  it('scans an app that routes by hash, one page per route', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-hash-'));
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ scripts: { dev: 'node server.mjs' } }),
+    );
+    // A tiny hash router: the page shows whatever route is after "#/".
+    const html = `<!doctype html><meta name="viewport" content="width=device-width"><main id="app"></main><script>
+const pages = { '/': '<h1>Home</h1><a href="#/about">About</a> <a href="#/wide">Wide</a> <a href="#/logout">Log out</a>',
+  '/about': '<h1>About</h1><p>Plain words.</p>', '/wide': '<h1>Wide</h1><div style="width:700px;background:#ddd">wide</div>' };
+function show() { if (!location.hash.startsWith('#/')) { location.replace('#/'); return; }
+  document.getElementById('app').innerHTML = pages[location.hash.slice(1)] || '<h1>Not found</h1>'; }
+addEventListener('hashchange', show); show();
+</script>`;
+    writeFileSync(
+      join(root, 'server.mjs'),
+      `import { createServer } from 'node:http';
+const server = createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end(${JSON.stringify(html)}); });
+server.listen(0, '127.0.0.1', () => console.log('Local: http://localhost:' + server.address().port + '/'));`,
+    );
+    const { result } = await runScan({
+      targets: [],
+      config: QUICK,
+      cwd: root,
+      version: 'test',
+      quiet: true,
+    });
+    const byRoute = Object.fromEntries(result.routes.map((r) => [r.route, new URL(r.url).hash]));
+    expect(byRoute).toEqual({ '/': '#/', '/about': '#/about', '/wide': '#/wide' });
+    const wide = result.routes.find((r) => r.route === '/wide');
+    expect(wide?.issues.map((i) => i.detector)).toContain('page-overflow');
+  });
 });

@@ -212,6 +212,16 @@ async function main(argv: string[]): Promise<number> {
   return failing ? 1 : 0;
 }
 
+// Ctrl+C (or a closed terminal) has to go through process.exit, so the dev
+// server breakhound started is stopped too. Otherwise it keeps the port.
+for (const [signal, code] of [
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+  ['SIGHUP', 129],
+] as const) {
+  process.once(signal, () => process.exit(code));
+}
+
 main(process.argv.slice(2)).then(
   (code) => {
     process.exitCode = code;

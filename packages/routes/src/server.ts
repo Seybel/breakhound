@@ -1,5 +1,7 @@
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { get as httpGet } from 'node:http';
+import { get as httpsGet } from 'node:https';
 import { join } from 'node:path';
 import type { FrameworkId, Project } from './project';
 
@@ -9,31 +11,50 @@ const MAX_BODY = 256 * 1024;
 interface Probe {
   status: number;
   html: string;
-  headers: Headers;
+  headers: Record<string, string | string[] | undefined>;
 }
 
-async function probe(url: string, timeoutMs = PROBE_TIMEOUT_MS): Promise<Probe | null> {
-  try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      redirect: 'follow',
-      headers: { accept: 'text/html' },
-    });
-    const reader = res.body?.getReader();
-    let html = '';
-    if (reader) {
-      const decoder = new TextDecoder();
-      while (html.length < MAX_BODY) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        html += decoder.decode(value, { stream: true });
-      }
-      await reader.cancel().catch(() => {});
+/**
+ * Loads a URL the way a quick look would: follows redirects and reads the
+ * start of the HTML. Uses node:http rather than fetch so local dev servers
+ * with self-signed certificates answer too, like they do in the browser.
+ */
+function probe(url: string, timeoutMs = PROBE_TIMEOUT_MS, redirects = 5): Promise<Probe | null> {
+  return new Promise((resolve) => {
+    let target: URL;
+    try {
+      target = new URL(url);
+    } catch {
+      resolve(null);
+      return;
     }
-    return { status: res.status, html, headers: res.headers };
-  } catch {
-    return null;
-  }
+    const get = target.protocol === 'https:' ? httpsGet : httpGet;
+    const req = get(
+      target,
+      { headers: { accept: 'text/html' }, rejectUnauthorized: false, timeout: timeoutMs },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        const location = res.headers.location;
+        if (status >= 300 && status < 400 && location && redirects > 0) {
+          res.resume();
+          resolve(probe(new URL(location, target).href, timeoutMs, redirects - 1));
+          return;
+        }
+        let html = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => {
+          html += chunk;
+          if (html.length >= MAX_BODY) res.destroy();
+        });
+        const done = () => resolve({ status, html, headers: res.headers });
+        res.on('end', done);
+        res.on('close', done);
+        res.on('error', done);
+      },
+    );
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(null));
+  });
 }
 
 /** Markers each framework's dev server leaves in the HTML it serves. */
@@ -62,7 +83,7 @@ function viteEntry(root: string): string | null {
 /** Whether the page served on a port is this project, not some other app left running. */
 export function looksLikeProject(project: Project, page: Probe): boolean {
   const { html, headers } = page;
-  if (project.framework.id === 'next' && /next\.js/i.test(headers.get('x-powered-by') ?? ''))
+  if (project.framework.id === 'next' && /next\.js/i.test(String(headers['x-powered-by'] ?? '')))
     return true;
   const fingerprint = FINGERPRINTS[project.framework.id];
   if (fingerprint) return fingerprint.test(html);
@@ -75,8 +96,8 @@ export function looksLikeProject(project: Project, page: Probe): boolean {
 }
 
 /** Whether anything answers at this URL. */
-export async function isReachable(url: string): Promise<boolean> {
-  const page = await probe(url, 5000);
+export async function isReachable(url: string, timeoutMs = 5000): Promise<boolean> {
+  const page = await probe(url, timeoutMs);
   return page !== null;
 }
 
@@ -120,17 +141,31 @@ export interface StartOptions {
   onOutput?: (line: string) => void;
 }
 
-function killTree(child: ChildProcess): void {
-  if (child.exitCode !== null || child.pid === undefined) return;
+function killTree(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void {
+  if (child.pid === undefined) return;
   try {
     if (process.platform === 'win32') {
+      if (child.exitCode !== null) return;
       spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
     } else {
-      // The server was started in its own process group so its children go too.
-      process.kill(-child.pid, 'SIGTERM');
+      // The server was started in its own process group so its children go too,
+      // even when the shell that started them has already exited.
+      process.kill(-child.pid, signal);
     }
   } catch {
     // Already gone.
+  }
+}
+
+/** Whether the server, or anything it started, is still running. */
+function groupAlive(child: ChildProcess): boolean {
+  if (child.pid === undefined) return false;
+  if (process.platform === 'win32') return child.exitCode === null;
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -177,10 +212,13 @@ export async function startServer(
 
   const stop = async () => {
     process.removeListener('exit', cleanup);
-    if (child.exitCode !== null) return;
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
     killTree(child);
-    await Promise.race([exited, new Promise((r) => setTimeout(r, 5000))]);
+    // Give it a moment to shut down cleanly; some servers ignore SIGTERM, or
+    // leave children behind once the shell that started them has exited.
+    for (let waited = 0; waited < 5000 && groupAlive(child); waited += 100) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (groupAlive(child)) killTree(child, 'SIGKILL');
   };
 
   const deadline = Date.now() + timeoutMs;

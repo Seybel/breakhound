@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -13,10 +14,17 @@ export const AUTH_FILE = '.breakhound/auth.json';
 
 /** Makes sure the session file can't be committed by accident. */
 export function ignoreBreakhoundFolder(cwd: string): boolean {
+  // Git knows about every .gitignore up to the repo root; 0 means ignored, 1 means not, in a repo.
+  const check = spawnSync('git', ['check-ignore', '-q', '.breakhound/auth.json'], {
+    cwd,
+    stdio: 'ignore',
+  });
+  if (check.status === 0) return false;
   const gitignore = join(cwd, '.gitignore');
   const content = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
   if (/^\/?\.breakhound\/?$/m.test(content)) return false;
-  if (!existsSync(gitignore) && !existsSync(join(cwd, '.git'))) return false;
+  const inRepo = check.status === 1 || existsSync(join(cwd, '.git'));
+  if (!inRepo && !content) return false;
   appendFileSync(
     gitignore,
     `${content && !content.endsWith('\n') ? '\n' : ''}${content ? '\n' : ''}# breakhound reports and saved login\n.breakhound/\n`,

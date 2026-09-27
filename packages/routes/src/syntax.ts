@@ -6,6 +6,7 @@ import {
   rest,
   type Segment,
   staticSegment,
+  staticUrlPath,
 } from './pattern';
 
 /**
@@ -131,5 +132,16 @@ export function fromBracketPath(
     const s = bracketSegment(d, opts);
     if (s) segments.push(s);
   }
-  return finish(segments);
+  // Unlike in code-defined routers, a catch-all page file at the root is
+  // usually real content (a CMS page), so it's kept. See dropShadowedRoot.
+  return createPattern(segments);
+}
+
+/**
+ * An optional catch-all at the root also matches "/", so next to a home page
+ * it adds nothing that can be scanned: it's dropped.
+ */
+export function dropShadowedRoot(patterns: RoutePattern[]): RoutePattern[] {
+  const hasHome = patterns.some((p) => !isRootCatchAll(p) && staticUrlPath(p) === '/');
+  return patterns.filter((p) => !(hasHome && isRootCatchAll(p) && !p.dynamic));
 }

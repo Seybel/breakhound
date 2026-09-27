@@ -51,10 +51,18 @@ export async function resolveServer(
   let wanted: string | null = null;
   if (config.baseUrl) {
     const baseUrl = config.baseUrl.replace(/\/+$/, '');
-    const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(baseUrl);
-    // A local URL that nothing answers on yet: start the dev server, like with no URL at all.
-    if (!local || !project?.devScript || (await isReachable(baseUrl))) {
+    const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(baseUrl);
+    // Remote sites can be slow to answer the first request (a cold start, say).
+    if (await isReachable(baseUrl, local ? 5000 : 30_000)) {
       return { project, baseUrl, server: null };
+    }
+    // A local URL that nothing answers on yet: start the dev server, like with no URL at all.
+    if (!local || !(project?.devScript || config.server?.command)) {
+      throw new Error(
+        local
+          ? `Nothing answers at ${baseUrl}. Start your app first, then scan again.`
+          : `Couldn't reach ${baseUrl}. Check the address, and that the site is up.`,
+      );
     }
     const port = Number(new URL(baseUrl).port) || undefined;
     wanted = baseUrl;
@@ -97,10 +105,14 @@ export interface RoutePlan {
   /** Where the routes came from; null when following links. */
   from: string | null;
   patterns: RoutePattern[];
+  /** Full URLs listed in the config or on the command line, scanned as they are. */
+  urls: string[];
   /** No route list was found, so links are followed from the home page. */
   crawl: boolean;
   /** React apps can render more routes on deeper pages, so the router is read on every page. */
   readRouterOnEveryPage: boolean;
+  /** The app routes by hash (`/#/about`): found routes are visited that way. */
+  hashRouting: boolean;
   /** Routes left out by include, exclude or maxRoutes. */
   filtered: number;
 }
@@ -113,16 +125,20 @@ function merge(...sources: (RouteSource | null)[]): RouteSource | null {
   return { from: present.map((s) => s.from).join(' and '), routes: [...routes.values()] };
 }
 
+/** Whether include and exclude let a route (pattern or plain path) through. */
+export function isWanted(path: string, config: BreakhoundConfig): boolean {
+  return (
+    (!config.include?.length || config.include.some((g) => globMatches(g, path))) &&
+    !config.exclude?.some((g) => globMatches(g, path))
+  );
+}
+
 export function applyFilters(
   patterns: RoutePattern[],
   config: BreakhoundConfig,
   max: number,
 ): { kept: RoutePattern[]; filtered: number } {
-  const included = patterns.filter(
-    (p) =>
-      (!config.include?.length || config.include.some((g) => globMatches(g, p.path))) &&
-      !config.exclude?.some((g) => globMatches(g, p.path)),
-  );
+  const included = patterns.filter((p) => isWanted(p.path, config));
   const kept = included.slice(0, max);
   return { kept, filtered: patterns.length - kept.length };
 }
@@ -137,19 +153,36 @@ export async function planRoutes(
   const max = config.maxRoutes ?? DEFAULT_MAX_ROUTES;
   const listed = explicit.length ? explicit : config.routes;
   if (listed?.length) {
-    const patterns = listed.map((r) => parsePattern(r.startsWith('/') ? r : `/${r}`));
-    return { from: null, patterns, crawl: false, readRouterOnEveryPage: false, filtered: 0 };
+    const urls = listed.filter((r) => /^https?:\/\//i.test(r));
+    const patterns = listed
+      .filter((r) => !urls.includes(r))
+      .map((r) => parsePattern(r.startsWith('/') ? r : `/${r}`));
+    return {
+      from: null,
+      patterns,
+      urls,
+      crawl: false,
+      readRouterOnEveryPage: false,
+      // Hash routes can be listed as they are, e.g. /#/about.
+      hashRouting: false,
+      filtered: 0,
+    };
   }
 
   const project = app.project;
   const framework = project?.framework.id ?? 'unknown';
   const fromFiles = project ? staticRoutes(project) : null;
   let fromRuntime: RouteSource | null = null;
+  let hashRouting = false;
   if (wantsRuntimeRoutes(framework)) {
-    fromRuntime = await scanner
-      .visit(`${app.baseUrl}/`, (page) => page.evaluate(readRuntimeRoutes))
-      .then(runtimeRoutes)
+    const home = await scanner
+      .visit(`${app.baseUrl}/`, async (page) => ({
+        found: await page.evaluate(readRuntimeRoutes),
+        hash: new URL(page.url()).hash.startsWith('#/'),
+      }))
       .catch(() => null);
+    fromRuntime = home ? runtimeRoutes(home.found) : null;
+    hashRouting = home?.hash ?? false;
   }
 
   // The live router knows about routes added by plugins and modules, so it wins when it answers.
@@ -162,15 +195,26 @@ export async function planRoutes(
     : fromFiles;
 
   if (!source) {
-    const { kept } = applyFilters([parsePattern('/')], config, max);
-    return { from: null, patterns: kept, crawl: true, readRouterOnEveryPage: false, filtered: 0 };
+    // Following links starts at the home page, even when include leaves it out.
+    const home = [parsePattern('/')];
+    return {
+      from: null,
+      patterns: home,
+      urls: [],
+      crawl: true,
+      readRouterOnEveryPage: false,
+      hashRouting,
+      filtered: 0,
+    };
   }
   const { kept, filtered } = applyFilters(source.routes, config, max);
   return {
     from: source.from,
     patterns: kept,
+    urls: [],
     crawl: false,
     readRouterOnEveryPage: fromRuntime?.from === 'the React Router tree',
+    hashRouting,
     filtered,
   };
 }

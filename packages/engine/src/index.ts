@@ -67,14 +67,12 @@ async function hasContent(page: Page): Promise<boolean> {
 
 /** A redirect to one of these paths, or to a page asking for a password, means the page needs a login. */
 const LOGIN_PATH =
-  /(^|\/)(log-?in|sign-?in|sign_in|auth|sso|session|account\/login|users\/sign_in)(\/|$)/i;
+  /(^|\/)(log-?in|sign-?in|sign_in|auth|sso|session|account\/login|users\/sign_in|oauth2?|authorize)(\/|$)/i;
+/** Identity providers, and hosts like auth.example.com or login.example.com. */
+const LOGIN_HOST =
+  /^(auth|login|signin|sso|accounts?|id|identity)\.|\.(auth0|okta)\.com$|\.clerk\.accounts\.dev$|\.amazoncognito\.com$/i;
 
-async function isLoginWall(page: Page, requested: string): Promise<boolean> {
-  const final = new URL(page.url());
-  const asked = new URL(requested);
-  if (final.origin === asked.origin && final.pathname === asked.pathname) return false;
-  // Sign-in on another origin (an identity provider) counts too.
-  if (LOGIN_PATH.test(final.pathname) || final.origin !== asked.origin) return true;
+async function hasPasswordField(page: Page): Promise<boolean> {
   return page
     .evaluate(() => {
       for (const input of document.querySelectorAll('input[type="password"]')) {
@@ -84,6 +82,21 @@ async function isLoginWall(page: Page, requested: string): Promise<boolean> {
       return false;
     })
     .catch(() => false);
+}
+
+/** The path a page shows, including a hash router's path (`/#/login`). */
+function shownPath(url: URL): string {
+  return url.hash.startsWith('#/') ? `${url.pathname}${url.hash.split('?')[0]}` : url.pathname;
+}
+
+async function isLoginWall(page: Page, requested: string): Promise<boolean> {
+  const final = new URL(page.url());
+  const asked = new URL(requested);
+  if (final.origin === asked.origin && shownPath(final) === shownPath(asked)) return false;
+  if (LOGIN_PATH.test(shownPath(final))) return true;
+  // Another site (http to https, adding www) is only a login when it looks like one.
+  if (final.origin !== asked.origin && LOGIN_HOST.test(final.hostname)) return true;
+  return hasPasswordField(page);
 }
 
 export async function launch(headless = true): Promise<Browser> {

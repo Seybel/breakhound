@@ -85,7 +85,9 @@ export function renderSummary(result: ScanResult): string {
     [
       'Routes left out',
       result.routes.filter((r) => r.status === 'redirect' || r.status === 'skipped'),
-      'Give dynamic routes a real URL with `samples` in your config, e.g. `{ "/products/[id]": "/products/42" }`.',
+      result.routes.some((r) => r.status === 'skipped')
+        ? 'Give dynamic routes a real URL with `samples` in your config, e.g. `{ "/products/[id]": "/products/42" }`.'
+        : undefined,
     ],
   ];
   for (const [title, routes, hint] of sections) {
