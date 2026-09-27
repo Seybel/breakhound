@@ -1,4 +1,52 @@
-import type { Page } from 'playwright';
+import type { Page, Request } from 'playwright';
+
+/** How long the network has to stay quiet. */
+const QUIET_MS = 500;
+/**
+ * Requests open longer than this are treated as long-lived connections (long
+ * polling, streaming, realtime sync) that never finish, so they don't hold up
+ * the scan. Playwright's own "networkidle" would wait out its whole timeout.
+ */
+const LONG_LIVED_MS = 3000;
+
+/** Tracks a page's requests from before navigation, so settling knows what is still loading. */
+export class NetworkTracker {
+  private readonly open = new Map<Request, number>();
+  private lastActivity = Date.now();
+
+  constructor(page: Page) {
+    const done = (r: Request) => {
+      this.open.delete(r);
+      this.lastActivity = Date.now();
+    };
+    page.on('request', (r) => {
+      this.open.set(r, Date.now());
+      this.lastActivity = Date.now();
+    });
+    page.on('requestfinished', done);
+    page.on('requestfailed', done);
+  }
+
+  private busy(now: number): boolean {
+    for (const [request, started] of this.open) {
+      const type = request.resourceType();
+      if (type === 'websocket' || type === 'eventsource') continue;
+      if (now - started < LONG_LIVED_MS) return true;
+    }
+    return false;
+  }
+
+  /** Resolves once nothing short-lived has been loading for a moment, or after `maxMs`. */
+  async quiet(maxMs: number): Promise<void> {
+    const deadline = Date.now() + maxMs;
+    for (;;) {
+      const now = Date.now();
+      if (now >= deadline) return;
+      if (!this.busy(now) && now - this.lastActivity >= QUIET_MS) return;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+}
 
 /**
  * Runs before any page script. Wraps the callbacks that react to viewport
@@ -104,9 +152,13 @@ const FREEZE_CSS = `
 }`;
 
 /** Brings a freshly loaded page to a stable, measurable state. */
-export async function settlePage(page: Page, networkIdleMs: number): Promise<void> {
+export async function settlePage(
+  page: Page,
+  network: NetworkTracker,
+  networkIdleMs: number,
+): Promise<void> {
   await page.waitForLoadState('load');
-  await page.waitForLoadState('networkidle', { timeout: networkIdleMs }).catch(() => {});
+  await network.quiet(networkIdleMs);
   await page.addStyleTag({ content: FREEZE_CSS });
   await page.evaluate(async () => {
     for (const media of document.querySelectorAll('video, audio'))
@@ -126,7 +178,7 @@ export async function settlePage(page: Page, networkIdleMs: number): Promise<voi
     window.scrollTo(0, 0);
     await document.fonts.ready;
   });
-  await page.waitForLoadState('networkidle', { timeout: networkIdleMs }).catch(() => {});
+  await network.quiet(networkIdleMs);
 }
 
 /** Waits for the page's own resize handling to finish (see settleAfterResize in the analyzers). */

@@ -4,7 +4,8 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { chromium } from 'playwright';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Scanner } from '../src/index';
 
 const HEAD =
@@ -115,5 +116,21 @@ describe('pages that used to trip the scanner', () => {
     const overflow = result.issues.find((i) => i.detector === 'page-overflow');
     expect(overflow?.severity).toBe('error');
     expect(overflow?.title).toMatch(/scrolls horizontally/);
+  });
+
+  it('launches one browser when several pages start at once', async () => {
+    const launch = vi.spyOn(chromium, 'launch');
+    const shared = new Scanner();
+    try {
+      const pages = await Promise.all([
+        shared.scanPage(`${base}/csp`, QUICK),
+        shared.scanPage(`${base}/shadow`, QUICK),
+      ]);
+      expect(pages.map((p) => p.status)).toEqual(['scanned', 'scanned']);
+      expect(launch).toHaveBeenCalledTimes(1);
+    } finally {
+      await shared.close();
+      launch.mockRestore();
+    }
   });
 });

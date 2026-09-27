@@ -183,7 +183,7 @@ export function buildIssues(
   }
 
   const order = { error: 0, warning: 1, info: 2 };
-  return mergeOverflowFamily(issues, lineages).sort(
+  return mergeRepeats(mergeOverflowFamily(issues, lineages)).sort(
     (a, b) =>
       order[a.severity] - order[b.severity] || (a.ranges[0]?.from ?? 0) - (b.ranges[0]?.from ?? 0),
   );
@@ -241,6 +241,47 @@ function mergeOverflowFamily(issues: Issue[], lineages: Map<Issue, string[]>): I
     leads.push(lead);
   }
   return [...out, ...mergeNested(leads, lineages)];
+}
+
+/** A selector with its position indexes removed: every card in a list gets the same template. */
+function selectorTemplate(selector: string): string {
+  return selector.replace(/:nth-(?:of-type|child)\(\d+\)/g, '');
+}
+
+/**
+ * The same problem on each copy of a repeated element (every card in a list,
+ * every row of a menu) is one fix in one component, so it's one issue that
+ * says how many places it shows up in.
+ */
+function mergeRepeats(issues: Issue[]): Issue[] {
+  const groups = new Map<string, Issue[]>();
+  const out: Issue[] = [];
+  for (const issue of issues) {
+    const template = selectorTemplate(issue.element.selector);
+    if (template === issue.element.selector) {
+      out.push(issue);
+      continue;
+    }
+    // Titles carry measurements that differ a little between copies.
+    const key = `${issue.detector}|${template}|${issue.title.replace(/\d+/g, '#')}`;
+    const list = groups.get(key);
+    if (list) list.push(issue);
+    else groups.set(key, [issue]);
+  }
+  for (const list of groups.values()) {
+    const [lead, ...rest] = list;
+    if (!lead) continue;
+    const alike = rest.filter((i) => touches(i.ranges, lead.ranges));
+    out.push(...rest.filter((i) => !alike.includes(i)));
+    if (alike.length) {
+      const count = alike.length + 1;
+      lead.ranges = joinRanges([lead, ...alike].flatMap((i) => i.ranges));
+      lead.title = `${lead.title} (${count} places)`;
+      lead.evidence = { ...lead.evidence, similarElements: count };
+    }
+    out.push(lead);
+  }
+  return out;
 }
 
 function touches(a: WidthRange[], b: WidthRange[]): boolean {

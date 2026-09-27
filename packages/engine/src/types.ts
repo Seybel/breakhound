@@ -42,8 +42,12 @@ export interface PageResult {
   url: string;
   /** Where the page ended up after redirects (e.g. a login page). */
   finalUrl: string;
-  /** `empty` means the page rendered (almost) nothing, usually because it crashed. */
-  status: 'scanned' | 'empty' | 'error';
+  /**
+   * `empty`: the page rendered (almost) nothing, usually because it crashed.
+   * `login`: it sent the browser to a sign-in page instead.
+   * `redirect` and `skipped`: left out on purpose; `error` says why.
+   */
+  status: PageStatus;
   error?: string;
   /** Uncaught exceptions thrown by the page while it was scanned. */
   pageErrors: string[];
@@ -54,6 +58,14 @@ export interface PageResult {
   /** Number of distinct widths that were measured. */
   measurements: number;
   durationMs: number;
+}
+
+export type PageStatus = 'scanned' | 'empty' | 'error' | 'login' | 'redirect' | 'skipped';
+
+/** Returned from `afterLoad` to stop scanning a page, e.g. because it redirected to one already covered. */
+export interface PageSkip {
+  status: 'redirect' | 'skipped';
+  message: string;
 }
 
 export interface ScanOptions {
@@ -77,6 +89,11 @@ export interface ScanOptions {
   screenshotDir?: string;
   /** Most screenshots to take for one page. */
   screenshotLimit?: number;
+}
+
+export interface ScannerOptions {
+  /** A Playwright storage state file (cookies and local storage) to start every page with. */
+  storageState?: string;
 }
 
 export interface RouteResult extends PageResult {

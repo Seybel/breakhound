@@ -6,13 +6,22 @@ import type { AnalyzeResult } from '@breakhound/analyzers';
 import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { buildBreakpoints, buildIssues, findingKey } from './issues';
 import { captureIssues } from './screenshots';
-import { RESIZE_PROBE, settlePage } from './settle';
+import { NetworkTracker, RESIZE_PROBE, settlePage } from './settle';
 import { coarseWidths, Sweeper, splitWidths } from './sweep';
-import type { Issue, PageResult, ScanOptions } from './types';
+import type { Issue, PageResult, PageSkip, PageStatus, ScannerOptions, ScanOptions } from './types';
 
 export { DETECTOR_IDS } from '@breakhound/analyzers/types';
 export { createScanResult, type ResultMeta } from './result';
 export type * from './types';
+
+/** Options only the Node API takes (they hold functions or Playwright objects). */
+export interface PageHooks {
+  /** Runs once the page has loaded and settled, before measuring. Return a PageSkip to stop there. */
+  afterLoad?: (page: Page) => Promise<PageSkip | undefined>;
+}
+
+/** Page statuses that mean something went wrong, as opposed to a page left out on purpose. */
+export const FAILED_STATUSES: readonly PageStatus[] = ['empty', 'error'];
 
 export const DEFAULTS = {
   minWidth: 320,
@@ -32,9 +41,9 @@ const MAX_PAGE_ERRORS = 10;
 const NAVIGATION_TIMEOUT_MS = 90_000;
 
 /** Options with an explicit `undefined` would otherwise wipe out the defaults. */
-function withDefaults(options: ScanOptions): typeof DEFAULTS & ScanOptions {
+function withDefaults<T extends ScanOptions>(options: T): typeof DEFAULTS & T {
   const defined = Object.fromEntries(Object.entries(options).filter(([, v]) => v !== undefined));
-  return { ...DEFAULTS, ...defined };
+  return { ...DEFAULTS, ...defined } as typeof DEFAULTS & T;
 }
 
 let analyzerScript: string | undefined;
@@ -56,9 +65,30 @@ async function hasContent(page: Page): Promise<boolean> {
   return page.evaluate(() => window.__breakhound?.hasContent() ?? false);
 }
 
-async function launch(): Promise<Browser> {
+/** A redirect to one of these paths, or to a page asking for a password, means the page needs a login. */
+const LOGIN_PATH =
+  /(^|\/)(log-?in|sign-?in|sign_in|auth|sso|session|account\/login|users\/sign_in)(\/|$)/i;
+
+async function isLoginWall(page: Page, requested: string): Promise<boolean> {
+  const final = new URL(page.url());
+  const asked = new URL(requested);
+  if (final.origin === asked.origin && final.pathname === asked.pathname) return false;
+  // Sign-in on another origin (an identity provider) counts too.
+  if (LOGIN_PATH.test(final.pathname) || final.origin !== asked.origin) return true;
+  return page
+    .evaluate(() => {
+      for (const input of document.querySelectorAll('input[type="password"]')) {
+        const r = input.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return true;
+      }
+      return false;
+    })
+    .catch(() => false);
+}
+
+export async function launch(headless = true): Promise<Browser> {
   try {
-    return await chromium.launch({ headless: true });
+    return await chromium.launch({ headless });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/missing dependencies|install-deps|shared libraries/i.test(message)) {
@@ -70,11 +100,53 @@ async function launch(): Promise<Browser> {
   }
 }
 
-export class Scanner {
-  private browser: Browser | null = null;
+/** Thrown when a page answers 401 or 403. */
+class LoginRequired extends Error {}
 
-  private async ensureBrowser(): Promise<Browser> {
-    if (!this.browser) this.browser = await launch();
+export class Scanner {
+  /** Shared by pages scanned at the same time, so only one browser is ever launched. */
+  private browser: Promise<Browser> | null = null;
+
+  constructor(private readonly options: ScannerOptions = {}) {}
+
+  private async newContext(width: number, height: number): Promise<BrowserContext> {
+    const browser = await this.ensureBrowser();
+    return browser.newContext({
+      viewport: { width, height },
+      deviceScaleFactor: 1,
+      reducedMotion: 'reduce',
+      // Measuring needs to inject styles and scripts, and local dev servers often use self-signed certificates.
+      bypassCSP: true,
+      ignoreHTTPSErrors: true,
+      ...(this.options.storageState ? { storageState: this.options.storageState } : {}),
+    });
+  }
+
+  /** Loads a page the way a scan would, runs `fn` on it, and closes it. */
+  async visit<T>(
+    url: string,
+    fn: (page: Page) => Promise<T>,
+    options: ScanOptions = {},
+  ): Promise<T> {
+    const opts = withDefaults(options);
+    const context = await this.newContext(opts.maxWidth, opts.height);
+    try {
+      await context.addInitScript({ content: RESIZE_PROBE });
+      const page = await this.openPage(context, url, opts.networkIdleMs, []);
+      return await fn(page);
+    } finally {
+      await context.close();
+    }
+  }
+
+  private ensureBrowser(): Promise<Browser> {
+    if (!this.browser) {
+      this.browser = launch();
+      // A failed launch shouldn't stick: the next page tries again and reports its own error.
+      this.browser.catch(() => {
+        this.browser = null;
+      });
+    }
     return this.browser;
   }
 
@@ -85,32 +157,27 @@ export class Scanner {
     pageErrors: string[],
   ): Promise<Page> {
     const page = await context.newPage();
+    const network = new NetworkTracker(page);
     page.on('pageerror', (e) => {
       if (pageErrors.length < MAX_PAGE_ERRORS)
         pageErrors.push(e.message.split('\n')[0] ?? e.message);
     });
     const response = await page.goto(url, { waitUntil: 'load', timeout: NAVIGATION_TIMEOUT_MS });
     const status = response?.status() ?? 200;
+    if (status === 401 || status === 403)
+      throw new LoginRequired(`Needs a login: the server answered HTTP ${status}`);
     if (status >= 400) {
       throw new Error(`The server answered HTTP ${status} ${response?.statusText() ?? ''}`.trim());
     }
-    await settlePage(page, networkIdleMs);
+    await settlePage(page, network, networkIdleMs);
     return page;
   }
 
-  async scanPage(url: string, options: ScanOptions = {}): Promise<PageResult> {
+  async scanPage(url: string, options: ScanOptions & PageHooks = {}): Promise<PageResult> {
     const opts = withDefaults(options);
     const route = opts.route ?? new URL(url).pathname;
     const started = Date.now();
-    const browser = await this.ensureBrowser();
-    const context = await browser.newContext({
-      viewport: { width: opts.maxWidth, height: opts.height },
-      deviceScaleFactor: 1,
-      reducedMotion: 'reduce',
-      // Measuring needs to inject styles and scripts, and local dev servers often use self-signed certificates.
-      bypassCSP: true,
-      ignoreHTTPSErrors: true,
-    });
+    const context = await this.newContext(opts.maxWidth, opts.height);
     const empty = {
       breakpoints: { observed: [], declared: [], unexplained: [] },
       issues: [],
@@ -124,6 +191,21 @@ export class Scanner {
 
       // Load once first: if the page is broken there's no point opening more tabs.
       const first = await this.openPage(context, url, opts.networkIdleMs, pageErrors);
+      const stopped = (status: PageStatus, error: string): PageResult => ({
+        url,
+        finalUrl: first.url(),
+        status,
+        error,
+        pageErrors,
+        warnings: [],
+        ...empty,
+        durationMs: Date.now() - started,
+      });
+      if (await isLoginWall(first, url)) {
+        return stopped('login', `Needs a login: it redirected to ${new URL(first.url()).pathname}`);
+      }
+      const skip = await opts.afterLoad?.(first);
+      if (skip) return stopped(skip.status, skip.message);
       if (!(await hasContent(first))) {
         return {
           url,
@@ -209,7 +291,7 @@ export class Scanner {
       return {
         url,
         finalUrl: url,
-        status: 'error',
+        status: error instanceof LoginRequired ? 'login' : 'error',
         error: error instanceof Error ? error.message : String(error),
         pageErrors,
         warnings: [],
@@ -222,8 +304,9 @@ export class Scanner {
   }
 
   async close(): Promise<void> {
-    await this.browser?.close();
+    const browser = this.browser;
     this.browser = null;
+    await (await browser?.catch(() => null))?.close();
   }
 }
 

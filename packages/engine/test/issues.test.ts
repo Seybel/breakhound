@@ -62,4 +62,29 @@ describe('building issues', () => {
     });
     expect(buildIssues('/', widths, map)).toHaveLength(1);
   });
+
+  it('reports a problem on every card of a list once, with how many places', () => {
+    const tiny = (n: number): Finding => ({
+      detector: 'tiny-text',
+      severity: 'info',
+      title: 'Text is 10px on small screens',
+      element: {
+        selector: `ul > li:nth-of-type(${n}) > span.meta`,
+        path: 'ul > li > span.meta',
+        html: '<span class="meta">',
+        text: null,
+      },
+      evidence: { fontSizePx: 10 },
+      styles: {},
+    });
+    const [widths, map] = results({
+      320: [tiny(1), tiny(2), tiny(3)],
+      767: [tiny(1), tiny(2), tiny(3)],
+      768: [],
+    });
+    const issues = buildIssues('/', widths, map);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.title).toBe('Text is 10px on small screens (3 places)');
+    expect(issues[0]?.evidence.similarElements).toBe(3);
+  });
 });
