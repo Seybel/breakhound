@@ -1,0 +1,87 @@
+name: breakhound
+description: Find where your layout breaks across every viewport width, on every route of your app.
+author: Seybel
+branding:
+  icon: maximize-2
+  color: orange
+
+inputs:
+  url:
+    description: Where the app runs, e.g. a preview deployment. Leave empty to start the project's dev server.
+    required: false
+    default: ''
+  routes:
+    description: Routes to scan, separated by spaces. Leave empty to find every route.
+    required: false
+    default: ''
+  fail-on:
+    description: Fail the step at this level or worse (error, warning, info or none).
+    required: false
+    default: error
+  args:
+    description: Any other breakhound options, separated by spaces, e.g. "--exclude /admin/** --max 1440".
+    required: false
+    default: ''
+  working-directory:
+    description: The app's folder, for monorepos.
+    required: false
+    default: .
+  version:
+    description: The breakhound version to run.
+    required: false
+    default: latest
+  upload-report:
+    description: Upload the report folder as a workflow artifact.
+    required: false
+    default: 'true'
+
+outputs:
+  report-dir:
+    description: Folder with report.html, summary.md, prompt.md and result.json.
+    value: ${{ steps.paths.outputs.report-dir }}
+
+runs:
+  using: composite
+  steps:
+    - id: paths
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: echo "report-dir=$(pwd)/.breakhound" >> "$GITHUB_OUTPUT"
+
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: breakhound-chromium-${{ runner.os }}-${{ inputs.version }}
+
+    - name: Install Chromium
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        BREAKHOUND_VERSION: ${{ inputs.version }}
+      run: npx --yes "breakhound@$BREAKHOUND_VERSION" install --with-deps
+
+    - name: Scan
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      # Inputs go through the environment so they are never pasted into the script itself.
+      env:
+        BREAKHOUND_VERSION: ${{ inputs.version }}
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_ROUTES: ${{ inputs.routes }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        INPUT_ARGS: ${{ inputs.args }}
+      run: |
+        args=(--fail-on "$INPUT_FAIL_ON")
+        if [ -n "$INPUT_URL" ]; then args+=(--url "$INPUT_URL"); fi
+        # Split on spaces only: no globbing, no shell evaluation of the inputs.
+        read -r -a routes <<< "$INPUT_ROUTES"
+        read -r -a extra <<< "$INPUT_ARGS"
+        npx --yes "breakhound@$BREAKHOUND_VERSION" "${routes[@]}" "${args[@]}" "${extra[@]}"
+
+    - name: Upload report
+      if: always() && inputs.upload-report == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: breakhound-report
+        path: ${{ steps.paths.outputs.report-dir }}
+        if-no-files-found: ignore

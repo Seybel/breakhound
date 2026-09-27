@@ -1,16 +1,21 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { styleText } from 'node:util';
+import { ignoreBreakhoundFolder } from './auth';
 
 const TEMPLATE = (
   baseUrl: string,
   typed: boolean,
 ) => `${typed ? "import { defineConfig } from 'breakhound';\n\nexport default defineConfig({" : "/** @type {import('breakhound').BreakhoundConfig} */\nexport default {"}
-  // Where your app runs while you develop it.
-  baseUrl: '${baseUrl}',
+  // breakhound finds your dev server, or starts it, by itself. Set this to
+  // scan somewhere else, like a staging site.
+  // baseUrl: '${baseUrl}',
 
-  // Pages to check. Paths are joined to baseUrl.
-  routes: ['/'],
+  // Every route is found automatically. To narrow it down:
+  // include: ['/blog/**'],
+  // exclude: ['/admin/**'],
+  // A real URL for dynamic routes that no page links to:
+  // samples: { '/products/[id]': '/products/42' },
 
   // Viewport widths to sweep, in CSS pixels.
   widths: { min: 320, max: 1920 },
@@ -53,18 +58,10 @@ export function runInit(cwd: string): void {
   const file = typed ? 'breakhound.config.ts' : 'breakhound.config.mjs';
   const baseUrl = guessBaseUrl(cwd);
   writeFileSync(join(cwd, file), TEMPLATE(baseUrl, typed));
-  console.log(`${styleText('green', '✔')} Created ${file} (baseUrl ${baseUrl})`);
+  console.log(`${styleText('green', '✔')} Created ${file}`);
 
-  const gitignore = join(cwd, '.gitignore');
-  if (existsSync(gitignore)) {
-    const content = readFileSync(gitignore, 'utf8');
-    if (!/^\/?\.breakhound\/?$/m.test(content)) {
-      appendFileSync(
-        gitignore,
-        `${content.endsWith('\n') ? '' : '\n'}\n# breakhound reports\n.breakhound/\n`,
-      );
-      console.log(`${styleText('green', '✔')} Added .breakhound/ to .gitignore`);
-    }
+  if (ignoreBreakhoundFolder(cwd)) {
+    console.log(`${styleText('green', '✔')} Added .breakhound/ to .gitignore`);
   }
-  console.log(`\nStart your dev server, then run ${styleText('bold', 'npx breakhound')}.`);
+  console.log(`\nNow run ${styleText('bold', 'npx breakhound')}.`);
 }

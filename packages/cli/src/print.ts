@@ -2,6 +2,8 @@ import { relative } from 'node:path';
 import { styleText } from 'node:util';
 import type { RouteResult, ScanResult, Severity } from '@breakhound/engine';
 import { formatRanges, groupIssues } from '@breakhound/report';
+import { examplePath } from '@breakhound/routes';
+import type { RoutePlan } from './app';
 
 const BADGE: Record<Severity, string> = {
   error: styleText('red', '✖ error  '),
@@ -21,18 +23,32 @@ function plural(n: number, word: string): string {
 export function printRouteLine(route: RouteResult, width: number): void {
   const label = route.route.padEnd(width);
   const time = styleText('dim', seconds(route.durationMs));
+  if (route.status === 'login' || route.status === 'redirect' || route.status === 'skipped') {
+    const mark = route.status === 'login' ? styleText('yellow', '○') : styleText('dim', '–');
+    const reason =
+      route.status === 'skipped'
+        ? 'skipped: no real URL found for this dynamic route'
+        : (route.error ?? route.status);
+    console.log(
+      `  ${mark} ${label}  ${styleText(route.status === 'login' ? 'yellow' : 'dim', reason)}`,
+    );
+    return;
+  }
   if (route.status !== 'scanned') {
     console.log(
       `  ${styleText('red', '!')} ${label}  ${styleText('red', route.error ?? route.status)}  ${time}`,
     );
     return;
   }
-  const redirected = new URL(route.finalUrl).pathname !== new URL(route.url).pathname;
+  const requested = new URL(route.url).pathname;
+  const redirected = new URL(route.finalUrl).pathname !== requested;
   const bps = route.breakpoints.observed;
   const layout = bps.length ? `layout changes at ${bps.join(', ')}` : 'no layout changes';
   const note = redirected
     ? styleText('yellow', `  redirected to ${new URL(route.finalUrl).pathname}`)
-    : '';
+    : route.route.includes('[') && requested !== route.route
+      ? styleText('dim', `  as ${requested}`)
+      : '';
   if (route.issues.length === 0) {
     console.log(
       `  ${styleText('green', '✔')} ${label}  ${styleText('dim', `clean · ${layout}`)}  ${time}${note}`,
@@ -91,4 +107,51 @@ export function printFooter(
     );
   }
   console.log(styleText('dim', `  Done in ${seconds(result.durationMs)}`));
+}
+
+function plural2(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** What was found before scanning starts. */
+export function printDiscovery(plan: RoutePlan, max: number): void {
+  if (plan.crawl) {
+    console.log(
+      `${styleText('yellow', '•')} No route list found for this app, so breakhound follows links from / (up to ${max} pages)`,
+    );
+    return;
+  }
+  if (!plan.from) return;
+  const dynamic = plan.patterns.filter((p) => p.dynamic).length;
+  const extra = [
+    dynamic ? `${dynamic} dynamic, filled in from links on your pages` : '',
+    plan.filtered ? `${plan.filtered} left out by include, exclude or maxRoutes` : '',
+  ].filter(Boolean);
+  console.log(
+    `${styleText('green', '✔')} ${plural2(plan.patterns.length, 'route', 'routes')} from ${plan.from}${extra.length ? styleText('dim', ` (${extra.join('; ')})`) : ''}`,
+  );
+}
+
+/** Pages that weren't scanned on purpose, and how to get them scanned. */
+export function printNotes(result: ScanResult, hasSavedLogin: boolean): void {
+  const login = result.routes.filter((r) => r.status === 'login').length;
+  const skipped = result.routes.filter((r) => r.status === 'skipped');
+  if (!login && !skipped.length) return;
+  console.log('');
+  if (login) {
+    const how = hasSavedLogin
+      ? 'Your saved login may have expired: run breakhound login again, then scan.'
+      : 'Run breakhound login once to sign in, then scan again.';
+    console.log(
+      `  ${styleText('yellow', '○')} ${plural2(login, 'page needs', 'pages need')} a login. ${how}`,
+    );
+  }
+  if (skipped.length) {
+    console.log(
+      `  ${styleText('dim', '–')} ${plural2(skipped.length, 'dynamic route', 'dynamic routes')} had no link to follow. Give each a real URL with samples in your config, e.g.`,
+    );
+    const first = skipped[0]?.route;
+    if (first)
+      console.log(styleText('dim', `     samples: { '${first}': '${examplePath(first)}' }`));
+  }
 }

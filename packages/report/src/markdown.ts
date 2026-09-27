@@ -25,12 +25,23 @@ function headline(result: ScanResult): string {
   const found = summary.issues
     ? `${plural(summary.uniqueIssues, 'issue')} (${counts})`
     : 'no issues';
-  return `Scanned ${plural(summary.routes, 'page')} from ${settings.minWidth}px to ${settings.maxWidth}px and found ${found}.`;
+  const scanned = result.routes.filter((r) => r.status === 'scanned').length;
+  return `Scanned ${plural(scanned, 'page')} from ${settings.minWidth}px to ${settings.maxWidth}px and found ${found}.`;
 }
 
 function routeStatus(route: RouteResult): string | null {
-  if (route.status === 'scanned') return null;
-  return route.status === 'empty' ? `rendered nothing: ${route.error}` : `failed: ${route.error}`;
+  switch (route.status) {
+    case 'scanned':
+      return null;
+    case 'empty':
+      return `rendered nothing: ${route.error}`;
+    case 'error':
+      return `failed: ${route.error}`;
+    case 'login':
+      return `was not scanned. ${route.error}`;
+    default:
+      return `was left out. ${route.error}`;
+  }
 }
 
 function alsoOn(group: IssueGroup): string {
@@ -61,10 +72,27 @@ export function renderSummary(result: ScanResult): string {
     }
     lines.push('');
   }
-  const failed = result.routes.filter((r) => r.status !== 'scanned');
-  if (failed.length) {
-    lines.push('## Pages that could not be checked', '');
-    for (const r of failed) lines.push(`- ${routeLabel(r)}: ${routeStatus(r)}`);
+  const sections: [string, RouteResult[], string?][] = [
+    [
+      'Pages that could not be checked',
+      result.routes.filter((r) => r.status === 'error' || r.status === 'empty'),
+    ],
+    [
+      'Pages that need a login',
+      result.routes.filter((r) => r.status === 'login'),
+      'Run `breakhound login` once to sign in, then scan again.',
+    ],
+    [
+      'Routes left out',
+      result.routes.filter((r) => r.status === 'redirect' || r.status === 'skipped'),
+      'Give dynamic routes a real URL with `samples` in your config, e.g. `{ "/products/[id]": "/products/42" }`.',
+    ],
+  ];
+  for (const [title, routes, hint] of sections) {
+    if (!routes.length) continue;
+    lines.push(`## ${title}`, '');
+    if (hint) lines.push(hint, '');
+    for (const r of routes) lines.push(`- ${routeLabel(r)}: ${r.error ?? r.status}`);
     lines.push('');
   }
   return lines.join('\n');
@@ -102,7 +130,8 @@ export function renderDetailed(result: ScanResult, imageBase = 'screenshots/'): 
     '',
   );
   for (const route of result.routes) {
-    lines.push(`## ${routeLabel(route)}`, '', `<${route.url}>`, '');
+    lines.push(`## ${routeLabel(route)}`, '');
+    if (route.url) lines.push(`<${route.url}>`, '');
     const status = routeStatus(route);
     if (status) {
       lines.push(`This page ${status}`, '');

@@ -326,8 +326,9 @@ const JS = String.raw`
   const s = D.summary;
   $('headline').textContent = s.issues ? plural(s.uniqueIssues, 'responsive issue') + ' found' : 'No responsive issues found';
   const started = new Date(D.meta.startedAt);
+  const scanned = D.routes.filter((r) => r.status === 'scanned');
   $('meta').textContent = [
-    D.meta.baseUrl, plural(s.routes, 'page'), min + '–' + max + 'px',
+    D.meta.baseUrl, plural(scanned.length, 'page'), min + '–' + max + 'px',
     started.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }),
     (D.meta.durationMs / 1000).toFixed(1) + 's',
   ].filter(Boolean).join(' · ');
@@ -337,7 +338,7 @@ const JS = String.raw`
 
   const tile = (n, l, cls) => el('div', { class: 'tile ' + (cls || '') }, el('div', { class: 'n', text: String(n) }), el('div', { class: 'l', text: l }));
   $('tiles').append(
-    tile(s.routes, s.routes === 1 ? 'Page' : 'Pages'),
+    tile(scanned.length, scanned.length === 1 ? 'Page scanned' : 'Pages scanned'),
     tile(s.uniqueIssues, 'Unique issues'),
     tile(s.bySeverity.error, 'Errors', 'error'),
     tile(s.bySeverity.warning, 'Warnings', 'warning'),
@@ -346,7 +347,7 @@ const JS = String.raw`
 
   // Width map
   const map = $('map');
-  for (const r of D.routes) {
+  for (const r of scanned) {
     const described = r.issues.length ? r.issues.map((i) => i.title + ' at ' + ranges(i.ranges)).join('; ') : 'no issues';
     const track = el('div', { class: 'track', role: 'img', 'aria-label': r.route + ': ' + described });
     for (const w of r.breakpoints.observed) track.append(el('span', { class: 'tick', style: 'left:calc(' + pct(w) + '% - 1px)' }));
@@ -386,11 +387,26 @@ const JS = String.raw`
     el('span', {}, el('i', { class: 't' }), 'Layout breakpoint')));
 
   // Pages that couldn't be scanned, or only approximately
-  const failed = D.routes.filter((r) => r.status !== 'scanned');
+  const listing = (list) => el('ul', {}, list.map((r) => el('li', {}, el('code', { text: r.route }), ' ' + (r.error || r.status))));
+  const failed = D.routes.filter((r) => r.status === 'error' || r.status === 'empty');
   if (failed.length) {
     $('failed').append(el('div', { class: 'callout' },
-      el('h2', { text: plural(failed.length, 'page') + ' could not be checked' }),
-      el('ul', {}, failed.map((r) => el('li', {}, el('code', { text: r.route }), ' ' + (r.error || r.status))))));
+      el('h2', { text: plural(failed.length, 'page') + ' could not be checked' }), listing(failed)));
+  }
+  const login = D.routes.filter((r) => r.status === 'login');
+  if (login.length) {
+    $('failed').append(el('div', { class: 'callout' },
+      el('h2', { text: plural(login.length, 'page') + ' need' + (login.length === 1 ? 's' : '') + ' a login' }),
+      el('p', {}, 'Run ', el('code', { text: 'breakhound login' }), ' once to sign in, then scan again.'), listing(login)));
+  }
+  const skipped = D.routes.filter((r) => r.status === 'skipped' || r.status === 'redirect');
+  if (skipped.length) {
+    const dynamic = skipped.find((r) => r.status === 'skipped');
+    const example = dynamic && dynamic.route.replace(/\[\[?\.\.\.[^\]]+\]\]?/g, 'a/b').replace(/\[\[?[^\]]+\]\]?/g, '1');
+    $('failed').append(el('div', { class: 'callout' },
+      el('h2', { text: plural(skipped.length, 'route') + ' left out' }),
+      dynamic ? el('p', {}, 'Give dynamic routes a real URL in your config: ', el('code', { text: "samples: { '" + dynamic.route + "': '" + example + "' }" })) : false,
+      listing(skipped)));
   }
   const shaky = D.routes.filter((r) => r.warnings.length);
   if (shaky.length) {

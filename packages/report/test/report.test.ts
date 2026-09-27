@@ -120,7 +120,25 @@ describe('summary', () => {
     const md = renderSummary(scan);
     expect(md).toContain('found 2 issues (1 error, 1 warning)');
     expect(md).toContain('| ✖ | 320–357px | Page scrolls horizontally');
-    expect(md).toContain('/broken: rendered nothing');
+    expect(md).toContain(
+      '## Pages that could not be checked\n\n- /broken: The page rendered nothing.',
+    );
+  });
+
+  it('keeps pages behind a login and left-out routes apart from failures', () => {
+    const md = renderSummary(
+      result([
+        route('/', []),
+        route('/account', [], { status: 'login', error: 'Needs a login: it redirected to /login' }),
+        route('/users/[id]', [], { status: 'skipped', url: '', error: 'No page links to it.' }),
+      ]),
+    );
+    expect(md).toContain('Scanned 1 page from');
+    expect(md).not.toContain('could not be checked');
+    expect(md).toContain('## Pages that need a login\n\nRun `breakhound login` once');
+    expect(md).toContain('- /account: Needs a login: it redirected to /login');
+    expect(md).toContain('## Routes left out\n\nGive dynamic routes a real URL with `samples`');
+    expect(md).toContain('- /users/[id]: No page links to it.');
   });
 });
 

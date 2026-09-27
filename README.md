@@ -2,14 +2,18 @@
 
 Find where your layout breaks across every viewport width, then hand the fix to your coding agent.
 
-Instead of dragging the browser or clicking through device presets, breakhound sweeps each page from 320px to 1920px in a real browser, finds the exact pixel where things go wrong, and tells you why:
+Instead of dragging the browser or clicking through device presets, run one command in your project. breakhound finds your framework and dev server (and starts it if needed), discovers every route, sweeps each page from 320px to 1920px in a real browser, finds the exact pixel where things go wrong, and tells you why:
 
 ```
-breakhound 0.1.0 · 3 pages · 320–1920px
+✔ Next.js running at http://localhost:3000
+✔ 14 routes from src/app (2 dynamic, filled in from links on your pages)
+breakhound 0.1.0 · 14 pages · 320–1920px
 
-  ✖ /pricing   2 issues · layout changes at 768, 1024   4.1s
-  ✔ /about     clean · layout changes at 640, 1024      3.2s
-  ✖ /blog      1 issue · layout changes at 768          3.8s
+  ✖ /pricing        2 issues · layout changes at 768, 1024   4.1s
+  ✔ /about          clean · layout changes at 640, 1024      3.2s
+  ✖ /blog/[slug]    1 issue · layout changes at 768          3.8s  as /blog/hello-world
+  ○ /dashboard      Needs a login: it redirected to /login
+  ...
 
   3 issues on 2 pages
 
@@ -18,32 +22,65 @@ breakhound 0.1.0 · 3 pages · 320–1920px
               → It stays 600px wide no matter the screen size. Replace the fixed width
                 with max-width: 100% (or a fluid width) so it can shrink.
   ⚠ warning  768–919px      Row of 6 items wraps onto 2 lines
-              header nav ul · /pricing, /blog
+              header nav ul · /pricing, /blog/[slug]
               → Collapse this row into a menu below this width, tighten its spacing, or
                 let it scroll sideways.
+
+  ○ 1 page needs a login. Run breakhound login once to sign in, then scan again.
 
   Report  .breakhound/report.html
   Fix it  breakhound prompt --copy  then paste into your coding agent
 ```
 
-> **Status:** pre-release. Scanning, reports and the agent prompt work today. Zero-config route discovery and the MCP fix loop are next. See [docs/DESIGN.md](docs/DESIGN.md).
+> **Status:** pre-release. Scanning, route discovery, reports and the agent prompt work today. The MCP fix loop is next. See [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Quick start
 
-Start your dev server, then:
+In your project folder:
 
 ```bash
-npx breakhound http://localhost:3000
+npx breakhound
 ```
 
-Or set it up once for your project:
+That's it: no config. If your dev server is already running it's used, otherwise breakhound starts it with your `dev` script and stops it when done. Chromium is downloaded automatically the first time (about 150 MB).
+
+Other ways to run it:
 
 ```bash
-npx breakhound init     # creates breakhound.config.ts and ignores .breakhound/
-npx breakhound          # scans the routes in your config
+npx breakhound /pricing /blog          # only these routes
+npx breakhound http://localhost:3000   # just this one page
+npx breakhound --url https://staging.example.com   # every route, on another server
 ```
 
-Chromium is downloaded automatically the first time (about 150 MB).
+## Finding routes
+
+| Project | Where routes come from |
+|---|---|
+| Next.js (App and Pages Router) | `app/` and `pages/`, skipping route groups, parallel slots, private folders and API routes |
+| Nuxt | the live Vue router, so module and custom routes count too (falls back to `pages/`) |
+| SvelteKit | `src/routes` |
+| Astro | `src/pages` |
+| Remix, React Router 7 | the route manifest, `app/routes.ts` and `app/routes/` |
+| TanStack Router | `routeTree.gen.ts` and the live router |
+| React Router (code-defined) | the live route tree, including `<Routes>` nested inside pages; falls back to reading your router code |
+| Vue Router (code-defined) | the live router; falls back to reading your router code |
+| Anything else | links followed from the home page (up to 50 pages, a few per section) |
+
+**Dynamic routes** like `/blog/[slug]` are scanned once, using a real link found on your pages (routes that share a template share a layout). If no page links to one, it's listed with a hint, and you can give it a URL:
+
+```ts
+samples: { '/products/[id]': '/products/42' }
+```
+
+**Pages behind a login** are spotted (they redirect to a sign-in page) and listed instead of scanning the login page over and over. Sign in once:
+
+```bash
+npx breakhound login
+```
+
+A browser window opens; log in as you normally would, then press Enter. The session is saved to `.breakhound/auth.json` (added to `.gitignore`) and used by later scans. breakhound never sees your password.
+
+Links that would log you out, delete something, or download a file are never followed.
 
 ## What it checks
 
@@ -89,20 +126,32 @@ Paste it into Claude Code, Cursor, Copilot or any other agent. The prompt lists 
 
 ## Configuration
 
-`breakhound.config.ts` (or `.js`, `.mjs`, `.json`):
+Optional. `breakhound.config.ts` (or `.js`, `.mjs`, `.json`), created by `npx breakhound init`:
 
 ```ts
 import { defineConfig } from 'breakhound';
 
 export default defineConfig({
-  baseUrl: 'http://localhost:3000',
-  routes: ['/', '/pricing', '/blog/hello-world'],
+  exclude: ['/admin/**'],                       // or include: ['/blog/**']
+  samples: { '/products/[id]': '/products/42' },
   widths: { min: 320, max: 1920 },
   ignore: ['.intercom-launcher', { selector: '.map', detectors: ['overlap'] }],
   detectors: { 'tiny-text': false, 'edge-gutter': 'info' },
   failOn: 'error',
 });
 ```
+
+| Option | What it does |
+|---|---|
+| `baseUrl` | Scan this server instead of finding or starting the dev server |
+| `routes` | Scan exactly these routes instead of discovering them |
+| `include`, `exclude` | Route globs: `*` is one segment, `**` any number |
+| `samples` | A real URL for each dynamic route |
+| `maxRoutes` | Most routes per run (default 100) |
+| `server` | How to start the app: `{ command: 'npm run preview', port: 4173, timeout: 120 }` |
+| `widths` | `{ min, max, step }` in CSS pixels |
+| `ignore`, `detectors` | Leave elements out, turn checks off or change their severity |
+| `failOn` | Exit 1 at `error`, `warning`, `info` or `none` |
 
 You can also mark elements in your markup:
 
@@ -114,21 +163,45 @@ You can also mark elements in your markup:
 ## CLI
 
 ```
-breakhound [url or path ...]   Scan pages (defaults to the routes in your config)
+breakhound                     Find your app and scan every route
+breakhound /pricing /blog      Scan only these routes of your app
+breakhound <url or file ...>   Scan just these pages
+breakhound login [route]       Log in once in a browser window; later scans reuse the session
 breakhound report              Open the last HTML report
 breakhound prompt              Print the fix prompt (--copy to copy it, --all to include info)
 breakhound init                Create a config file
+breakhound install             Download Chromium (--with-deps adds Linux system libraries)
 
+--url <url>             Where your app runs (skips finding the dev server)
+--include <glob>        Only scan matching routes (repeatable)
+--exclude <glob>        Skip matching routes (repeatable)
+--max-routes <n>        Most routes to scan (default 100)
 --min <px> --max <px>   Width range (default 320 to 1920)
 --fail-on <level>       Exit 1 at error, warning, info or none (default error)
 --pdf                   Also write report.pdf
 --no-screenshots        Skip screenshots
+--concurrency <n>       Browser tabs to use at once
 --out <dir>             Report folder (default .breakhound)
 --open                  Open the report when done
 -q, --quiet             Only print errors
 ```
 
-Exit codes: `0` clean, `1` issues at or above `--fail-on`, `2` a page couldn't be checked (it failed to load, answered with an HTTP error, or rendered nothing). That makes it CI-friendly as is.
+Exit codes: `0` clean, `1` issues at or above `--fail-on`, `2` a page couldn't be checked (it failed to load, answered with an HTTP error, or rendered nothing). Pages behind a login and dynamic routes without a URL are reported but don't fail the run.
+
+## CI
+
+On GitHub Actions, after installing your dependencies:
+
+```yaml
+- uses: Seybel/breakhound@v1
+  with:
+    fail-on: error
+    # url: ${{ steps.deploy.outputs.preview-url }}   # or scan a preview deployment
+```
+
+It starts your dev server (or scans `url`), turns each issue into an annotation, adds the summary to the job page, and uploads the report as an artifact.
+
+Anywhere else, `npx breakhound install --with-deps && npx breakhound` does the same job; `CI=true` keeps it from opening windows or asking questions.
 
 ## Development
 

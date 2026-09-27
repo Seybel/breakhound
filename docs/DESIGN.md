@@ -143,17 +143,25 @@ Local development means we have the source, so routes come from the source or th
 | Angular | Runtime `Router.config` | Phase 4 |
 | Fallback | Same-origin link crawl from `/` (bounded depth and count) | For unknown setups only |
 
+Routes read from the live router come first where the framework has one (Nuxt, Vue, React Router, Remix, TanStack), because plugins and modules add routes that files don't show. React apps can declare more routes inside pages (`<Routes>` nested in a component), so the router is read again on every page scanned. The React fiber tree is read from the root's current tree (`stateNode.current`), since the container keeps the fiber from the first render.
+
+When nothing lists the routes, links are followed from `/`: every top-level page, at most three siblings deeper down, 50 pages in total. Links that log out, delete, unsubscribe, point at `/api/` or at files are never followed.
+
 ### 5.3 Dynamic routes
 
-For each dynamic pattern (`/products/[id]`), look for a real matching link on already-rendered pages (e.g. `/products/42`). If none is found, the route is marked "needs a sample" and the CLI asks once, saving the answer to config. Only one sample per pattern by default, since instances share a layout.
+For each dynamic pattern (`/products/[id]`), look for a real matching link on already-scanned pages (e.g. `/products/42`); the most specific pattern wins, so `/blog/new` is not taken as a sample of `/blog/[slug]`. `samples` in the config sets one explicitly. If none is found, the route is reported as skipped with the config line to add. The CLI doesn't prompt, so the same command behaves the same in a terminal and in CI. Only one sample per pattern, since instances share a layout.
 
 ### 5.4 Auth
 
-If a route redirects to a login-like page, it's reported as "requires login". `breakhound login` opens a headed browser; the developer logs in themselves; the session (Playwright `storageState`) is saved to `.breakhound/auth.json`, which the setup step adds to `.gitignore`. breakhound never sees or stores passwords.
+If a route redirects to a login-like page (a sign-in path, another origin, or a page with a visible password field), or answers 401/403, it's reported with status `login` and not scanned. A redirect to a page that is scanned anyway is reported as `redirect`. Neither fails the run; only pages that errored or rendered nothing exit with 2. `breakhound login` opens a headed browser; the developer logs in themselves; the session (Playwright `storageState`) is saved to `.breakhound/auth.json` (mode 600), and `.breakhound/` is added to `.gitignore`. breakhound never sees or stores passwords.
+
+### 5.4.1 Dev server
+
+A running server is found by probing the ports from the dev script, the framework config and the framework default, then common ports, and only accepted if the HTML carries the framework's fingerprint (`/_next/`, `/_nuxt/`, the Vite entry script from `index.html`, ...), so another project left running isn't scanned by mistake. Otherwise the `dev` script is started in its own process group, its output is read for the local URL, and the whole group is stopped afterwards. `server.command` in the config replaces the script (for example a preview build in CI). Settling a page ignores requests open longer than 3s (long polling, realtime sync), which would otherwise hold every page for the full network timeout.
 
 ### 5.5 Config (optional)
 
-`breakhound.config.ts`, created on first run, never required:
+`breakhound.config.ts`, created by `breakhound init`, never required:
 
 ```ts
 export default {
@@ -161,8 +169,10 @@ export default {
   include: ['/**'],
   exclude: ['/admin/**'],
   samples: { '/products/[id]': '/products/42' },
+  maxRoutes: 100,
+  server: { command: 'npm run preview', port: 4173 },
   widths: { min: 320, max: 1920 },
-  ignore: [{ selector: '.marquee', rules: ['page-overflow'] }],
+  ignore: [{ selector: '.marquee', detectors: ['page-overflow'] }],
   failOn: 'error',
 };
 ```
@@ -367,7 +377,7 @@ We build in phases but don't stop until v1.0 is launched.
 |---|---|---|
 | **0 · Foundation + spike** ✅ | Monorepo, CI, fixture corpus (~30 labelled bugs), analyzers for `page-overflow`, `content-overflow`, `overlap`, `unexpected-wrap`, `media-overflow`; sweep + bisect on one URL; JSON output | Meets the precision/recall bar on fixtures; manual review of Projects A/B/C shows ≥ 90% precision. **If not, revise detectors before continuing.** |
 | **1 · CLI + reports (MVP)** ✅ | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
-| **2 · Whole-app** | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
+| **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
 | **3 · Agent loop** | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
 | **4 · Depth** | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
 | **5 · DevTools panel** | Chrome DevTools panel reusing `analyzers` for live single-page use | Panel shows issues and breakpoint timeline for the inspected tab |
@@ -379,7 +389,7 @@ We build in phases but don't stop until v1.0 is launched.
 
 - **Unit tests** (Vitest + jsdom where layout isn't needed): selector generation, issue merging, range bisection, schema, report rendering, route adapters against fixture file trees.
 - **Layout tests** (Vitest + real Chromium): each fixture page declares its expected issues (`data-expect="page-overflow@320-359"`); the test scans it and compares. This is the accuracy benchmark, run in CI on every PR, with precision/recall reported.
-- **Framework fixtures**: minimal Next, Nuxt, Vite+React Router, Vite+Vue Router, SvelteKit and Astro apps in `fixtures/apps/` to test detection and route discovery end-to-end.
+- **Route discovery**: file-based adapters (Next, Nuxt, SvelteKit, Astro, Remix, TanStack) and the code reader are tested against generated file trees. The live-router readers run against small React Router (JSX and data router) and Vue Router apps in `fixtures/apps/`, bundled as minified production builds. A made-up app with a `dev` script covers starting and stopping the server, following links, login walls, `breakhound login` and samples end to end.
 - **Real-world checks**: Projects A/B/C, run locally only; results stay out of the repo.
 
 ---

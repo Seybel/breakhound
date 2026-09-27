@@ -7,8 +7,18 @@ import type { DetectorId, IgnoreRule, Severity } from '@breakhound/engine/types'
 export interface BreakhoundConfig {
   /** Where your app is running, e.g. http://localhost:3000. */
   baseUrl?: string;
-  /** Pages to scan: paths (joined to baseUrl) or full URLs. */
+  /** Pages to scan: paths (joined to baseUrl) or full URLs. Leave it out to find every route automatically. */
   routes?: string[];
+  /** Only scan routes matching these globs, e.g. ['/blog/**']. `*` is one segment, `**` any number. */
+  include?: string[];
+  /** Skip routes matching these globs, e.g. ['/admin/**']. */
+  exclude?: string[];
+  /** A real URL for each dynamic route, e.g. { '/products/[id]': '/products/42' }. */
+  samples?: Record<string, string>;
+  /** Most routes to scan in one run (default 100). */
+  maxRoutes?: number;
+  /** How to start the app when it isn't running, if not with its "dev" script. */
+  server?: { command?: string; port?: number; timeout?: number };
   /** Viewport widths to sweep, in CSS pixels. */
   widths?: { min?: number; max?: number; step?: number };
   /** Turn a check off with `false`, or change how serious it is. */
@@ -23,7 +33,7 @@ export interface BreakhoundConfig {
   screenshots?: boolean;
   /** Also write report.pdf. */
   pdf?: boolean;
-  /** Browser tabs used to measure one page in parallel. */
+  /** Browser tabs to use at once (default: half your CPU cores, up to 4). */
   concurrency?: number;
   /** How long to wait for the page to settle. */
   settle?: { networkIdleMs?: number; maxSettleMs?: number };
@@ -102,6 +112,11 @@ export async function loadConfig(cwd: string, explicit?: string): Promise<Loaded
 const KNOWN_KEYS = new Set([
   'baseUrl',
   'routes',
+  'include',
+  'exclude',
+  'samples',
+  'maxRoutes',
+  'server',
   'widths',
   'detectors',
   'ignore',
@@ -127,6 +142,41 @@ export function validateConfig(config: BreakhoundConfig): string[] {
   if (config.routes !== undefined) {
     if (!Array.isArray(config.routes) || config.routes.some((r) => typeof r !== 'string')) {
       throw new Error('routes must be a list of paths or URLs, like ["/", "/pricing"]');
+    }
+  }
+  for (const key of ['include', 'exclude'] as const) {
+    const v = config[key];
+    if (v !== undefined && (!Array.isArray(v) || v.some((g) => typeof g !== 'string'))) {
+      throw new Error(`${key} must be a list of route globs, like ["/admin/**"]`);
+    }
+  }
+  if (config.samples !== undefined) {
+    const ok =
+      config.samples &&
+      typeof config.samples === 'object' &&
+      !Array.isArray(config.samples) &&
+      Object.values(config.samples).every((v) => typeof v === 'string');
+    if (!ok) {
+      throw new Error(
+        `samples must map a dynamic route to a real one, like { "/products/[id]": "/products/42" }`,
+      );
+    }
+  }
+  if (
+    config.maxRoutes !== undefined &&
+    (!Number.isInteger(config.maxRoutes) || config.maxRoutes <= 0)
+  ) {
+    throw new Error('maxRoutes must be a positive whole number');
+  }
+  if (config.server !== undefined) {
+    const { command, port, timeout } = config.server ?? {};
+    if (command !== undefined && typeof command !== 'string')
+      throw new Error('server.command must be a string');
+    if (port !== undefined && (!Number.isInteger(port) || port <= 0 || port > 65535)) {
+      throw new Error('server.port must be a port number');
+    }
+    if (timeout !== undefined && (typeof timeout !== 'number' || timeout <= 0)) {
+      throw new Error('server.timeout must be a number of seconds');
     }
   }
   for (const key of ['min', 'max', 'step'] as const) {

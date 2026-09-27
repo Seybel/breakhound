@@ -1,7 +1,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Scanner } from '@breakhound/engine';
+import { parsePattern } from '@breakhound/routes';
 import { describe, expect, it } from 'vitest';
+import { applyFilters, planRoutes } from '../src/app';
 import { loadConfig, validateConfig } from '../src/config';
 import { runInit } from '../src/init';
 import { resolveTargets } from '../src/scan';
@@ -11,15 +14,28 @@ function tempDir(): string {
 }
 
 describe('targets', () => {
-  it('joins config routes to the base URL', () => {
-    const t = resolveTargets(
+  it('uses the routes from the config, as given, instead of discovering them', async () => {
+    const plan = await planRoutes(
+      { project: null, baseUrl: 'http://localhost:3000', server: null },
+      { routes: ['/', 'pricing', '/blog/[slug]'] },
+      new Scanner(),
       [],
-      { baseUrl: 'http://localhost:3000', routes: ['/', '/pricing'] },
-      '/',
     );
-    expect(t).toEqual([
-      { url: 'http://localhost:3000/', route: '/' },
-      { url: 'http://localhost:3000/pricing', route: '/pricing' },
+    expect(plan.patterns.map((p) => [p.path, p.dynamic])).toEqual([
+      ['/', false],
+      ['/pricing', false],
+      ['/blog/[slug]', true],
+    ]);
+    expect(plan.crawl).toBe(false);
+  });
+
+  it('filters discovered routes with include, exclude and maxRoutes', () => {
+    const patterns = ['/', '/admin', '/admin/users', '/blog', '/blog/[slug]'].map(parsePattern);
+    const { kept, filtered } = applyFilters(patterns, { exclude: ['/admin/**'] }, 2);
+    expect(kept.map((p) => p.path)).toEqual(['/', '/blog']);
+    expect(filtered).toBe(3);
+    expect(applyFilters(patterns, { include: ['/blog/*'] }, 100).kept.map((p) => p.path)).toEqual([
+      '/blog/[slug]',
     ]);
   });
 

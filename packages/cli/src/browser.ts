@@ -18,10 +18,18 @@ export function ensureChromium(): void {
   console.log(
     styleText('dim', 'First run: downloading Chromium for breakhound (one time, about 150 MB)...'),
   );
+  installChromium(false);
+}
+
+/** Runs the bundled Playwright's installer, optionally with the system libraries Chromium needs (Linux, CI). */
+export function installChromium(withDeps: boolean): void {
   const require = createRequire(import.meta.url);
   const cli = require.resolve('playwright/cli');
-  const run = spawnSync(process.execPath, [cli, 'install', 'chromium'], { stdio: 'inherit' });
+  const args = [cli, 'install', ...(withDeps ? ['--with-deps'] : []), 'chromium'];
+  const run = spawnSync(process.execPath, args, { stdio: 'inherit' });
   if (run.status !== 0) {
-    throw new Error('Could not download Chromium. Try running: npx playwright install chromium');
+    throw new Error(
+      `Could not install Chromium. Try running: npx breakhound install${withDeps ? ' --with-deps' : ''}`,
+    );
   }
 }
