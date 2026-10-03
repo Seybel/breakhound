@@ -38,6 +38,7 @@ import {
 import { AUTH_FILE } from './auth';
 import { ensureChromium } from './browser';
 import { type BreakhoundConfig, normalizeIgnore } from './config';
+import { guard, parseMemoryLimit } from './guard';
 import { printDiscovery, printFooter, printIssues, printNotes, printRouteLine } from './print';
 import { touchSession } from './session';
 
@@ -353,7 +354,15 @@ export interface ScanOutcome {
 /** Name of the scan that later verify runs compare with. */
 export const BASELINE_FILE = 'baseline.json';
 
-export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
+/**
+ * Scans the app or pages. The dev server and browser it starts are watched,
+ * and shut down if they use more memory than the computer can spare.
+ */
+export function runScan(req: ScanRequest): Promise<ScanOutcome> {
+  return guard.run({ limit: parseMemoryLimit(req.config.memoryLimit) }, () => scan(req));
+}
+
+async function scan(req: ScanRequest): Promise<ScanOutcome> {
   const { config, cwd, quiet } = req;
   const minWidth = config.widths?.min ?? DEFAULTS.minWidth;
   const maxWidth = config.widths?.max ?? DEFAULTS.maxWidth;

@@ -8,6 +8,7 @@ import { installChromium } from './browser';
 import { isCI, reportToGitHub } from './ci';
 import { copyToClipboard } from './clipboard';
 import { type BreakhoundConfig, loadConfig } from './config';
+import { MemoryError, parseMemoryLimit } from './guard';
 import { runInit } from './init';
 import { runMcpServer } from './mcp';
 import { type ClientId, installMcp } from './mcp-install';
@@ -52,6 +53,8 @@ Scan options
   --pdf                 Also write report.pdf
   --no-screenshots      Skip issue screenshots
   --concurrency <n>     Browser tabs to use at once
+  --memory-limit <size> Stop before the dev server and browser use more, e.g. 6GB,
+                        50% or off (default 60% of your memory)
   --config <file>       Use this config file
   --open                Open the HTML report when done
   -q, --quiet           Only print errors
@@ -105,6 +108,7 @@ async function main(argv: string[]): Promise<number> {
       pdf: { type: 'boolean' },
       screenshots: { type: 'boolean' },
       concurrency: { type: 'string' },
+      'memory-limit': { type: 'string' },
       config: { type: 'string' },
       open: { type: 'boolean' },
       quiet: { type: 'boolean', short: 'q' },
@@ -162,9 +166,13 @@ async function main(argv: string[]): Promise<number> {
 
   const { config: loaded, warnings } = await loadConfig(cwd, values.config);
   for (const w of warnings) console.error(styleText('yellow', `⚠ ${w}`));
-  const fileConfig: BreakhoundConfig = values.url
-    ? { ...loaded, baseUrl: normalizeBaseUrl(values.url) }
-    : loaded;
+  const memoryLimit = values['memory-limit'];
+  if (memoryLimit !== undefined) parseMemoryLimit(memoryLimit);
+  const fileConfig: BreakhoundConfig = {
+    ...loaded,
+    ...(values.url ? { baseUrl: normalizeBaseUrl(values.url) } : {}),
+    ...(memoryLimit !== undefined ? { memoryLimit } : {}),
+  };
 
   if (command === 'login') {
     if (isCI())
@@ -325,5 +333,7 @@ main(process.argv.slice(2)).then(
       styleText('red', `breakhound: ${error instanceof Error ? error.message : String(error)}`),
     );
     process.exitCode = 2;
+    // Don't wait on the scan the guard abandoned; exiting also stops anything left over.
+    if (error instanceof MemoryError) process.exit(2);
   },
 );

@@ -49,6 +49,13 @@ export interface BreakhoundConfig {
   pdf?: boolean;
   /** Browser tabs to use at once (default: half your CPU cores, up to 4). */
   concurrency?: number;
+  /**
+   * Most memory the dev server and browser breakhound starts may use
+   * together before it shuts them down, so a big app can't freeze your
+   * computer: a size like "6GB", a share like "50%", or "off". Default 60% of
+   * your memory, leaving at least 2 GB free.
+   */
+  memoryLimit?: string | false;
   /** How long to wait for the page to settle. */
   settle?: {
     /** Most milliseconds to wait for the network to go quiet after load (default 5000). */

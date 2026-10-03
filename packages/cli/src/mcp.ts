@@ -7,6 +7,7 @@ import { formatRanges, groupIssues, renderIssue, sourceText } from '@breakhound/
 import { isReachable } from '@breakhound/routes';
 import { type AppServer, resolveServer } from './app';
 import { type BreakhoundConfig, loadConfig } from './config';
+import { guard, MemoryError, parseMemoryLimit } from './guard';
 import { readLastResult, runScan } from './scan';
 import { checkpoint, listCheckpoints, undo } from './session';
 import { formatVerify, runVerify, severitiesAtOrAbove, verifyPassed } from './verify';
@@ -422,21 +423,27 @@ export async function runMcpServer(
     try {
       const dir = await projectRoot();
       const { config, warnings } = await loadConfig(dir);
-      const result = await tool.run((params.arguments as Json) ?? {}, {
-        root: dir,
-        config,
-        progress(done, message) {
-          if (token !== undefined)
-            send({
-              method: 'notifications/progress',
-              params: { progressToken: token, progress: done, message },
-            });
-        },
-      });
+      // Starting the dev server happens here, outside the scan, so the whole call is guarded.
+      const limit = parseMemoryLimit(config.memoryLimit);
+      const result = await guard.run({ limit }, () =>
+        tool.run((params.arguments as Json) ?? {}, {
+          root: dir,
+          config,
+          progress(done, message) {
+            if (token !== undefined)
+              send({
+                method: 'notifications/progress',
+                params: { progressToken: token, progress: done, message },
+              });
+          },
+        }),
+      );
       if (warnings.length)
         result.content.push({ type: 'text', text: `Config warnings: ${warnings.join(' ')}` });
       send({ id, result });
     } catch (error) {
+      // The guard shut the dev server down; the next call starts it again.
+      if (error instanceof MemoryError) server.current = null;
       send({ id, result: text(error instanceof Error ? error.message : String(error), true) });
     }
   }

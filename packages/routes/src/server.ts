@@ -103,6 +103,8 @@ export async function isReachable(url: string, timeoutMs = 5000): Promise<boolea
 
 export interface RunningServer {
   url: string;
+  /** Process id of the server breakhound started. */
+  pid?: number;
   /** Set when breakhound started the server itself. */
   command?: string;
   stop(): Promise<void>;
@@ -139,6 +141,8 @@ export interface StartOptions {
   timeoutMs?: number;
   /** Receives the server's output, for troubleshooting. */
   onOutput?: (line: string) => void;
+  /** Called with the process id as soon as the server process starts. */
+  onSpawn?: (pid: number | undefined) => void;
 }
 
 function killTree(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void {
@@ -190,6 +194,7 @@ export async function startServer(
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, BROWSER: 'none', FORCE_COLOR: '0', NO_COLOR: '1' },
   });
+  options.onSpawn?.(child.pid);
   const cleanup = () => killTree(child);
   process.once('exit', cleanup);
 
@@ -241,10 +246,10 @@ export async function startServer(
     for (const url of candidates) {
       // The first request can be slow while the dev server compiles the page.
       const page = await probe(`${url}/`, 30_000);
-      if (page && page.status < 500) return { url, command, stop };
+      if (page && page.status < 500) return { url, pid: child.pid, command, stop };
       if (page) {
         failingSince ??= Date.now();
-        if (Date.now() - failingSince > 10_000) return { url, command, stop };
+        if (Date.now() - failingSince > 10_000) return { url, pid: child.pid, command, stop };
       }
     }
     await new Promise((r) => setTimeout(r, 300));

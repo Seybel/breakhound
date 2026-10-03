@@ -17,6 +17,7 @@ import {
   wantsRuntimeRoutes,
 } from '@breakhound/routes';
 import type { BreakhoundConfig } from './config';
+import { guard } from './guard';
 
 export const DEFAULT_MAX_ROUTES = 100;
 /** When nothing lists the routes, following links stops sooner. */
@@ -90,11 +91,27 @@ export async function resolveServer(
   const label =
     command ?? (project.devScript ? `${project.packageManager} run ${project.devScript.name}` : '');
   log(quiet, styleText('dim', `Starting ${name ?? 'the app'} with ${label}...`));
-  const server = await startServer(project, {
+  // Watched for memory from its first second: a big app's first compile is the heaviest part.
+  let pid: number | undefined;
+  const started = await startServer(project, {
     ...(command ? { command } : {}),
     ...(config.server?.port ? { port: config.server.port } : {}),
     ...(config.server?.timeout ? { timeoutMs: config.server.timeout * 1000 } : {}),
+    onSpawn: (id) => {
+      pid = id;
+      guard.trackServer(id);
+    },
+  }).catch((error: unknown) => {
+    guard.untrackServer(pid);
+    throw error;
   });
+  const server = {
+    ...started,
+    stop: async () => {
+      await started.stop();
+      guard.untrackServer(started.pid);
+    },
+  };
   const baseUrl =
     wanted && (await isReachable(wanted)) ? wanted : withBasePath(server.url, project.basePath);
   log(quiet, `${styleText('green', '✔')} ${name ?? 'App'} started at ${baseUrl}`);

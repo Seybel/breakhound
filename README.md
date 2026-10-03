@@ -227,6 +227,8 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `widths` | `{ min, max, step }` in CSS pixels |
 | `ignore`, `detectors` | Leave elements out, turn checks off or change their severity |
 | `failOn` | Exit 1 at `error`, `warning`, `info` or `none` |
+| `concurrency` | Browser tabs to use at once (default half your CPU cores, up to 4) |
+| `memoryLimit` | Most memory the dev server and browser may use together, e.g. `"6GB"`, `"50%"` or `"off"` (default 60% of your memory) |
 
 You can also mark elements in your markup:
 
@@ -262,10 +264,13 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 --pdf                   Also write report.pdf
 --no-screenshots        Skip screenshots
 --concurrency <n>       Browser tabs to use at once
+--memory-limit <size>   Memory the dev server and browser may use, e.g. 6GB, 50% or off
 --out <dir>             Report folder (default .breakhound)
 --open                  Open the report when done
 -q, --quiet             Only print errors
 ```
+
+A scan never gets to freeze your computer. While it runs, breakhound watches the memory of the dev server it started (and everything that server runs) and of its browser, along with how much memory your system has left. If they grow past `memoryLimit`, or the system runs out of memory, it shuts them down at once and tells you what used the memory and what to try. It only ever stops processes it started itself.
 
 Exit codes: `0` clean, `1` issues at or above `--fail-on`, `2` a page couldn't be checked (it failed to load, answered with an HTTP error, or rendered nothing). Pages behind a login and dynamic routes without a URL are reported but don't fail the run.
 

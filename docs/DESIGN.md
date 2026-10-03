@@ -161,6 +161,8 @@ If a route redirects to a login-like page (a sign-in path, another origin, or a 
 
 A running server is found by probing the ports from the dev script, the framework config and the framework default, then common ports, and only accepted if the HTML carries the framework's fingerprint (`/_next/`, `/_nuxt/`, the Vite entry script from `index.html`, ...), so another project left running isn't scanned by mistake. Otherwise the `dev` script is started in its own process group, its output is read for the local URL, and the whole group is stopped afterwards. `server.command` in the config replaces the script (for example a preview build in CI). Settling a page ignores requests open longer than 3s (long polling, realtime sync), which would otherwise hold every page for the full network timeout.
 
+A dev server for a big app can take gigabytes (Turbopack's first compile especially), and on an 8 GB laptop a dev server plus a browser can push the machine into swap until it freezes. So while breakhound works, a guard samples once a second (every 5s on Windows) the memory of everything it runs (the footprint on macOS, which unlike resident size counts compressed memory; under pressure a 600 MB process can show 30 MB resident): its own process tree, plus the process group of each dev server it started, which catches children that outlived the shell. It also reads the system's own signal: macOS's memory pressure level (only `critical`; `warn` is normal on 8 GB Macs) and `MemAvailable` on Linux. Past `memoryLimit` (default 60% of RAM, leaving at least 2 GB), or with the system critical for 3 samples in a row while breakhound uses at least 1 GB, it SIGKILLs the dev server's group and the browser, and the scan fails with what used the memory and what to try. It never touches processes it didn't start. The dev server is registered the moment it spawns, so a runaway first compile is caught before the server even answers.
+
 ### 5.5 Config (optional)
 
 `breakhound.config.ts`, created by `breakhound init`, never required:
@@ -413,6 +415,7 @@ We build in phases but don't stop until v1.0 is launched.
 | Flaky measurements (animations, async content) | Settling step, persistence rule, re-measure on disagreement |
 | Slow scans on big apps | Resize-not-reload, coarse-then-bisect, parallel routes, `--changed` (routes touched since last scan, Phase 4) |
 | Agents make bad fixes | Verify loop with regression detection; per-route undo |
+| A big app's dev server plus the browser freezes the developer's machine | Memory guard on everything breakhound starts, with system pressure as a second signal; shuts down cleanly with advice (5.4.1) |
 | Playwright browser download size | One-time install with clear messaging; reuse any installed Chromium |
 
 ---

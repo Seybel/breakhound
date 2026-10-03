@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { DETECTOR_IDS } from '@breakhound/analyzers/types';
 import type { DetectorId, IgnoreRule } from '@breakhound/engine/types';
 import type { BreakhoundConfig } from './define';
+import { parseMemoryLimit } from './guard';
 
 export { type BreakhoundConfig, defineConfig } from './define';
 
@@ -90,6 +91,7 @@ export const KNOWN_KEYS = new Set([
   'screenshots',
   'pdf',
   'concurrency',
+  'memoryLimit',
   'settle',
 ]);
 
@@ -155,6 +157,11 @@ export function validateConfig(config: BreakhoundConfig): string[] {
     (!Number.isInteger(config.concurrency) || config.concurrency <= 0)
   ) {
     throw new Error('concurrency must be a positive whole number');
+  }
+  if (config.memoryLimit !== undefined) {
+    if (config.memoryLimit !== false && typeof config.memoryLimit !== 'string')
+      throw new Error('memoryLimit must be a size like "6GB", a share like "50%", or "off"');
+    parseMemoryLimit(config.memoryLimit);
   }
   for (const key of ['networkIdleMs', 'maxSettleMs'] as const) {
     const v = config.settle?.[key];
