@@ -24,7 +24,7 @@
   "author": "Seybel",
   "type": "module",
   "bin": {
-    "breakhound": "./dist/cli.js"
+    "breakhound": "./bin/breakhound.cjs"
   },
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",
@@ -73,13 +73,15 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "bin",
     "dist",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "node build.mjs",
-    "prepack": "npm run build && cp ../../README.md ../../LICENSE ."
+    "prepack": "npm run build && cp ../../README.md ../../LICENSE .",
+    "smoke": "node smoke.mjs"
   },
   "engines": {
     "node": ">=20.16"
