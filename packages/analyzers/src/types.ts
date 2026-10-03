@@ -29,6 +29,22 @@ export const DETECTOR_IDS: readonly DetectorId[] = [
   'viewport-meta',
 ];
 
+/** Where an element comes from in the project's code. */
+export interface SourceLocation {
+  /** Path relative to the project root, with `/` separators. */
+  file: string;
+  line?: number;
+  column?: number;
+  /** The component that renders the element, when known. */
+  component?: string;
+  /**
+   * True when this is the element's own line (from a source plugin or the
+   * framework's dev info). False when it's only the file or component that
+   * renders it, so the element is somewhere inside.
+   */
+  exact: boolean;
+}
+
 export interface ElementInfo {
   /** Shortest unique CSS selector, stable across viewport widths. */
   selector: string;
@@ -37,6 +53,8 @@ export interface ElementInfo {
   /** Trimmed outerHTML of the opening tag plus a short text preview. */
   html: string;
   text: string | null;
+  /** Where it's written in the code, when the page gives that away (dev builds only). */
+  source?: SourceLocation | null;
 }
 
 export interface Finding {

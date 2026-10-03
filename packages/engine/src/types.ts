@@ -1,6 +1,12 @@
-import type { DetectorId, ElementInfo, IgnoreRule, Severity } from '@breakhound/analyzers/types';
+import type {
+  DetectorId,
+  ElementInfo,
+  IgnoreRule,
+  Severity,
+  SourceLocation,
+} from '@breakhound/analyzers/types';
 
-export type { DetectorId, ElementInfo, IgnoreRule, Severity };
+export type { DetectorId, ElementInfo, IgnoreRule, Severity, SourceLocation };
 
 export interface WidthRange {
   from: number;
@@ -19,7 +25,7 @@ export interface Issue {
   ranges: WidthRange[];
   /** Width where the issue is most severe; details below are taken from here. */
   worstAt: number;
-  /** `source` is where the element is written in your code, when a source plugin can tell. */
+  /** `source` is where the element is written in the code, when the page gives that away. */
   element: ElementInfo & { source: SourceLocation | null };
   related?: ElementInfo;
   evidence: Record<string, number | string | boolean>;
@@ -37,14 +43,6 @@ export interface Breakpoints {
   declared: number[];
   /** Observed changes with no declared breakpoint nearby. */
   unexplained: number[];
-}
-
-/** A place in the project's source code. */
-export interface SourceLocation {
-  /** Path relative to the project root, with `/` separators. */
-  file: string;
-  line: number;
-  column: number;
 }
 
 export interface PageResult {

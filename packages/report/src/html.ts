@@ -461,6 +461,11 @@ const JS = String.raw`
       mini.append(el('span', { class: 'bar ' + g.severity, style: 'left:' + left + '%;width:' + Math.max(pct(rg.to + 1) - left, 0.4) + '%' }));
     }
     const facts = [['Check', g.detectorLabel], ['Worst at', g.worstAt + 'px'], ['Element', el('code', { text: g.element.selector })]];
+    const src = g.element.source;
+    if (src) {
+      const at = src.line ? src.file + ':' + src.line : src.file;
+      facts.push(['Source', el('span', {}, src.exact ? '' : 'inside ', el('code', { text: at }), src.component ? ' (' + src.component + ')' : '')]);
+    }
     if (g.related) facts.push(['Related', el('code', { text: g.related.selector })]);
     facts.push(['HTML', el('code', { text: g.element.html })]);
     for (const [k, v] of Object.entries(g.evidence)) facts.push([k.replace(/([A-Z])/g, ' $1').toLowerCase(), String(v)]);

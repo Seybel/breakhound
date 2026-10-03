@@ -1,7 +1,9 @@
 import { copyFileSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
-// The internal @breakhound/* packages are bundled in; only real npm deps stay external.
+// The internal @breakhound/* packages are bundled in, and so is magic-string
+// (small, and ESM/CommonJS interop would otherwise differ between the plugin
+// builds). Only real npm deps stay external.
 const shared = {
   format: ['esm'] as const,
   platform: 'node' as const,
@@ -16,7 +18,6 @@ export default defineConfig([
   {
     ...shared,
     entry: { cli: 'src/index.ts' },
-    clean: true,
     banner: { js: '#!/usr/bin/env node' },
     onSuccess: async () => {
       // The analyzer bundle is injected into scanned pages; it ships next to cli.js.
@@ -28,5 +29,19 @@ export default defineConfig([
     ...shared,
     format: ['esm', 'cjs'],
     entry: { index: 'src/lib.ts' },
+  },
+  {
+    // Build plugins that mark elements with their source line in development.
+    // shims gives the CommonJS build a working import.meta.url.
+    ...shared,
+    format: ['esm', 'cjs'],
+    shims: true,
+    entry: { vite: 'src/vite.ts', next: 'src/next.ts', webpack: 'src/webpack.ts' },
+  },
+  {
+    // Webpack and Turbopack load this by path, with require().
+    ...shared,
+    format: ['cjs'],
+    entry: { 'source-loader': 'src/source-loader.ts' },
   },
 ]);

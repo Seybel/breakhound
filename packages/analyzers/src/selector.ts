@@ -1,4 +1,5 @@
 import { composedParent } from './dom';
+import { SOURCE_ATTR, sourceOf } from './source';
 import type { ElementInfo } from './types';
 
 const cache = new WeakMap<Element, ElementInfo>();
@@ -170,6 +171,8 @@ function openingTag(el: Element): string {
   const tag = el.tagName.toLowerCase();
   let out = `<${tag}`;
   for (const attr of el.attributes) {
+    // Added by breakhound's build plugins; reported as the source, not as markup.
+    if (attr.name === SOURCE_ATTR) continue;
     const value = attr.value.length > 60 ? `${attr.value.slice(0, 60)}...` : attr.value;
     out += value ? ` ${attr.name}="${value.replace(/"/g, '&quot;')}"` : ` ${attr.name}`;
   }
@@ -186,6 +189,7 @@ export function describe(el: Element): ElementInfo {
     path: readablePath(el),
     html: openingTag(el),
     text: text ? (text.length > 80 ? `${text.slice(0, 77)}...` : text) : null,
+    source: sourceOf(el),
   };
   cache.set(el, info);
   owners.set(info, el);

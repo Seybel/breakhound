@@ -1,0 +1,24 @@
+{
+  "name": "@breakhound/source",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Build plugins that mark each element with where it's written, in development.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts",
+    "./webpack-loader": "./src/webpack-loader.ts"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.29.0",
+    "magic-string": "^1.4.2"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "svelte": "^5.57.1",
+    "vite": "^8.3.1",
+    "vue": "^3.5.43",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  }
+}

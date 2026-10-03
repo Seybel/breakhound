@@ -39,6 +39,36 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./vite": {
+      "import": {
+        "types": "./dist/vite.d.ts",
+        "default": "./dist/vite.js"
+      },
+      "require": {
+        "types": "./dist/vite.d.cts",
+        "default": "./dist/vite.cjs"
+      }
+    },
+    "./next": {
+      "import": {
+        "types": "./dist/next.d.ts",
+        "default": "./dist/next.js"
+      },
+      "require": {
+        "types": "./dist/next.d.cts",
+        "default": "./dist/next.cjs"
+      }
+    },
+    "./webpack": {
+      "import": {
+        "types": "./dist/webpack.d.ts",
+        "default": "./dist/webpack.js"
+      },
+      "require": {
+        "types": "./dist/webpack.d.cts",
+        "default": "./dist/webpack.cjs"
+      }
+    },
     "./schema.json": "./dist/schema.json",
     "./package.json": "./package.json"
   },
@@ -48,7 +78,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node ../analyzers/build.mjs && tsup && dts-bundle-generator --silent --no-banner --project tsconfig.dts.json --external-inlines @breakhound/engine @breakhound/analyzers -o dist/index.d.ts src/lib.ts && cp dist/index.d.ts dist/index.d.cts && node schema.mjs",
+    "build": "node build.mjs",
     "prepack": "npm run build && cp ../../README.md ../../LICENSE ."
   },
   "engines": {
@@ -63,7 +93,8 @@
     "@breakhound/analyzers": "*",
     "@breakhound/engine": "*",
     "@breakhound/report": "*",
-    "@breakhound/routes": "*"
+    "@breakhound/routes": "*",
+    "@breakhound/source": "*"
   },
   "module": "./dist/index.js"
 }

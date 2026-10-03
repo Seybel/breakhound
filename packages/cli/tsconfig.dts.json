@@ -3,7 +3,11 @@
   "compilerOptions": {
     "noEmit": false,
     "declaration": true,
-    "emitDeclarationOnly": true
+    "emitDeclarationOnly": true,
+    "paths": {
+      "@breakhound/source": ["../source/src/index.ts"],
+      "@breakhound/source/*": ["../source/src/*.ts"]
+    }
   },
-  "include": ["src/lib.ts"]
+  "include": ["src/lib.ts", "src/vite.ts", "src/next.ts", "src/webpack.ts"]
 }

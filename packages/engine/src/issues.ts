@@ -172,7 +172,7 @@ export function buildIssues(
       title: f.title,
       ranges,
       worstAt: worst.width,
-      element: { ...f.element, source: null },
+      element: { ...f.element, source: f.element.source ?? null },
       ...(f.related ? { related: f.related } : {}),
       evidence,
       styles: f.styles,
