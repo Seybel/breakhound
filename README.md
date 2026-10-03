@@ -30,9 +30,10 @@ breakhound 0.1.0 · 14 pages · 320–1920px
 
   Report  .breakhound/report.html
   Fix it  breakhound prompt --copy  then paste into your coding agent
+      or  breakhound mcp install  so your agent can scan, verify and undo by itself
 ```
 
-> **Status:** pre-release. Scanning, route discovery, reports and the agent prompt work today. The MCP fix loop is next. See [docs/DESIGN.md](docs/DESIGN.md).
+> **Status:** pre-release. See [docs/DESIGN.md](docs/DESIGN.md) for what's next.
 
 ## Quick start
 
@@ -118,11 +119,74 @@ Every run writes to `.breakhound/`:
 
 ## Fix it with your coding agent
 
+breakhound doesn't edit your code: your own agent does, and breakhound checks its work. Nothing leaves your machine and it costs nothing.
+
+### Over MCP (recommended)
+
+```bash
+npx breakhound mcp install
+```
+
+It finds Claude Code, Cursor, VS Code, Windsurf and Codex, shows what it will add to their MCP settings, and asks first. Then ask your agent to fix the responsive issues. It can:
+
+| Tool | What it does |
+|---|---|
+| `scan` | Find every route and its issues. This becomes the baseline |
+| `list_routes`, `list_issues` | What was found |
+| `get_issue` | Widths, element, source file and line, measurements, likely fix and a screenshot |
+| `verify` | Scan again and compare with the baseline: fixed, still there, and **new** |
+| `checkpoint` | Commit the fix for some routes as its own git commit |
+| `undo` | Revert the fixes for some routes, or the whole session |
+
+`verify` is the point: agents often fix 812px and break 1280px, or fix one page and break another that shares a component. New issues show up there, at any width, on any page that was scanned.
+
+The dev server stays up between calls, so each verify only takes as long as the scan.
+
+### With a prompt
+
 ```bash
 npx breakhound prompt --copy
 ```
 
-Paste it into Claude Code, Cursor, Copilot or any other agent. The prompt lists each unique issue once with the widths, the element, the evidence and the likely fix, tells the agent not to change other widths, and asks it to re-run breakhound until nothing is left.
+Paste it into any agent. It lists each unique issue once with the widths, the element, the evidence and the likely fix, and tells the agent to run `npx breakhound verify` until nothing is left.
+
+### Verify, checkpoint, undo
+
+The same loop works from the command line:
+
+```bash
+npx breakhound verify /pricing      # compare with the last full scan
+npx breakhound checkpoint /pricing -m "Let the pricing table shrink"
+npx breakhound undo /pricing        # revert just that fix
+npx breakhound undo --session       # revert every fix since the scan
+npx breakhound undo                 # list the fixes you can undo
+```
+
+Checkpoints are ordinary commits with a `Breakhound-Route:` trailer, and undo makes a new commit that reverts them: history is never rewritten. breakhound never commits changes you had before the scan (it stops and says so), and undo refuses to run over uncommitted work.
+
+### Point the agent at the right line
+
+In development, breakhound reads where elements come from out of React's and Vue's dev info, which usually gives the component and its file. For the exact line of every element, add the plugin (development only, production builds are untouched):
+
+```ts
+// vite.config.ts (React, Vue, Svelte, Preact, Solid; Nuxt: under `vite.plugins`)
+import breakhound from 'breakhound/vite';
+export default defineConfig({ plugins: [breakhound(), react()] });
+```
+
+```js
+// next.config.mjs (Turbopack and webpack)
+import { withBreakhound } from 'breakhound/next';
+export default withBreakhound({ /* your config */ });
+```
+
+```js
+// webpack.config.js
+const { BreakhoundPlugin } = require('breakhound/webpack');
+module.exports = { plugins: [new BreakhoundPlugin()] };
+```
+
+Each HTML element gets a `data-bh-src="src/components/Nav.tsx:42:7"` attribute on the dev server, and reports and prompts show `Source: src/components/Nav.tsx:42`.
 
 ## Configuration
 
@@ -182,6 +246,12 @@ breakhound report              Open the last HTML report
 breakhound prompt              Print the fix prompt (--copy to copy it, --all to include info)
 breakhound init                Create a config file
 breakhound install             Download Chromium (--with-deps adds Linux system libraries)
+
+breakhound verify [routes]     Scan again and compare with the last full scan (--all to count info)
+breakhound checkpoint <routes> Commit the current changes as the fix for these routes (-m message)
+breakhound undo [routes]       Revert the fixes for these routes (--session for all)
+breakhound mcp install         Add the MCP server to your agents (--client, --yes)
+breakhound mcp                 Run the MCP server (your agent starts it)
 
 --url <url>             Where your app runs (skips finding the dev server)
 --include <glob>        Only scan matching routes (repeatable)

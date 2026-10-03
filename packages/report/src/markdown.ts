@@ -100,6 +100,14 @@ export function renderSummary(result: ScanResult): string {
   return lines.join('\n');
 }
 
+/** `src/Nav.tsx:42` for the element's own line, or "somewhere in `src/Nav.tsx` (Nav)". */
+export function sourceText(source: Issue['element']['source'] | undefined): string | null {
+  if (!source) return null;
+  const at = source.line ? `${source.file}:${source.line}` : source.file;
+  const component = source.component ? ` (${source.component})` : '';
+  return source.exact ? `\`${at}\`${component}` : `inside \`${at}\`${component}`;
+}
+
 function issueBlock(
   issue: Issue,
   heading: string,
@@ -109,6 +117,8 @@ function issueBlock(
   const lines = [heading, ''];
   lines.push(`- **Widths:** ${formatRanges(issue.ranges)} (worst at ${issue.worstAt}px)`);
   lines.push(`- **Element:** \`${issue.element.selector}\` (${issue.element.path})`);
+  const source = sourceText(issue.element.source);
+  if (source) lines.push(`- **Source:** ${source}`);
   if (issue.related) lines.push(`- **Related element:** \`${issue.related.selector}\``);
   lines.push(`- **HTML:** \`${issue.element.html.replace(/`/g, "'")}\``);
   if (Object.keys(issue.evidence).length) lines.push(`- **Evidence:** ${evidenceText(issue)}`);
@@ -200,7 +210,8 @@ export function renderPrompt(result: ScanResult, options: PromptOptions = {}): s
   ];
   if (options.verifyCommand) {
     lines.push(
-      `- When you are done, run \`${options.verifyCommand}\` and keep going until it reports no remaining issues and no new ones.`,
+      `- When you are done, run \`${options.verifyCommand}\` and keep going until it reports no remaining issues and no new ones. It compares with the scan these issues came from, so it also catches anything the fix broke at other widths or on other pages.`,
+      '- Once a page verifies clean, run `npx breakhound checkpoint <route> -m "<what you changed>"` to commit that fix on its own, so it can be undone later with `npx breakhound undo <route>`.',
     );
   }
   lines.push('');
@@ -227,4 +238,28 @@ export function renderPrompt(result: ScanResult, options: PromptOptions = {}): s
       );
     });
   return lines.join('\n');
+}
+
+/** One issue in full, found by its id (on any page) or its fingerprint, for agents that ask for details. */
+export function renderIssue(
+  result: ScanResult,
+  key: string,
+): { text: string; issue: Issue } | null {
+  const group = groupIssues(result).find(
+    (g) => g.fingerprint === key || g.routes.some((r) => r.issue.id === key),
+  );
+  if (!group) return null;
+  const pages = alsoOn(group);
+  const lines = issueBlock(
+    group.issue,
+    `# [${group.issue.severity}] ${group.issue.title}`,
+    [
+      `- **Check:** ${DETECTOR_LABELS[group.issue.detector]} (\`${group.issue.detector}\`)`,
+      `- **Page:** ${routeLabel(group.route)} (${group.route.url})`,
+      ...(pages ? [`- **Also on:** ${pages}`] : []),
+      `- **Id:** ${group.issue.id}`,
+    ],
+    null,
+  );
+  return { text: lines.join('\n'), issue: group.issue };
 }

@@ -1,4 +1,4 @@
-# breakhound — Design
+# breakhound design
 
 > Sniffs out where your layout breaks, then hands the fix to your coding agent.
 
@@ -76,8 +76,10 @@ packages/
   routes/      Project detection (framework, package manager, dev server)
                + route discovery adapters.
   report/      Issue JSON → summary MD, detailed HTML, PDF, agent prompt.
-  mcp/         MCP server exposing scan / verify / checkpoint / undo tools.
-  cli/         `breakhound` command. Wires everything together.
+  source/      Dev-only build plugins (Vite, Next, webpack) marking elements
+               with data-bh-src="file:line:column".
+  cli/         `breakhound` command. Wires everything together, and holds the
+               MCP server, verify, and git checkpoints/undo.
   extension/   (Phase 5) Chrome DevTools panel reusing analyzers.
 fixtures/      Synthetic pages with known, labelled responsive bugs (test corpus).
 docs/
@@ -109,7 +111,7 @@ routes ──► engine ──(injects)──► analyzers (in page)
 | Tests | Vitest + Playwright against `fixtures/` | Fast unit tests, real layout in integration tests |
 | Lint/format | Biome | One fast tool |
 | CLI framework | Node's built-in `util.parseArgs` and `util.styleText` | Zero dependencies |
-| MCP | `@modelcontextprotocol/sdk` (stdio) | Works with Claude Code, Cursor, Copilot, Codex, Windsurf |
+| MCP | Own stdio server (JSON-RPC lines), tested with `@modelcontextprotocol/sdk`'s client | Works with Claude Code, Cursor, Copilot, Codex, Windsurf; the SDK would add ~15 runtime packages (Express, Hono...) to every `npx breakhound` |
 | Releases | Changesets + GitHub Actions | Versioning and changelogs |
 | Node | ≥ 20 | Current LTS range |
 
@@ -293,9 +295,11 @@ Issue `id` is stable across scans, which is what makes `verify` possible (fixed 
 
 ### Source locations
 
-- **Default (no setup):** we don't know the file. The agent prompt includes selector, classes and text so the agent can search for it.
-- **Better (opt-in, one line):** a build plugin (`breakhound/vite`, `breakhound/next`, `breakhound/webpack`) that adds `data-bh-src="src/components/Nav.tsx:42"` in development only. `breakhound init` can add it.
-- **Runtime hints where available:** Vue 3 exposes `__file` on component definitions in dev mode; React 19 owner stacks. Used when present, without setup.
+`source` is `{ file, line?, column?, component?, exact }`. `exact` means it's the element's own line; otherwise it's the file (and component) that renders it.
+
+- **No setup:** read from the framework's dev info. React 18: the exact line (`_debugSource`). React 19: the owner component and, from its dev stack, its file. Vue 3: the component's `__file`. Paths are made relative to the project and kept only when the file exists.
+- **One line (opt-in):** a build plugin (`breakhound/vite`, `breakhound/next`, `breakhound/webpack`) adds `data-bh-src="src/components/Nav.tsx:42:7"` to every HTML element in JSX/TSX, Vue templates and Svelte, on the dev server only. Library components aren't marked; for their elements the nearest marked ancestor (where the library component is used) is reported, with `exact: false`.
+- **Neither:** the prompt still has the selector, classes and text for the agent to search with.
 
 ---
 
@@ -357,14 +361,20 @@ Setup is one command: `npx breakhound mcp install` detects Claude Code / Cursor 
 
 ### Verify loop
 
-`verify` compares against the baseline scan: issue IDs that disappeared are **fixed**, IDs still present are **failing**, and new IDs — at any width, on any scanned route — are **regressions**. This is breakhound's main value in the fix loop: agents often fix 812px and break 1280px.
+`verify` compares against the baseline scan: issue IDs that disappeared are **fixed**, IDs still present are **failing**, and new IDs (at any width, on any scanned route) are **regressions**. This is breakhound's main value in the fix loop: agents often fix 812px and break 1280px.
+
+- The baseline is the last scan (`.breakhound/baseline.json`). A scan of some routes only replaces those routes in it. Verify never changes it, so every verify compares with the state before any fixes.
+- Verify re-scans the baseline's pages at their URLs (moved to wherever the dev server runs now) with the baseline's width settings. With no routes it checks every page that was scanned.
+- When a fix changes an element's classes, its selector and so its ID change. The same check on the same source line, or on an element with the same tag and text, still counts as the same issue rather than a fix plus a regression.
+- The merged result is written as the current report, so `breakhound prompt` after a verify lists what's left.
 
 ### Undo (git-based)
 
-- Fixing requires a git repo. Before the first change, breakhound records the starting commit.
+- Fixing requires a git repo. A scan starts a session (`.breakhound/session.json`): the starting commit, and the files that already had changes.
 - Each route's fix is one commit with a trailer: `Breakhound-Route: /pricing` and `Breakhound-Session: <id>`.
-- `breakhound undo /pricing /blog` reverts those commits; `breakhound undo --session` reverts the whole session.
-- Uncommitted user changes are never touched: if the working tree is dirty with non-breakhound changes, fixing stops and asks.
+- `breakhound undo /pricing /blog` reverts those commits in one new commit (`Breakhound-Undo: <hash>`); `breakhound undo --session` reverts the whole session. History is never rewritten.
+- Uncommitted user changes are never touched. Files changed before a scan count as the user's: a checkpoint that would include them stops and says so. Agents pass `files` (the files they edited) so a fix can be committed while the user has unrelated work in progress. Undo refuses to run over uncommitted changes.
+- When `git revert` conflicts because a later fix changed a neighbouring line (common in one CSS file), undo reverses exactly the lines the fix changed, only if they're still as the fix left them. Otherwise nothing changes and it says why.
 - No custom undo store, no file copies. Git is the source of truth.
 
 ---
@@ -378,7 +388,7 @@ We build in phases but don't stop until v1.0 is launched.
 | **0 · Foundation + spike** ✅ | Monorepo, CI, fixture corpus (~30 labelled bugs), analyzers for `page-overflow`, `content-overflow`, `overlap`, `unexpected-wrap`, `media-overflow`; sweep + bisect on one URL; JSON output | Meets the precision/recall bar on fixtures; manual review of Projects A/B/C shows ≥ 90% precision. **If not, revise detectors before continuing.** |
 | **1 · CLI + reports (MVP)** ✅ | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
 | **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
-| **3 · Agent loop** | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
+| **3 · Agent loop** ✅ | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
 | **4 · Depth** | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
 | **5 · DevTools panel** | Chrome DevTools panel reusing `analyzers` for live single-page use | Panel shows issues and breakpoint timeline for the inspected tab |
 | **6 · Launch (v1.0)** | Docs site, README with demo GIF, examples repo, contribution guide, issue templates, npm publish, Chrome Web Store listing, launch posts | Public release |

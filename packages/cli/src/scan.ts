@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { styleText } from 'node:util';
 import {
@@ -39,6 +39,7 @@ import { AUTH_FILE } from './auth';
 import { ensureChromium } from './browser';
 import { type BreakhoundConfig, normalizeIgnore } from './config';
 import { printDiscovery, printFooter, printIssues, printNotes, printRouteLine } from './print';
+import { touchSession } from './session';
 
 export interface ScanRequest {
   targets: string[];
@@ -46,6 +47,26 @@ export interface ScanRequest {
   cwd: string;
   version: string;
   quiet: boolean;
+  /**
+   * Pages to scan again exactly as an earlier scan did (for verify): its
+   * route labels and URLs. URLs under `jobsBaseUrl` move to wherever the app
+   * runs now.
+   */
+  jobs?: Target[];
+  jobsBaseUrl?: string | null;
+  /** An app that's already running (the MCP server keeps one up). It's left running. */
+  app?: AppServer;
+  /** false: only scan, and let the caller write reports. */
+  write?: boolean;
+  /** Called as each page finishes, for progress. */
+  onPage?: (route: RouteResult) => void;
+}
+
+/** The same page on the app's current address. */
+function rebase(url: string, from: string | null | undefined, to: string): string {
+  const old = from?.replace(/\/+$/, '');
+  if (!old || !(url === old || url.startsWith(`${old}/`) || url.startsWith(`${old}#`))) return url;
+  return `${to.replace(/\/+$/, '')}${url.slice(old.length)}`;
 }
 
 export interface Target {
@@ -121,6 +142,43 @@ export function resolveTargets(targets: string[], config: BreakhoundConfig, cwd:
     out.push({ url, route: routeOf(url, cwd) });
   }
   return out;
+}
+
+/**
+ * Source paths from the page can be absolute (Vue, React 18) or a dev server
+ * URL path (React 19 stacks, Vite's /@fs/). Agents want them relative to the
+ * project, and only when the file really is there.
+ */
+export function projectPath(file: string, root: string, basePath = ''): string | null {
+  const candidates: string[] = [];
+  let path = file.replace(/\\/g, '/');
+  if (path.startsWith('/@fs/')) path = path.slice(4);
+  if (isAbsolute(path)) candidates.push(path);
+  if (path.startsWith('/')) {
+    const inApp = basePath && path.startsWith(`${basePath}/`) ? path.slice(basePath.length) : path;
+    candidates.push(join(root, inApp));
+  } else {
+    candidates.push(join(root, path));
+  }
+  for (const candidate of candidates) {
+    const rel = relative(root, candidate);
+    if (!rel.startsWith('..') && !isAbsolute(rel) && isFile(candidate))
+      return rel.split(sep).join('/');
+  }
+  return null;
+}
+
+function relativeSources(routes: RouteResult[], root: string, basePath: string): void {
+  for (const route of routes) {
+    for (const issue of route.issues) {
+      for (const element of [issue.element, issue.related]) {
+        const source = element?.source;
+        if (!element || !source) continue;
+        const file = projectPath(source.file, root, basePath);
+        element.source = file ? { ...source, file } : null;
+      }
+    }
+  }
 }
 
 function enabledDetectors(config: BreakhoundConfig): DetectorId[] | undefined {
@@ -286,8 +344,14 @@ async function drain(
 
 export interface ScanOutcome {
   result: ScanResult;
-  reports: WrittenReports;
+  /** Null when the request asked not to write them. */
+  reports: WrittenReports | null;
+  /** The app that was scanned, when it's still running (only for a request that passed one). */
+  app: AppServer | null;
 }
+
+/** Name of the scan that later verify runs compare with. */
+export const BASELINE_FILE = 'baseline.json';
 
 export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
   const { config, cwd, quiet } = req;
@@ -298,8 +362,12 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
     throw new Error('The minimum width must be smaller than the maximum width.');
 
   // URLs and files on the command line are scanned as given; anything else scans the app.
-  const pageMode = req.targets.length > 0 && req.targets.every((t) => isPageTarget(t, cwd));
-  const pageTargets = pageMode ? resolveTargets(req.targets, config, cwd) : [];
+  const jobs = req.jobs;
+  const pageMode = jobs
+    ? jobs.every((j) => !j.url.startsWith('http'))
+    : req.targets.length > 0 && req.targets.every((t) => isPageTarget(t, cwd));
+  const pageTargets =
+    jobs && pageMode ? jobs : pageMode ? resolveTargets(req.targets, config, cwd) : [];
 
   const outDir = resolve(cwd, config.outDir ?? '.breakhound');
   const screenshotDir = join(outDir, 'screenshots');
@@ -317,8 +385,13 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
     if (pageMode) {
       queue = new RouteQueue(null, {}, null);
       for (const t of pageTargets) queue.add(t);
+    } else if (jobs) {
+      app = req.app ?? (await resolveServer(cwd, config, quiet));
+      queue = new RouteQueue(app.baseUrl, {}, null);
+      const baseUrl = app.baseUrl;
+      for (const j of jobs) queue.add({ ...j, url: rebase(j.url, req.jobsBaseUrl, baseUrl) });
     } else {
-      app = await resolveServer(cwd, config, quiet);
+      app = req.app ?? (await resolveServer(cwd, config, quiet));
       plan = await planRoutes(app, config, scanner, req.targets);
       const max = config.maxRoutes ?? (plan.crawl ? DEFAULT_MAX_CRAWL : DEFAULT_MAX_ROUTES);
       queue = new RouteQueue(
@@ -335,8 +408,9 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
       if (!quiet) printDiscovery(plan, max);
     }
 
-    // Screenshots from the previous run would pile up otherwise.
-    clearScreenshots(screenshotDir);
+    // Screenshots from the previous run would pile up otherwise. A verify run
+    // keeps them: the pages it doesn't scan again still show theirs.
+    if (!jobs) clearScreenshots(screenshotDir);
     const known = queue.jobs.length + queue.waiting.size;
     if (!quiet) {
       console.log(
@@ -382,24 +456,25 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
         queue.addLinks(links);
         return;
       }
-      const afterLoad = pageMode
-        ? undefined
-        : async (page: import('playwright').Page): Promise<PageSkip | undefined> => {
-            const links = await page.evaluate(readLinks).catch(() => [] as string[]);
-            if (plan?.readRouterOnEveryPage) {
-              const found = runtimeRoutes(
-                await page.evaluate(readRuntimeRoutes).catch(() => ({ router: null, paths: [] })),
-              );
-              const fresh = (found?.routes ?? []).filter((r) => !queue.patterns.has(r.path));
-              const room = Math.max(0, max - queue.patterns.size);
-              for (const p of applyFilters(fresh, config, room).kept) queue.addPattern(p);
-            }
-            queue.addLinks(links);
-            const to = queue.redirectTarget(job.url, page.url());
-            return to
-              ? { status: 'redirect', message: `Redirects to ${to}, which is scanned on its own` }
-              : undefined;
-          };
+      const afterLoad =
+        pageMode || jobs
+          ? undefined
+          : async (page: import('playwright').Page): Promise<PageSkip | undefined> => {
+              const links = await page.evaluate(readLinks).catch(() => [] as string[]);
+              if (plan?.readRouterOnEveryPage) {
+                const found = runtimeRoutes(
+                  await page.evaluate(readRuntimeRoutes).catch(() => ({ router: null, paths: [] })),
+                );
+                const fresh = (found?.routes ?? []).filter((r) => !queue.patterns.has(r.path));
+                const room = Math.max(0, max - queue.patterns.size);
+                for (const p of applyFilters(fresh, config, room).kept) queue.addPattern(p);
+              }
+              queue.addLinks(links);
+              const to = queue.redirectTarget(job.url, page.url());
+              return to
+                ? { status: 'redirect', message: `Redirects to ${to}, which is scanned on its own` }
+                : undefined;
+            };
       const page = await scanner.scanPage(job.url, {
         ...baseOptions,
         route: job.route,
@@ -407,6 +482,7 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
       });
       const route: RouteResult = { ...page, route: job.route };
       results.push({ order: job.order, route });
+      req.onPage?.(route);
       if (!quiet) printRouteLine(route, width);
     });
 
@@ -432,10 +508,11 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
     routes.push(...results.sort((a, b) => a.order - b.order).map((r) => r.route));
   } finally {
     await scanner.close();
-    await app?.server?.stop();
+    if (!req.app) await app?.server?.stop();
   }
 
   applySeverity(routes, config);
+  relativeSources(routes, app?.project?.root ?? cwd, app?.project?.basePath ?? '');
   const firstUrl = pageTargets[0]?.url;
   const baseUrl =
     app?.baseUrl ??
@@ -452,18 +529,39 @@ export async function runScan(req: ScanRequest): Promise<ScanOutcome> {
     framework: framework && framework.id !== 'unknown' ? framework.name : null,
     root: cwd,
   });
-  const reports = await writeReports(result, outDir, {
-    screenshotDir,
-    pdf: config.pdf ?? false,
-    verifyCommand: 'npx breakhound',
-  });
+  const kept = req.app ? app : null;
+  if (req.write === false) return { result, reports: null, app: kept };
+  const reports = await saveReports(result, config, cwd);
+  // A scan becomes what verify compares with. Scanning some routes of the app
+  // only replaces those routes; a whole-app or URL scan replaces everything.
+  const baselineFile = join(outDir, BASELINE_FILE);
+  const partial = !pageMode && req.targets.length > 0 && existsSync(baselineFile);
+  const baseline = partial
+    ? mergeScans(JSON.parse(readFileSync(baselineFile, 'utf8')) as ScanResult, result)
+    : result;
+  writeFileSync(baselineFile, `${JSON.stringify(baseline, null, 2)}\n`);
+  touchSession(cwd, config.outDir ?? '.breakhound');
 
   if (!quiet) {
     printIssues(result);
     printNotes(result, existsSync(authFile));
     printFooter(reports, result, cwd);
   }
-  return { result, reports };
+  return { result, reports, app: kept };
+}
+
+/** Writes result.json and every report for a result into the configured folder. */
+export function saveReports(
+  result: ScanResult,
+  config: BreakhoundConfig,
+  cwd: string,
+): Promise<WrittenReports> {
+  const outDir = resolve(cwd, config.outDir ?? '.breakhound');
+  return writeReports(result, outDir, {
+    screenshotDir: join(outDir, 'screenshots'),
+    pdf: config.pdf ?? false,
+    verifyCommand: 'npx breakhound verify',
+  });
 }
 
 export function readLastResult(
@@ -474,4 +572,22 @@ export function readLastResult(
   const file = join(dir, 'result.json');
   if (!existsSync(file)) throw new Error('No scan yet. Run breakhound first.');
   return { result: JSON.parse(readFileSync(file, 'utf8')) as ScanResult, dir };
+}
+
+/** An earlier scan with some pages scanned again. */
+export function mergeScans(earlier: ScanResult, now: ScanResult): ScanResult {
+  const fresh = new Map(now.routes.map((r) => [r.route, r]));
+  const routes = earlier.routes.map((r) => fresh.get(r.route) ?? r);
+  for (const r of now.routes) if (!earlier.routes.some((b) => b.route === r.route)) routes.push(r);
+  const merged = createScanResult(routes, {
+    version: now.tool.version,
+    startedAt: new Date(now.startedAt),
+    minWidth: earlier.settings.minWidth,
+    maxWidth: earlier.settings.maxWidth,
+    step: earlier.settings.step,
+    framework: now.project.framework ?? earlier.project.framework,
+    baseUrl: now.project.baseUrl ?? earlier.project.baseUrl,
+    root: now.project.root ?? earlier.project.root,
+  });
+  return { ...merged, durationMs: now.durationMs };
 }

@@ -105,6 +105,9 @@ export function printFooter(
     console.log(
       `  ${styleText('dim', 'Fix it')}  breakhound prompt --copy  ${styleText('dim', 'then paste into your coding agent')}`,
     );
+    console.log(
+      `  ${styleText('dim', '    or')}  breakhound mcp install  ${styleText('dim', 'so your agent can scan, verify and undo by itself')}`,
+    );
   }
   console.log(styleText('dim', `  Done in ${seconds(result.durationMs)}`));
 }

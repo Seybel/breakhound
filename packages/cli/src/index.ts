@@ -9,8 +9,12 @@ import { isCI, reportToGitHub } from './ci';
 import { copyToClipboard } from './clipboard';
 import { type BreakhoundConfig, loadConfig } from './config';
 import { runInit } from './init';
+import { runMcpServer } from './mcp';
+import { type ClientId, installMcp } from './mcp-install';
 import { openInDefaultApp } from './open';
 import { readLastResult, runScan } from './scan';
+import { checkpoint, listCheckpoints, undo } from './session';
+import { formatVerify, runVerify, severitiesAtOrAbove, verifyPassed } from './verify';
 import { readVersion } from './version';
 
 const VERSION = readVersion();
@@ -27,6 +31,13 @@ Usage
   breakhound prompt              Print the fix prompt for your coding agent
   breakhound init                Create a breakhound config file
   breakhound install             Download Chromium (--with-deps adds Linux system libraries)
+
+Fixing
+  breakhound verify [routes]     Scan again and compare with the last full scan: fixed, still there, new
+  breakhound checkpoint <routes> Commit the current changes as the fix for these routes (-m for a message)
+  breakhound undo [routes]       Revert the fixes for these routes (--session for all); lists them with no routes
+  breakhound mcp install         Add breakhound's MCP server to Claude Code, Cursor, VS Code, Windsurf or Codex
+  breakhound mcp                 Run the MCP server (your agent starts it)
 
 Scan options
   --url <url>           Where your app runs, e.g. a staging site (skips finding the dev server)
@@ -45,9 +56,13 @@ Scan options
   --open                Open the HTML report when done
   -q, --quiet           Only print errors
 
-Prompt options
+Prompt and verify options
   --copy                Copy to the clipboard instead of printing
   --all                 Include info-level issues
+
+MCP install options
+  --client <name>       claude, cursor, vscode, windsurf or codex (repeatable)
+  -y, --yes             Don't ask before changing files
 
   -h, --help            Show this help
   -v, --version         Show the version
@@ -95,6 +110,10 @@ async function main(argv: string[]): Promise<number> {
       quiet: { type: 'boolean', short: 'q' },
       copy: { type: 'boolean' },
       all: { type: 'boolean' },
+      message: { type: 'string', short: 'm' },
+      session: { type: 'boolean' },
+      client: { type: 'string', multiple: true },
+      yes: { type: 'boolean', short: 'y' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
     },
@@ -111,6 +130,14 @@ async function main(argv: string[]): Promise<number> {
 
   const cwd = process.cwd();
   const [command, ...rest] = positionals;
+  const askedFailOn = values['fail-on'];
+  if (
+    askedFailOn !== undefined &&
+    askedFailOn !== 'none' &&
+    !Object.hasOwn(SEVERITY_RANK, askedFailOn)
+  ) {
+    throw new Error('--fail-on must be one of: error, warning, info, none');
+  }
 
   if (command === 'init') {
     runInit(cwd);
@@ -118,6 +145,18 @@ async function main(argv: string[]): Promise<number> {
   }
   if (command === 'install') {
     installChromium(values['with-deps'] ?? false);
+    return 0;
+  }
+  if (command === 'mcp') {
+    if (rest[0] === 'install') {
+      const clients = values.client ?? [];
+      const known = ['claude', 'cursor', 'vscode', 'windsurf', 'codex'];
+      const unknown = clients.filter((c) => !known.includes(c));
+      if (unknown.length)
+        throw new Error(`Unknown --client ${unknown.join(', ')}. Use one of: ${known.join(', ')}`);
+      return installMcp(cwd, { clients: clients as ClientId[], yes: values.yes ?? false });
+    }
+    await runMcpServer(VERSION);
     return 0;
   }
 
@@ -145,11 +184,64 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
+  if (command === 'checkpoint') {
+    const c = checkpoint(cwd, {
+      routes: rest,
+      ...(values.message ? { message: values.message } : {}),
+      outDir,
+    });
+    console.log(`${styleText('green', '✔')} Committed ${c.hash}: ${c.subject}`);
+    return 0;
+  }
+
+  if (command === 'undo') {
+    if (!rest.length && !values.session) {
+      const list = listCheckpoints(cwd);
+      if (!list.length) console.log('There are no breakhound fixes to undo on this branch.');
+      for (const c of list)
+        console.log(
+          `  ${c.hash.slice(0, 10)}  ${c.routes.join(', ')}  ${styleText('dim', c.subject)}`,
+        );
+      if (list.length)
+        console.log(
+          styleText('dim', '\nbreakhound undo <route> undoes one; --session undoes them all.'),
+        );
+      return 0;
+    }
+    const r = undo(cwd, { routes: rest, session: values.session ?? false, outDir });
+    console.log(
+      `${styleText('green', '✔')} Undid ${r.undone.length} fix${r.undone.length === 1 ? '' : 'es'} in commit ${r.hash}`,
+    );
+    if (r.alsoUndone.length)
+      console.log(`  This also undid ${r.alsoUndone.join(', ')}, fixed in the same commit.`);
+    return 0;
+  }
+
+  if (command === 'verify') {
+    const verifyFailOn = (values['fail-on'] ?? (values.all ? 'info' : 'warning')) as
+      | Severity
+      | 'none';
+    const v = await runVerify({
+      cwd,
+      config: { ...fileConfig, outDir },
+      version: VERSION,
+      quiet: values.quiet ?? false,
+      routes: rest,
+    });
+    const severities = verifyFailOn === 'none' ? [] : severitiesAtOrAbove(verifyFailOn);
+    console.log(
+      `\n${formatVerify(v, severities.length ? severities : severitiesAtOrAbove('info'))}`,
+    );
+    reportToGitHub(v.current, v.reports.summary);
+    if (v.unchecked.length) return 2;
+    return severities.length && !verifyPassed(v, severities) ? 1 : 0;
+  }
+
   if (command === 'prompt') {
     const { result } = readLastResult(cwd, outDir);
     const prompt = renderPrompt(result, {
       severities: values.all ? ['error', 'warning', 'info'] : ['error', 'warning'],
-      verifyCommand: 'npx breakhound',
+      verifyCommand: 'npx breakhound verify',
     });
     if (values.copy) {
       if (copyToClipboard(prompt)) {
@@ -199,8 +291,10 @@ async function main(argv: string[]): Promise<number> {
     version: VERSION,
     quiet: values.quiet ?? false,
   });
-  reportToGitHub(result, reports.summary);
-  if (values.open && !isCI()) openInDefaultApp(reports.html);
+  if (reports) {
+    reportToGitHub(result, reports.summary);
+    if (values.open && !isCI()) openInDefaultApp(reports.html);
+  }
 
   // A page that failed to load or rendered nothing wasn't checked, so the run can't pass.
   if (result.routes.some((r) => FAILED_STATUSES.includes(r.status))) return 2;

@@ -94,7 +94,8 @@
     "@breakhound/engine": "*",
     "@breakhound/report": "*",
     "@breakhound/routes": "*",
-    "@breakhound/source": "*"
+    "@breakhound/source": "*",
+    "@modelcontextprotocol/sdk": "^1.30.1"
   },
   "module": "./dist/index.js"
 }

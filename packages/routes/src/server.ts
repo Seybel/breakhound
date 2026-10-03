@@ -222,6 +222,9 @@ export async function startServer(
   };
 
   const deadline = Date.now() + timeoutMs;
+  // A server that keeps answering with an error is up; its pages are broken.
+  // The scan reports that per page instead of waiting out the timeout here.
+  let failingSince: number | null = null;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
       throw new Error(
@@ -239,6 +242,10 @@ export async function startServer(
       // The first request can be slow while the dev server compiles the page.
       const page = await probe(`${url}/`, 30_000);
       if (page && page.status < 500) return { url, command, stop };
+      if (page) {
+        failingSince ??= Date.now();
+        if (Date.now() - failingSince > 10_000) return { url, command, stop };
+      }
     }
     await new Promise((r) => setTimeout(r, 300));
   }
