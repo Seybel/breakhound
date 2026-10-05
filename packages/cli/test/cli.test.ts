@@ -106,6 +106,11 @@ describe('config', () => {
     expect(() => validateConfig({ states: -1 })).toThrow(/states/);
     expect(validateConfig({ states: false })).toEqual([]);
     expect(validateConfig({ states: 3 })).toEqual([]);
+    expect(validateConfig({ browsers: ['chromium', 'webkit'] })).toEqual([]);
+    expect(() => validateConfig({ browsers: ['safari' as 'webkit'] })).toThrow(
+      /chromium, webkit, firefox/,
+    );
+    expect(() => validateConfig({ browsers: [] })).toThrow(/browsers/);
   });
 });
 

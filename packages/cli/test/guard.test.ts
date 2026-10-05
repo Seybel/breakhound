@@ -79,16 +79,18 @@ headless_shell [2687]: 64-bit    Footprint: 1048576 B (16384 bytes per page)
       // Playwright's browser, in its own group.
       proc(300, 100, 300, 150, 'headless_shell'),
       proc(301, 300, 300, 400, 'headless_shell --type=renderer'),
+      // Firefox, when scanning in more than one browser.
+      proc(302, 100, 302, 300, '/cache/ms-playwright/firefox-1/Nightly.app/Contents/MacOS/firefox'),
       // Someone else's.
       proc(400, 1, 400, 6000, 'Slack'),
     ];
     const usage = measure(procs, 100, new Set([200]));
     expect(usage.devServer).toBe(3855 * MB);
-    expect(usage.browser).toBe(550 * MB);
+    expect(usage.browser).toBe(850 * MB);
     expect(usage.other).toBe(200 * MB);
-    expect(usage.total).toBe(4605 * MB);
+    expect(usage.total).toBe(4905 * MB);
     // Never breakhound itself, never anything it didn't start.
-    expect(usage.killable.map((p) => p.pid).sort()).toEqual([200, 201, 202, 203, 300, 301]);
+    expect(usage.killable.map((p) => p.pid).sort()).toEqual([200, 201, 202, 203, 300, 301, 302]);
   });
 });
 

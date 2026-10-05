@@ -53,6 +53,12 @@ export interface BreakhoundConfig {
   states?: boolean | number;
   /** Also write report.pdf. */
   pdf?: boolean;
+  /**
+   * Browser engines to scan in: chromium, webkit (Safari's engine) and
+   * firefox. The first finds the routes; the others check the same pages after
+   * it, one at a time. Default ["chromium"].
+   */
+  browsers?: ('chromium' | 'webkit' | 'firefox')[];
   /** Browser tabs to use at once (default: half your CPU cores, up to 4). */
   concurrency?: number;
   /**

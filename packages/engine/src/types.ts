@@ -14,6 +14,10 @@ export interface WidthRange {
   to: number;
 }
 
+export type BrowserName = 'chromium' | 'webkit' | 'firefox';
+
+export const BROWSER_NAMES: readonly BrowserName[] = ['chromium', 'webkit', 'firefox'];
+
 /** A menu, dialog or disclosure that was opened for part of the scan. */
 export interface PageState {
   kind: ToggleKind;
@@ -51,6 +55,8 @@ export interface Issue {
   screenshot?: string;
   /** Set when the issue only shows while something is open, such as the mobile menu. */
   state?: PageState;
+  /** The browsers it shows in, when the page was scanned in more than one. */
+  browsers?: BrowserName[];
 }
 
 export interface Breakpoints {
@@ -124,6 +130,8 @@ export interface ScanOptions {
 export interface ScannerOptions {
   /** A Playwright storage state file (cookies and local storage) to start every page with. */
   storageState?: string;
+  /** Which browser engine to scan with (default chromium). */
+  browser?: BrowserName;
 }
 
 export interface RouteResult extends PageResult {
@@ -138,7 +146,7 @@ export interface ScanResult {
   project: { framework: string | null; baseUrl: string | null; root: string | null };
   startedAt: string;
   durationMs: number;
-  settings: { minWidth: number; maxWidth: number; step: number; browsers: string[] };
+  settings: { minWidth: number; maxWidth: number; step: number; browsers: BrowserName[] };
   routes: RouteResult[];
   summary: {
     routes: number;

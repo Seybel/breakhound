@@ -6,7 +6,7 @@ import { styleText } from 'node:util';
 import { launch } from '@breakhound/engine';
 import type { Page } from 'playwright';
 import { resolveServer } from './app';
-import { ensureChromium } from './browser';
+import { ensureBrowsers } from './browser';
 import type { BreakhoundConfig } from './config';
 
 /** The saved login session. Always in the project folder, whatever --out says, and never committed. */
@@ -61,7 +61,7 @@ export async function runLogin(
   const log = (line: string) => {
     if (!options.quiet) console.log(line);
   };
-  ensureChromium();
+  ensureBrowsers();
   const app = await resolveServer(cwd, config, options.quiet ?? false);
   const file = join(cwd, AUTH_FILE);
   const browser = await launch(Boolean(automate));

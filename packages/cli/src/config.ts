@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DETECTOR_IDS } from '@breakhound/analyzers/types';
-import type { DetectorId, IgnoreRule } from '@breakhound/engine/types';
+import { BROWSER_NAMES, type DetectorId, type IgnoreRule } from '@breakhound/engine/types';
 import type { BreakhoundConfig } from './define';
 import { parseMemoryLimit } from './guard';
 
@@ -91,6 +91,7 @@ export const KNOWN_KEYS = new Set([
   'screenshots',
   'states',
   'pdf',
+  'browsers',
   'concurrency',
   'memoryLimit',
   'settle',
@@ -136,6 +137,19 @@ export function validateConfig(config: BreakhoundConfig): string[] {
     !(Number.isInteger(config.states) && config.states >= 0)
   ) {
     throw new Error('states must be true, false, or the most menus and dialogs to open per page');
+  }
+  if (config.browsers !== undefined) {
+    const list = config.browsers;
+    const valid =
+      Array.isArray(list) &&
+      list.length > 0 &&
+      list.every((b) => (BROWSER_NAMES as readonly string[]).includes(b)) &&
+      new Set(list).size === list.length;
+    if (!valid) {
+      throw new Error(
+        `browsers must be a list of ${BROWSER_NAMES.join(', ')}, like ["chromium", "webkit"]`,
+      );
+    }
   }
   if (
     config.maxRoutes !== undefined &&

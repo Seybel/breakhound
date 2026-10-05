@@ -3,18 +3,37 @@ import { createRequire } from 'node:module';
 import { cpus } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import type { AnalyzeResult } from '@breakhound/analyzers';
-import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
+import {
+  type Browser,
+  type BrowserContext,
+  type BrowserType,
+  chromium,
+  firefox,
+  type Page,
+  webkit,
+} from 'playwright';
+import { BROWSER_LABELS } from './browsers';
 import { buildBreakpoints, buildIssues, findingKey } from './issues';
 import { captureIssues } from './screenshots';
 import { NetworkTracker, RESIZE_PROBE, settlePage } from './settle';
 import { pickToggles, type ScannedStates, scanStates } from './states';
 import { coarseWidths, Sweeper, splitWidths } from './sweep';
-import type { Issue, PageResult, PageSkip, PageStatus, ScannerOptions, ScanOptions } from './types';
+import type {
+  BrowserName,
+  Issue,
+  PageResult,
+  PageSkip,
+  PageStatus,
+  ScannerOptions,
+  ScanOptions,
+} from './types';
 
 export { DETECTOR_IDS } from '@breakhound/analyzers/types';
+export { BROWSER_LABELS, mergeBrowserResults } from './browsers';
 export { createScanResult, type ResultMeta } from './result';
 export { describeState } from './states';
 export type * from './types';
+export { BROWSER_NAMES } from './types';
 
 /** Options only the Node API takes (they hold functions or Playwright objects). */
 export interface PageHooks {
@@ -102,14 +121,21 @@ async function isLoginWall(page: Page, requested: string): Promise<boolean> {
   return hasPasswordField(page);
 }
 
-export async function launch(headless = true): Promise<Browser> {
+export const BROWSER_TYPES: Record<BrowserName, BrowserType> = { chromium, webkit, firefox };
+
+export async function launch(headless = true, name: BrowserName = 'chromium'): Promise<Browser> {
   try {
-    return await chromium.launch({ headless });
+    return await BROWSER_TYPES[name].launch({ headless });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/missing dependencies|install-deps|shared libraries/i.test(message)) {
       throw new Error(
-        'Chromium is installed but this system is missing libraries it needs. Run: npx playwright install-deps chromium',
+        `${BROWSER_LABELS[name]} is installed but this system is missing libraries it needs. Run: npx breakhound install --with-deps ${name}`,
+      );
+    }
+    if (/Executable doesn't exist|browserType\.launch/i.test(message) && name !== 'chromium') {
+      throw new Error(
+        `${BROWSER_LABELS[name]} isn't installed. Run: npx breakhound install ${name}`,
       );
     }
     throw error;
@@ -158,7 +184,7 @@ export class Scanner {
 
   private ensureBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = launch();
+      this.browser = launch(true, this.options.browser);
       // A failed launch shouldn't stick: the next page tries again and reports its own error.
       this.browser.catch(() => {
         this.browser = null;

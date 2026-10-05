@@ -146,7 +146,8 @@ async function systemCritical(): Promise<boolean> {
   return false;
 }
 
-const BROWSER = /chrom|headless_shell|playwright/i;
+/** Playwright's Chromium, Firefox and WebKit, as their processes are named. Only ever matched among breakhound's own. */
+const BROWSER = /chrom|headless_shell|playwright|firefox|webkit|minibrowser|pw_run/i;
 
 export interface Usage {
   total: number;

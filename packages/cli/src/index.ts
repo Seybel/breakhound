@@ -1,13 +1,18 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs, styleText } from 'node:util';
-import { FAILED_STATUSES, type Severity } from '@breakhound/engine';
+import {
+  BROWSER_NAMES,
+  type BrowserName,
+  FAILED_STATUSES,
+  type Severity,
+} from '@breakhound/engine';
 import { renderPrompt } from '@breakhound/report';
 import { runLogin } from './auth';
-import { installChromium } from './browser';
+import { installBrowsers } from './browser';
 import { isCI, reportToGitHub } from './ci';
 import { copyToClipboard } from './clipboard';
-import { type BreakhoundConfig, loadConfig } from './config';
+import { type BreakhoundConfig, loadConfig, validateConfig } from './config';
 import { MemoryError, parseMemoryLimit } from './guard';
 import { runInit } from './init';
 import { runMcpServer } from './mcp';
@@ -31,7 +36,7 @@ Usage
   breakhound report              Open the last HTML report
   breakhound prompt              Print the fix prompt for your coding agent
   breakhound init                Create a breakhound config file
-  breakhound install             Download Chromium (--with-deps adds Linux system libraries)
+  breakhound install [browsers]  Download Chromium, or webkit and firefox (--with-deps adds Linux libraries)
 
 Fixing
   breakhound verify [routes]     Scan again and compare with the last full scan: fixed, still there, new
@@ -53,6 +58,7 @@ Scan options
   --pdf                 Also write report.pdf
   --no-screenshots      Skip issue screenshots
   --no-states           Don't open menus, dialogs and expandable sections
+  --browsers <list>     Also check other engines, e.g. chromium,webkit,firefox
   --concurrency <n>     Browser tabs to use at once
   --memory-limit <size> Stop before the dev server and browser use more, e.g. 6GB,
                         50% or off (default 60% of your memory)
@@ -109,6 +115,7 @@ async function main(argv: string[]): Promise<number> {
       pdf: { type: 'boolean' },
       screenshots: { type: 'boolean' },
       states: { type: 'boolean' },
+      browsers: { type: 'string' },
       concurrency: { type: 'string' },
       'memory-limit': { type: 'string' },
       config: { type: 'string' },
@@ -150,7 +157,12 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
   if (command === 'install') {
-    installChromium(values['with-deps'] ?? false);
+    const names = rest.length ? rest : ['chromium'];
+    const unknown = names.filter((n) => !(BROWSER_NAMES as readonly string[]).includes(n));
+    if (unknown.length) {
+      throw new Error(`Unknown browser ${unknown.join(', ')}. Use: ${BROWSER_NAMES.join(', ')}`);
+    }
+    installBrowsers(names as BrowserName[], values['with-deps'] ?? false);
     return 0;
   }
   if (command === 'mcp') {
@@ -276,6 +288,12 @@ async function main(argv: string[]): Promise<number> {
     throw new Error('--fail-on must be one of: error, warning, info, none');
   }
 
+  const browsers = values.browsers
+    ?.split(',')
+    .map((b) => b.trim().toLowerCase())
+    .filter(Boolean) as BrowserName[] | undefined;
+  if (browsers) validateConfig({ browsers });
+
   const config: BreakhoundConfig = {
     ...fileConfig,
     outDir,
@@ -288,6 +306,7 @@ async function main(argv: string[]): Promise<number> {
     ...(values.pdf !== undefined ? { pdf: values.pdf } : {}),
     ...(values.screenshots !== undefined ? { screenshots: values.screenshots } : {}),
     ...(values.states === false ? { states: false } : {}),
+    ...(browsers ? { browsers } : {}),
     ...(concurrency ? { concurrency } : {}),
     ...(maxRoutes ? { maxRoutes } : {}),
     ...(values.include?.length ? { include: values.include } : {}),

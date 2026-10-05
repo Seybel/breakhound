@@ -1,4 +1,4 @@
-import type { RouteResult, ScanResult, Severity } from './types';
+import type { BrowserName, RouteResult, ScanResult, Severity } from './types';
 
 export interface ResultMeta {
   version: string;
@@ -9,6 +9,7 @@ export interface ResultMeta {
   framework?: string | null;
   baseUrl?: string | null;
   root?: string | null;
+  browsers?: BrowserName[];
 }
 
 export function createScanResult(routes: RouteResult[], meta: ResultMeta): ScanResult {
@@ -37,7 +38,7 @@ export function createScanResult(routes: RouteResult[], meta: ResultMeta): ScanR
       minWidth: meta.minWidth,
       maxWidth: meta.maxWidth,
       step: meta.step,
-      browsers: ['chromium'],
+      browsers: meta.browsers ?? ['chromium'],
     },
     routes,
     summary: { routes: routes.length, issues, uniqueIssues: unique.size, bySeverity },

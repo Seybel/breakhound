@@ -222,6 +222,10 @@ After the page's own sweep, up to `states` toggles (default 5) are opened one at
 
 Findings that the closed page also has at that width are removed, so only what breaks while open is reported. Those issues carry `state` (`kind`, `label`, `trigger`). Their id and fingerprint include the trigger, their title ends with what was open (`with "Menu" open`), reports and prompts say what to click first, and screenshots are taken with it open. The tabs that measured the page are reused, and each is loaded again between states so nothing leaks from one to the next.
 
+### 6.5 Other browsers
+
+`browsers` (or `--browsers chromium,webkit,firefox`) adds engines. The first one does everything a scan does: it finds the routes, follows links and reads routers. The others then scan the pages it could scan, at the same URLs, one browser after another, so only one engine is ever running. Results are merged per page by issue id: the first browser's breakpoints and details are kept, every issue lists `browsers`, and one missing from some of them ends with "(only in WebKit)". Screenshots from extra browsers go in a folder named after the browser. Missing browsers are downloaded on first use, like Chromium.
+
 ---
 
 ## 7. Detectors

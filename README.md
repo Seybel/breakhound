@@ -102,6 +102,10 @@ Links that would log you out, delete something, or download a file are never fol
 
 Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media or container query explains.
 
+### Safari and Firefox
+
+Chromium finds most layout bugs, but Safari and Firefox lay some things out differently (flex gaps, `dvh` units, form controls, font metrics). `--browsers chromium,webkit,firefox` checks the pages again in WebKit (Safari's engine) and Firefox once Chromium is done, one browser at a time so memory stays flat. An issue that shows up in only some of them says so: `(only in WebKit)`. Each extra browser is a one-time download of about 80 to 90 MB.
+
 ### Menus, dialogs and expandable sections
 
 A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign-up modal, an FAQ answer. After scanning a page as it loads, breakhound opens what it finds there one at a time and sweeps the widths where each can be opened. That covers buttons with `aria-expanded`, `<details>`, popovers, dialogs, Bootstrap toggles, and buttons that are clearly a menu (`hamburger`, `menu-toggle`, an accessible name of "Menu"). Only what breaks while something is open gets reported, with what to open first:
@@ -237,6 +241,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `widths` | `{ min, max, step }` in CSS pixels |
 | `ignore`, `detectors` | Leave elements out, turn checks off or change their severity |
 | `failOn` | Exit 1 at `error`, `warning`, `info` or `none` |
+| `browsers` | Engines to check in: `["chromium", "webkit", "firefox"]` (default Chromium only) |
 | `states` | Most menus, dialogs and expandable sections to open per page (default 5), or `false` |
 | `concurrency` | Browser tabs to use at once (default half your CPU cores, up to 4) |
 | `memoryLimit` | Most memory the dev server and browser may use together, e.g. `"6GB"`, `"50%"` or `"off"` (default 60% of your memory) |
@@ -258,7 +263,7 @@ breakhound login [route]       Log in once in a browser window; later scans reus
 breakhound report              Open the last HTML report
 breakhound prompt              Print the fix prompt (--copy to copy it, --all to include info)
 breakhound init                Create a config file
-breakhound install             Download Chromium (--with-deps adds Linux system libraries)
+breakhound install [browsers]  Download Chromium, or webkit and firefox (--with-deps adds Linux libraries)
 
 breakhound verify [routes]     Scan again and compare with the last full scan (--all to count info)
 breakhound checkpoint <routes> Commit the current changes as the fix for these routes (-m message)
@@ -275,6 +280,7 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 --pdf                   Also write report.pdf
 --no-screenshots        Skip screenshots
 --no-states             Don't open menus, dialogs and expandable sections
+--browsers <list>       Also check other engines, e.g. chromium,webkit,firefox
 --concurrency <n>       Browser tabs to use at once
 --memory-limit <size>   Memory the dev server and browser may use, e.g. 6GB, 50% or off
 --out <dir>             Report folder (default .breakhound)

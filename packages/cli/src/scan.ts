@@ -3,10 +3,15 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { styleText } from 'node:util';
 import {
+  BROWSER_LABELS,
+  BROWSER_NAMES,
+  type BrowserName,
   createScanResult,
   DEFAULTS,
   DETECTOR_IDS,
   type DetectorId,
+  mergeBrowserResults,
+  type PageResult,
   type PageSkip,
   type RouteResult,
   Scanner,
@@ -36,7 +41,7 @@ import {
   resolveServer,
 } from './app';
 import { AUTH_FILE } from './auth';
-import { ensureChromium } from './browser';
+import { ensureBrowsers } from './browser';
 import { type BreakhoundConfig, normalizeIgnore } from './config';
 import { guard, parseMemoryLimit } from './guard';
 import { printDiscovery, printFooter, printIssues, printNotes, printRouteLine } from './print';
@@ -124,6 +129,8 @@ function clearScreenshots(dir: string): void {
   if (!existsSync(dir)) return;
   for (const name of readdirSync(dir)) {
     if (SCREENSHOT_FILE.test(name)) rmSync(join(dir, name), { force: true });
+    // Screenshots from a second or third browser sit in a folder named after it.
+    else if ((BROWSER_NAMES as readonly string[]).includes(name)) clearScreenshots(join(dir, name));
   }
 }
 
@@ -325,6 +332,15 @@ class RouteQueue {
   }
 }
 
+/** Runs `work` on every item, `size` at a time. */
+async function pool<T>(items: T[], size: number, work: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    for (let item = items[next++]; item !== undefined; item = items[next++]) await work(item);
+  };
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
+}
+
 /** Runs `work` on queued jobs, `size` at a time, until the queue stays empty. */
 async function drain(
   queue: RouteQueue,
@@ -380,10 +396,13 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
 
   const outDir = resolve(cwd, config.outDir ?? '.breakhound');
   const screenshotDir = join(outDir, 'screenshots');
-  ensureChromium();
+  const browsers: BrowserName[] = config.browsers?.length ? config.browsers : ['chromium'];
+  const [firstBrowser = 'chromium', ...otherBrowsers] = browsers;
+  ensureBrowsers(browsers);
 
   const authFile = join(cwd, AUTH_FILE);
-  const scanner = new Scanner(existsSync(authFile) ? { storageState: authFile } : {});
+  const auth = existsSync(authFile) ? { storageState: authFile } : {};
+  const scanner = new Scanner({ ...auth, browser: firstBrowser });
   const startedAt = new Date();
   const routes: RouteResult[] = [];
   let app: AppServer | null = null;
@@ -425,7 +444,7 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
       console.log(
         styleText(
           'dim',
-          `breakhound ${req.version} · ${plan?.crawl ? 'following links' : known === 1 ? '1 page' : `${known} pages`} · ${minWidth}–${maxWidth}px\n`,
+          `breakhound ${req.version} · ${plan?.crawl ? 'following links' : known === 1 ? '1 page' : `${known} pages`} · ${minWidth}–${maxWidth}px${browsers.length > 1 ? ` · ${browsers.map((b) => BROWSER_LABELS[b]).join(', ')}` : ''}\n`,
         ),
       );
     }
@@ -500,6 +519,43 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
       if (!quiet) printRouteLine(route, width);
     });
 
+    // The other browsers check the pages the first one could scan, one browser at a time.
+    const scanned = results.filter((r) => r.route.status === 'scanned');
+    const checks = new Map<RouteResult, { browser: BrowserName; result: PageResult }[]>();
+    for (const browser of otherBrowsers) {
+      if (!scanned.length) break;
+      if (!quiet) {
+        console.log(
+          styleText(
+            'dim',
+            `\n  Checking ${scanned.length === 1 ? '1 page' : `${scanned.length} pages`} again in ${BROWSER_LABELS[browser]}...`,
+          ),
+        );
+      }
+      const other = new Scanner({ ...auth, browser });
+      try {
+        await pool(scanned, parallel, async ({ route }) => {
+          const result = await other.scanPage(route.url, {
+            ...baseOptions,
+            route: route.route,
+            ...(baseOptions.screenshotDir
+              ? { screenshotDir: join(baseOptions.screenshotDir, browser) }
+              : {}),
+          });
+          for (const i of result.issues)
+            if (i.screenshot) i.screenshot = `${browser}/${i.screenshot}`;
+          checks.set(route, [...(checks.get(route) ?? []), { browser, result }]);
+        });
+      } finally {
+        await other.close();
+      }
+    }
+    for (const r of scanned) {
+      const others = checks.get(r.route);
+      if (others)
+        r.route = { ...mergeBrowserResults(r.route, firstBrowser, others), route: r.route.route };
+    }
+
     // Dynamic routes no page linked to.
     let order = Number.MAX_SAFE_INTEGER - queue.waiting.size;
     for (const pattern of queue.waiting.values()) {
@@ -542,6 +598,7 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
     baseUrl,
     framework: framework && framework.id !== 'unknown' ? framework.name : null,
     root: cwd,
+    browsers,
   });
   const kept = req.app ? app : null;
   if (req.write === false) return { result, reports: null, app: kept };
@@ -602,6 +659,7 @@ export function mergeScans(earlier: ScanResult, now: ScanResult): ScanResult {
     framework: now.project.framework ?? earlier.project.framework,
     baseUrl: now.project.baseUrl ?? earlier.project.baseUrl,
     root: now.project.root ?? earlier.project.root,
+    browsers: now.settings.browsers,
   });
   return { ...merged, durationMs: now.durationMs };
 }
