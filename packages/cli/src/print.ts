@@ -43,7 +43,12 @@ export function printRouteLine(route: RouteResult, width: number): void {
   const requested = new URL(route.url).pathname;
   const redirected = new URL(route.finalUrl).pathname !== requested;
   const bps = route.breakpoints.observed;
-  const layout = bps.length ? `layout changes at ${bps.join(', ')}` : 'no layout changes';
+  const opened = (route.states ?? []).map((s) => s.label);
+  const layout =
+    (bps.length ? `layout changes at ${bps.join(', ')}` : 'no layout changes') +
+    (opened.length
+      ? ` · opened ${opened.slice(0, 2).join(', ')}${opened.length > 2 ? ` +${opened.length - 2}` : ''}`
+      : '');
   const note = redirected
     ? styleText('yellow', `  redirected to ${new URL(route.finalUrl).pathname}`)
     : route.route.includes('[') && requested !== route.route

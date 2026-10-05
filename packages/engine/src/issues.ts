@@ -20,6 +20,9 @@ const OVERFLOW_PRIORITY = ['page-overflow', 'media-overflow', 'content-overflow'
  */
 const RELATED_IS_EXAMPLE = new Set(['clipped-text', 'small-tap-target', 'tiny-text']);
 
+/** Signature of a width where the state being scanned (a menu open) couldn't be reached. */
+export const INACTIVE = 'inactive';
+
 /** Identity of a finding across widths, tabs and (with the route) scans. */
 export function findingKey(f: Finding): string {
   const related = RELATED_IS_EXAMPLE.has(f.detector) ? '' : (f.related?.selector ?? '');
@@ -118,7 +121,7 @@ export function buildIssues(
   const keys = new Set<string>();
   for (const m of perWidth.values()) for (const k of m.keys()) keys.add(k);
 
-  const widest = widths[widths.length - 1];
+  const widest = [...widths].reverse().find((w) => results.get(w)?.signature !== INACTIVE);
   const issues: Issue[] = [];
   const lineages = new Map<Issue, string[]>();
   for (const key of keys) {

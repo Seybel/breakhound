@@ -207,6 +207,20 @@ We also read declared breakpoints from `@media` / `@container` rules in `documen
 - `declared`: widths the CSS declares
 - `unexplained`: observed changes with no nearby declared breakpoint (often a wrap or overflow bug)
 
+### 6.4 Interaction states
+
+Menus, drawers, modals and accordions are closed when a page loads, so the width sweep never sees them open. While sweeping, the analyzers also list what can be opened at each width:
+
+- elements with `aria-expanded` (closed), `aria-haspopup`, `popovertarget`, `commandfor`, or Bootstrap's `data-bs-toggle`
+- the summary of a closed `<details>`
+- buttons that are plainly a menu by class, id or accessible name (`hamburger`, `navbar-toggler`, `menu-toggle`, "Menu", "☰")
+
+Links to other pages, submit buttons, comboboxes, disabled controls and anything marked `data-breakhound-ignore="states"` are never pressed.
+
+After the page's own sweep, up to `states` toggles (default 5) are opened one at a time, menus and dialogs in the header first, and one per group of look-alikes (one FAQ question stands for all). Each is swept only over the widths where the toggle shows, plus one width either side so bisection finds exactly where it appears. At every width the toggle is pressed again if a resize closed it. It's pressed with a real mouse click at its centre, after checking that nothing covers it there, since many components open on pointer down rather than click. Whether it's open comes from the page (`aria-expanded`, `details.open`, `:popover-open`, `dialog.open`), or, when the page doesn't say, from the biggest element that came on screen when it was first pressed. A toggle that opens nothing is dropped. One that loads another page is dropped too, and the tab is loaded again.
+
+Findings that the closed page also has at that width are removed, so only what breaks while open is reported. Those issues carry `state` (`kind`, `label`, `trigger`). Their id and fingerprint include the trigger, their title ends with what was open (`with "Menu" open`), reports and prompts say what to click first, and screenshots are taken with it open. The tabs that measured the page are reused, and each is loaded again between states so nothing leaks from one to the next.
+
 ---
 
 ## 7. Detectors
@@ -215,7 +229,7 @@ Each detector is a pure function `(document, context) → Finding[]`. It must na
 
 | ID | Detects | Method | Default severity |
 |---|---|---|---|
-| `page-overflow` | Page scrolls horizontally | `scrollWidth > clientWidth` on the root; blame the outermost elements whose right edge passes the viewport and that aren't inside a scroll container | error |
+| `page-overflow` | Page scrolls horizontally, or content is cut off at the screen edge | `scrollWidth > clientWidth` on the root; blame the outermost elements whose right edge passes the viewport and that aren't inside a scroll container. Fixed content (a modal) never scrolls, so past the edge it is reported as cut off | error |
 | `content-overflow` | Content spilling out of its container | Child box exceeds a visibly bounded parent sideways, or past the bottom of a fixed-height one; parent `overflow` visible, not positioned or offset on purpose (negative margins, transforms, floats) | error |
 | `overlap` | Elements unintentionally covering each other | Box intersection between in-flow siblings, confirmed by `elementFromPoint` sampling; ignores absolute/fixed overlays, badges, and `z-index` layers | error |
 | `unexpected-wrap` | Rows/navs breaking onto extra lines | Children of a flex (`nowrap` or inline) container on different line boxes, where the container was single-line at wider widths | warning |
@@ -267,6 +281,7 @@ interface RouteResult {
   status: 'scanned' | 'needs-login' | 'needs-sample' | 'error';
   breakpoints: { observed: number[]; declared: number[]; unexplained: number[] };
   issues: Issue[];
+  states?: { kind: string; label: string; trigger: string; ranges: { from: number; to: number }[] }[];
 }
 
 type Severity = 'error' | 'warning' | 'info';
@@ -290,6 +305,8 @@ interface Issue {
   styles: Record<string, string>;     // relevant computed styles
   screenshot?: string;      // file in .breakhound/screenshots, element outlined, screen edge marked
   suggestion?: string;      // plain-language hint, e.g. "flex child needs min-width: 0"
+  state?: { kind: 'menu' | 'dialog' | 'popover' | 'details' | 'disclosure'; label: string; trigger: string };
+                            // only while this is open (6.4)
 }
 ```
 

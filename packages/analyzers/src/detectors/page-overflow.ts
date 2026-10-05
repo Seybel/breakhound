@@ -12,8 +12,14 @@ import type { Finding } from '../types';
 /** Ignore sub-pixel rounding, but a real 1px horizontal scroll is still a bug. */
 const TOLERANCE = 0.5;
 
-/** What stops the content at the viewport edge: the page itself, or a full-width wrapper. */
-type Edge = { kind: 'root' } | { kind: 'wrapper'; container: ElementRecord; scrolls: boolean };
+/**
+ * What stops the content at the viewport edge: the page itself, a full-width
+ * wrapper, or the screen (fixed content, such as a modal, never scrolls).
+ */
+type Edge =
+  | { kind: 'root' }
+  | { kind: 'screen' }
+  | { kind: 'wrapper'; container: ElementRecord; scrolls: boolean };
 
 interface Hit {
   rec: ElementRecord;
@@ -55,10 +61,14 @@ function wrapperEdge(snap: Snapshot, rec: ElementRecord): Edge | null {
 }
 
 function sticksOut(snap: Snapshot, rec: ElementRecord): Hit | null {
-  if (rec.outOfFlow === 'fixed' || isVisuallyHidden(rec)) return null;
+  if (isVisuallyHidden(rec)) return null;
   const right = paintedRight(rec);
   const left = paintedLeft(rec);
   if (right <= snap.viewportWidth + TOLERANCE && left >= -TOLERANCE) return null;
+  if (rec.outOfFlow === 'fixed') {
+    // Inside its own clipping or scrolling box, the box decides what shows.
+    return rec.clipAncestor ? null : { rec, right, left, edge: { kind: 'screen' } };
+  }
   const edge = wrapperEdge(snap, rec);
   return edge ? { rec, right, left, edge } : null;
 }
@@ -92,7 +102,8 @@ export function pageOverflow(snap: Snapshot): Finding[] {
     if (covered) continue;
 
     const vw = snap.viewportWidth;
-    const clipped = edge.kind === 'root' ? snap.rootClipsX : !edge.scrolls;
+    const clipped =
+      edge.kind === 'root' ? snap.rootClipsX : edge.kind === 'screen' || !edge.scrolls;
     const fullyOffscreen = hit.left >= vw || hit.right <= 0;
     // When overflow is hidden, a fully off-screen element is almost always an off-canvas drawer.
     if (clipped && fullyOffscreen) continue;
@@ -105,9 +116,11 @@ export function pageOverflow(snap: Snapshot): Finding[] {
 
     // Content past the start edge can't be scrolled to; past the end edge it adds a scrollbar.
     const endSide = snap.rtl ? 'left' : 'right';
-    const scrolls = side === endSide && (edge.kind === 'root' ? snap.rootScrollsX : edge.scrolls);
+    const scrolls =
+      side === endSide &&
+      (edge.kind === 'root' ? snap.rootScrollsX : edge.kind === 'wrapper' && edge.scrolls);
     // Decorative shapes bleeding off an edge are intentional unless they cause a scrollbar.
-    if (!scrolls && rec.outOfFlow === 'absolute' && isDecorative(rec.el)) continue;
+    if (!scrolls && rec.outOfFlow && isDecorative(rec.el)) continue;
     const textOnly = rec.rect.right <= vw + TOLERANCE && rec.rect.left >= -TOLERANCE;
 
     let title: string;
@@ -130,7 +143,14 @@ export function pageOverflow(snap: Snapshot): Finding[] {
         viewportWidth: vw,
         elementWidth: px(rec.rect.width),
         causedByText: textOnly,
-        clippedBy: edge.kind === 'root' ? (snap.rootClipsX ? 'page' : 'none') : 'wrapper',
+        clippedBy:
+          edge.kind === 'root'
+            ? snap.rootClipsX
+              ? 'page'
+              : 'none'
+            : edge.kind === 'screen'
+              ? 'screen'
+              : 'wrapper',
       },
       styles: pick(rec.style, [
         'width',

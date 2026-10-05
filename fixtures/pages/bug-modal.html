@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modal wider than small screens</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 16px; }
+.open-modal { padding: 10px 14px; font: inherit; }
+.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); }
+.overlay[hidden] { display: none; }
+.modal-card { width: 480px; margin: 40px auto; padding: 16px; background: #fff; }
+.modal-card button { padding: 10px 14px; font: inherit; }
+</style>
+</head>
+<body data-breakhound-ignore="edge-gutter">
+<main>
+  <h1>Newsletter</h1>
+  <button class="open-modal" type="button" aria-haspopup="dialog">Sign up</button>
+</main>
+<div class="overlay" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Sign up" data-bh-expect="page-overflow@320-479:open">
+    <p>Get one email a month with everything new.</p>
+    <button class="close" type="button">Close</button>
+  </div>
+</div>
+<script>
+const overlay = document.querySelector('.overlay');
+document.querySelector('.open-modal').addEventListener('click', () => { overlay.hidden = false; });
+document.querySelector('.close').addEventListener('click', () => { overlay.hidden = true; });
+</script>
+</body>
+</html>

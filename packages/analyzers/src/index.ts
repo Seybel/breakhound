@@ -14,6 +14,7 @@ import {
 } from './dom';
 import { declaredBreakpoints, layoutSignature } from './fingerprint';
 import { cachedSelector, elementOf, resolveSelector } from './selector';
+import { findToggles } from './states';
 import {
   type AnalyzeOptions,
   type AnalyzeResult,
@@ -100,6 +101,7 @@ export function analyze(options: AnalyzeOptions = {}): AnalyzeResult {
     findings,
     wraps,
     signature: layoutSignature(snap, cachedSelector),
+    ...(options.toggles ? { toggles: findToggles(rules) } : {}),
   };
 }
 
@@ -136,4 +138,12 @@ export function hasContent(): boolean {
 
 export { clearHighlights, highlight } from './highlight';
 export { settleAfterResize } from './settle';
+export {
+  clickPoint,
+  markShown,
+  newlyShown,
+  selectorShown,
+  setDetails,
+  toggleState,
+} from './states';
 export { declaredBreakpoints, resolveSelector };

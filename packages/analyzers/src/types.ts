@@ -91,6 +91,26 @@ export interface IgnoreRule {
 export interface AnalyzeOptions {
   detectors?: DetectorId[];
   ignore?: IgnoreRule[];
+  /** Also list the menus, dialogs and disclosures that can be opened at this width. */
+  toggles?: boolean;
+}
+
+/**
+ * What a toggle opens. `menu`: navigation menus, drawers and dropdowns.
+ * `disclosure`: anything else with aria-expanded, such as accordions.
+ */
+export type ToggleKind = 'menu' | 'dialog' | 'popover' | 'details' | 'disclosure';
+
+/** Something on the page that opens more of it when clicked. */
+export interface Toggle {
+  selector: string;
+  kind: ToggleKind;
+  /** Its accessible name, shortened: "Menu", "Open main menu". */
+  label: string;
+  /** Toggles that look and sit alike (the questions of an FAQ) share a group. */
+  group: string;
+  /** Lower first: menus and dialogs in the header before an accordion further down. */
+  priority: number;
 }
 
 export interface AnalyzeResult {
@@ -99,4 +119,6 @@ export interface AnalyzeResult {
   wraps: WrapStat[];
   /** Discrete description of the layout; changes only at behavioural breakpoints. */
   signature: string;
+  /** Present when asked for with `toggles`. */
+  toggles?: Toggle[];
 }

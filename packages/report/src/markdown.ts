@@ -5,9 +5,11 @@ import {
   formatRanges,
   groupIssues,
   type IssueGroup,
+  openInstruction,
   plural,
   routeLabel,
   SEVERITY_ORDER,
+  stateName,
 } from './format';
 
 const SEVERITY_ICON: Record<Severity, string> = { error: '✖', warning: '⚠', info: 'ℹ' };
@@ -116,6 +118,7 @@ function issueBlock(
 ): string[] {
   const lines = [heading, ''];
   lines.push(`- **Widths:** ${formatRanges(issue.ranges)} (worst at ${issue.worstAt}px)`);
+  if (issue.state) lines.push(`- **Open first:** ${openInstruction(issue.state)}`);
   lines.push(`- **Element:** \`${issue.element.selector}\` (${issue.element.path})`);
   const source = sourceText(issue.element.source);
   if (source) lines.push(`- **Source:** ${source}`);
@@ -158,6 +161,10 @@ export function renderDetailed(result: ScanResult, imageBase = 'screenshots/'): 
       '',
     );
     for (const w of route.warnings ?? []) lines.push(`> ${w}`, '');
+    if (route.states?.length) {
+      const opened = route.states.map((s) => `${stateName(s)} (${formatRanges(s.ranges)})`);
+      lines.push(`Also scanned open: ${opened.join(', ')}.`, '');
+    }
     if (!route.issues.length) {
       lines.push('No issues found.', '');
       continue;

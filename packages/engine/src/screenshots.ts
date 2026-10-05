@@ -16,7 +16,13 @@ export async function captureIssues(
   page: Page,
   issues: Issue[],
   dir: string,
-  opts: { height: number; maxSettleMs: number; limit: number },
+  opts: {
+    height: number;
+    maxSettleMs: number;
+    limit: number;
+    /** Opens the menu or dialog the issues need; false when it can't be at that width. */
+    prepare?: (width: number) => Promise<boolean>;
+  },
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
   if (issues.length === 0) return files;
@@ -26,6 +32,7 @@ export async function captureIssues(
     if (issue.detector === 'viewport-meta') continue;
     await page.setViewportSize({ width: issue.worstAt, height: opts.height });
     await settleResize(page, opts.maxSettleMs);
+    if (opts.prepare && !(await opts.prepare(issue.worstAt).catch(() => false))) continue;
     const region = await page.evaluate((o) => window.__breakhound?.highlight(o) ?? null, {
       selector: issue.element.selector,
       related: issue.related?.selector ?? null,

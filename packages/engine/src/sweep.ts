@@ -5,7 +5,7 @@ import type {
   Region,
 } from '@breakhound/analyzers';
 import type { Page } from 'playwright';
-import { findingKey } from './issues';
+import { findingKey, INACTIVE } from './issues';
 import { settleResize } from './settle';
 
 export type Measurements = Map<number, AnalyzeResult>;
@@ -17,6 +17,12 @@ export interface SweepSettings {
   maxSettleMs: number;
   analyze: AnalyzeOptions;
 }
+
+/**
+ * Puts the page in the state being scanned (a menu open) at the current width.
+ * False when that state can't be reached there, e.g. the menu button is hidden.
+ */
+export type Prepare = (width: number) => Promise<boolean>;
 
 /** Coarse widths from min to max (inclusive), `step` apart. */
 export function coarseWidths(minWidth: number, maxWidth: number, step: number): number[] {
@@ -67,8 +73,9 @@ export class Sweeper {
   private readonly keys = new Map<number, string>();
 
   constructor(
-    private readonly page: Page,
+    readonly page: Page,
     private readonly settings: SweepSettings,
+    private readonly prepare?: Prepare,
   ) {}
 
   async measure(width: number): Promise<AnalyzeResult> {
@@ -83,6 +90,13 @@ export class Sweeper {
   private async analyzeAt(width: number): Promise<AnalyzeResult> {
     await this.page.setViewportSize({ width, height: this.settings.height });
     await settleResize(this.page, this.settings.maxSettleMs);
+    return this.analyzeHere(width);
+  }
+
+  private async analyzeHere(width: number): Promise<AnalyzeResult> {
+    if (this.prepare && !(await this.prepare(width))) {
+      return { width, findings: [], wraps: [], signature: INACTIVE };
+    }
     return this.page.evaluate((opts) => {
       const api = window.__breakhound;
       if (!api) throw new Error('breakhound analyzers were not injected into the page');
@@ -98,10 +112,7 @@ export class Sweeper {
     await settleResize(this.page, this.settings.maxSettleMs);
     await this.page.setViewportSize({ width, height });
     await settleResize(this.page, this.settings.maxSettleMs);
-    return this.page.evaluate(
-      (opts) => window.__breakhound?.analyze(opts) as AnalyzeResult,
-      this.settings.analyze,
-    );
+    return this.analyzeHere(width);
   }
 
   private key(width: number): string {
@@ -147,6 +158,12 @@ declare global {
       clearHighlights: () => void;
       hasContent: () => boolean;
       resolveSelector: (selector: string) => Element | null;
+      toggleState: (selector: string) => { shown: boolean; open: boolean | null };
+      setDetails: (selector: string, open: boolean) => void;
+      clickPoint: (selector: string) => { x: number; y: number } | null;
+      markShown: () => void;
+      newlyShown: (toggle: string) => string | null;
+      selectorShown: (selector: string) => boolean;
     };
   }
 }

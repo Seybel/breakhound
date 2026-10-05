@@ -89,6 +89,7 @@ export const KNOWN_KEYS = new Set([
   'failOn',
   'outDir',
   'screenshots',
+  'states',
   'pdf',
   'concurrency',
   'memoryLimit',
@@ -128,6 +129,13 @@ export function validateConfig(config: BreakhoundConfig): string[] {
         `samples must map a dynamic route to a real one, like { "/products/[id]": "/products/42" }`,
       );
     }
+  }
+  if (
+    config.states !== undefined &&
+    typeof config.states !== 'boolean' &&
+    !(Number.isInteger(config.states) && config.states >= 0)
+  ) {
+    throw new Error('states must be true, false, or the most menus and dialogs to open per page');
   }
   if (
     config.maxRoutes !== undefined &&

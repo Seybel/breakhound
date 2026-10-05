@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Menu button without ARIA, tiny text inside</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; background: #135; color: #fff; }
+.menu-toggle { display: none; padding: 10px 14px; font: inherit; }
+.desktop-nav a { color: inherit; margin-left: 16px; }
+.mobile-nav { display: none; padding: 8px 16px; background: #eee; }
+.mobile-nav.open { display: block; }
+.mobile-nav p { margin: 0; padding: 12px 0; font-size: 10px; }
+@media (max-width: 767px) {
+  .desktop-nav { display: none; }
+  .menu-toggle { display: block; }
+}
+main { padding: 16px; }
+</style>
+</head>
+<body data-breakhound-ignore="edge-gutter">
+<header>
+  <div>Acme</div>
+  <nav class="desktop-nav"><a href="#">Product</a><a href="#">Pricing</a></nav>
+  <button class="menu-toggle" type="button">&#9776;</button>
+</header>
+<div class="mobile-nav" data-bh-expect="tiny-text@320-767:open">
+  <p>Product</p>
+  <p>Pricing</p>
+  <p>Contact</p>
+</div>
+<main><p>Content</p></main>
+<script>
+document.querySelector('.menu-toggle').addEventListener('click', () => {
+  document.querySelector('.mobile-nav').classList.toggle('open');
+});
+</script>
+</body>
+</html>

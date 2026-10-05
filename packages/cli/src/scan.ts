@@ -455,6 +455,11 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
       ...(config.settle?.networkIdleMs ? { networkIdleMs: config.settle.networkIdleMs } : {}),
       ...(config.settle?.maxSettleMs ? { maxSettleMs: config.settle.maxSettleMs } : {}),
       ...(config.screenshots === false ? {} : { screenshotDir }),
+      ...(config.states === false
+        ? { states: 0 }
+        : typeof config.states === 'number'
+          ? { states: config.states }
+          : {}),
     };
 
     await drain(queue, parallel, async (job) => {

@@ -52,6 +52,7 @@ Scan options
   --out <dir>           Report folder (default .breakhound)
   --pdf                 Also write report.pdf
   --no-screenshots      Skip issue screenshots
+  --no-states           Don't open menus, dialogs and expandable sections
   --concurrency <n>     Browser tabs to use at once
   --memory-limit <size> Stop before the dev server and browser use more, e.g. 6GB,
                         50% or off (default 60% of your memory)
@@ -107,6 +108,7 @@ async function main(argv: string[]): Promise<number> {
       out: { type: 'string' },
       pdf: { type: 'boolean' },
       screenshots: { type: 'boolean' },
+      states: { type: 'boolean' },
       concurrency: { type: 'string' },
       'memory-limit': { type: 'string' },
       config: { type: 'string' },
@@ -285,6 +287,7 @@ async function main(argv: string[]): Promise<number> {
     },
     ...(values.pdf !== undefined ? { pdf: values.pdf } : {}),
     ...(values.screenshots !== undefined ? { screenshots: values.screenshots } : {}),
+    ...(values.states === false ? { states: false } : {}),
     ...(concurrency ? { concurrency } : {}),
     ...(maxRoutes ? { maxRoutes } : {}),
     ...(values.include?.length ? { include: values.include } : {}),

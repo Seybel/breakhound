@@ -7,11 +7,13 @@ import { type Browser, type BrowserContext, chromium, type Page } from 'playwrig
 import { buildBreakpoints, buildIssues, findingKey } from './issues';
 import { captureIssues } from './screenshots';
 import { NetworkTracker, RESIZE_PROBE, settlePage } from './settle';
+import { pickToggles, type ScannedStates, scanStates } from './states';
 import { coarseWidths, Sweeper, splitWidths } from './sweep';
 import type { Issue, PageResult, PageSkip, PageStatus, ScannerOptions, ScanOptions } from './types';
 
 export { DETECTOR_IDS } from '@breakhound/analyzers/types';
 export { createScanResult, type ResultMeta } from './result';
+export { describeState } from './states';
 export type * from './types';
 
 /** Options only the Node API takes (they hold functions or Playwright objects). */
@@ -32,6 +34,7 @@ export const DEFAULTS = {
   networkIdleMs: 5000,
   concurrency: Math.max(1, Math.min(4, Math.floor(cpus().length / 2))),
   screenshotLimit: 25,
+  states: 5,
 } satisfies ScanOptions;
 
 /** Ranges this narrow get re-measured before being reported. */
@@ -119,6 +122,7 @@ class LoginRequired extends Error {}
 export class Scanner {
   /** Shared by pages scanned at the same time, so only one browser is ever launched. */
   private browser: Promise<Browser> | null = null;
+  private readonly networks = new WeakMap<Page, NetworkTracker>();
 
   constructor(private readonly options: ScannerOptions = {}) {}
 
@@ -171,6 +175,7 @@ export class Scanner {
   ): Promise<Page> {
     const page = await context.newPage();
     const network = new NetworkTracker(page);
+    this.networks.set(page, network);
     page.on('pageerror', (e) => {
       if (pageErrors.length < MAX_PAGE_ERRORS)
         pageErrors.push(e.message.split('\n')[0] ?? e.message);
@@ -184,6 +189,22 @@ export class Scanner {
     }
     await settlePage(page, network, networkIdleMs);
     return page;
+  }
+
+  /** Loads the page again from scratch, settled the same way as the first time. */
+  private async reload(page: Page, url: string, networkIdleMs: number): Promise<void> {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await page.goto(url, { waitUntil: 'load', timeout: NAVIGATION_TIMEOUT_MS });
+        break;
+      } catch (error) {
+        // A navigation the page started itself (a toggle that turned out to be a link) is still landing.
+        if (attempt === 3 || !/interrupted by another navigation/i.test(String(error))) throw error;
+        await page.waitForLoadState('load').catch(() => {});
+      }
+    }
+    const network = this.networks.get(page) ?? new NetworkTracker(page);
+    await settlePage(page, network, networkIdleMs);
   }
 
   async scanPage(url: string, options: ScanOptions & PageHooks = {}): Promise<PageResult> {
@@ -244,17 +265,19 @@ export class Scanner {
           ...(opts.ignore ? { ignore: opts.ignore } : {}),
         },
       };
-      const chunks = splitWidths(
-        coarseWidths(opts.minWidth, opts.maxWidth, opts.step),
-        opts.concurrency,
-      );
+      const coarse = coarseWidths(opts.minWidth, opts.maxWidth, opts.step);
+      const chunks = splitWidths(coarse, opts.concurrency);
       const pages = [
         first,
         ...(await Promise.all(
           chunks.slice(1).map(() => this.openPage(context, url, opts.networkIdleMs, [])),
         )),
       ];
-      const sweepers = pages.map((p) => new Sweeper(p, settings));
+      const listToggles = {
+        ...settings,
+        analyze: { ...settings.analyze, toggles: opts.states > 0 },
+      };
+      const sweepers = pages.map((p) => new Sweeper(p, listToggles));
       await Promise.all(sweepers.map((s, i) => s.run(chunks[i] ?? [])));
 
       const results = new Map<number, AnalyzeResult>();
@@ -266,19 +289,41 @@ export class Scanner {
       let issues = buildIssues(route, widths, results);
       issues = await confirmNarrowIssues(issues, main);
 
-      if (opts.screenshotDir) {
-        const files = await captureIssues(first, issues, opts.screenshotDir, {
+      let screenshots = opts.screenshotLimit;
+      const capture = async (
+        page: Page,
+        list: Issue[],
+        prepare?: (width: number) => Promise<boolean>,
+      ) => {
+        if (!opts.screenshotDir || screenshots <= 0) return;
+        const files = await captureIssues(page, list, opts.screenshotDir, {
           height: opts.height,
           maxSettleMs: opts.maxSettleMs,
-          limit: opts.screenshotLimit,
+          limit: screenshots,
+          ...(prepare ? { prepare } : {}),
         });
-        for (const issue of issues) {
+        screenshots -= Math.min(list.length, screenshots);
+        for (const issue of list) {
           const file = files.get(issue.id);
           if (file) issue.screenshot = file;
         }
-      }
+      };
+      await capture(first, issues);
 
       const declared = await first.evaluate(() => window.__breakhound?.declaredBreakpoints() ?? []);
+
+      let opened: ScannedStates = { issues: [], states: [] };
+      const candidates = pickToggles(results, coarse, opts.states);
+      if (candidates.length) {
+        opened = await scanStates(pages, candidates, {
+          route,
+          closed: results,
+          settings,
+          reload: (page) => this.reload(page, url, opts.networkIdleMs),
+          confirm: (list, sweeper) => confirmNarrowIssues(list, sweeper),
+          capture,
+        });
+      }
       const warnings = sweepers.some((s) => s.unstable)
         ? [
             'The layout kept changing on its own (an auto-playing carousel or live content?), so some width ranges are approximate.',
@@ -296,7 +341,8 @@ export class Scanner {
           opts.minWidth,
           opts.maxWidth,
         ),
-        issues,
+        issues: [...issues, ...opened.issues],
+        ...(opened.states.length ? { states: opened.states } : {}),
         measurements: widths.length,
         durationMs: Date.now() - started,
       };

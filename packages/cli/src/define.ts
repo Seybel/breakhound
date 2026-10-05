@@ -45,6 +45,12 @@ export interface BreakhoundConfig {
   outDir?: string;
   /** Take a screenshot of every issue. */
   screenshots?: boolean;
+  /**
+   * Also open menus, dialogs and expandable sections (the mobile menu, a
+   * modal, an FAQ) and scan them open. A number sets the most to open on one
+   * page (default 5); false turns it off.
+   */
+  states?: boolean | number;
   /** Also write report.pdf. */
   pdf?: boolean;
   /** Browser tabs to use at once (default: half your CPU cores, up to 4). */

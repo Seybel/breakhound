@@ -13,6 +13,8 @@ interface Expectation {
   detector: string;
   range: { from: number; to: number } | null;
   selector: string;
+  /** `:open` after the range: only shows with a menu, dialog or section opened. */
+  open: boolean;
 }
 
 interface Scored {
@@ -50,18 +52,21 @@ async function score(url: string, result: PageResult): Promise<Scored> {
         detector: string;
         range: { from: number; to: number } | null;
         selector: string;
+        open: boolean;
       }[] = [];
       document.querySelectorAll('[data-bh-expect]').forEach((el, i) => {
         el.setAttribute('data-bh-test-id', String(i));
         for (const token of (el.getAttribute('data-bh-expect') ?? '')
           .split(/\s+/)
           .filter(Boolean)) {
-          const [detector = '', range] = token.split('@');
+          const [spec = '', state] = token.split(':');
+          const [detector = '', range] = spec.split('@');
           const [from, to] = (range ?? '').split('-').map(Number);
           out.push({
             detector,
             range: range ? { from: from ?? 0, to: to ?? 0 } : null,
             selector: `[data-bh-test-id="${i}"]`,
+            open: state === 'open',
           });
         }
       });
@@ -71,9 +76,22 @@ async function score(url: string, result: PageResult): Promise<Scored> {
     const matched = new Set<Expectation>();
     const falsePositives: Issue[] = [];
     for (const issue of result.issues) {
+      // An issue seen with a menu open can name it by classes it only has while open.
       const hit = await page.evaluate(
-        ({ selector }) => document.querySelector(selector)?.getAttribute('data-bh-test-id') ?? null,
-        { selector: issue.element.selector },
+        ({ selector, trigger }) => {
+          const toggle = trigger ? document.querySelector(trigger) : null;
+          const press = () => {
+            if (toggle?.matches('details > summary')) {
+              const details = toggle.parentElement as HTMLDetailsElement;
+              details.open = !details.open;
+            } else (toggle as HTMLElement | null)?.click();
+          };
+          press();
+          const id = document.querySelector(selector)?.getAttribute('data-bh-test-id') ?? null;
+          press();
+          return id;
+        },
+        { selector: issue.element.selector, trigger: issue.state?.trigger ?? null },
       );
       const exp = expectations.find(
         (e) =>
@@ -81,6 +99,7 @@ async function score(url: string, result: PageResult): Promise<Scored> {
           hit !== null &&
           e.selector === `[data-bh-test-id="${hit}"]` &&
           e.detector === issue.detector &&
+          e.open === Boolean(issue.state) &&
           (!e.range ||
             issue.ranges.some(
               (r) =>
@@ -105,7 +124,7 @@ function describeIssues(issues: Issue[]): string {
   return issues
     .map(
       (i) =>
-        `${i.detector} ${i.element.selector} ${i.ranges.map((r) => `${r.from}-${r.to}`).join(',')}`,
+        `${i.detector} ${i.element.selector} ${i.ranges.map((r) => `${r.from}-${r.to}`).join(',')}${i.state ? ` (${i.state.kind} ${i.state.trigger} open)` : ''}`,
     )
     .join('\n');
 }
@@ -128,7 +147,8 @@ describe('fixture corpus', () => {
       expect(describeIssues(scored.falsePositives), 'unexpected issues').toBe('');
       expect(
         scored.missed.map(
-          (m) => `${m.detector}@${m.range ? `${m.range.from}-${m.range.to}` : '*'}`,
+          (m) =>
+            `${m.detector}@${m.range ? `${m.range.from}-${m.range.to}` : '*'}${m.open ? ':open' : ''}`,
         ),
         `missed expectations; got:\n${describeIssues(result.issues)}`,
       ).toEqual([]);

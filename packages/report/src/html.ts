@@ -1,5 +1,5 @@
 import type { ScanResult } from '@breakhound/engine';
-import { DETECTOR_LABELS, groupIssues, routeLabel } from './format';
+import { DETECTOR_LABELS, groupIssues, openInstruction, routeLabel } from './format';
 import { renderPrompt } from './markdown';
 
 export interface HtmlOptions {
@@ -25,6 +25,7 @@ function buildData(result: ScanResult, options: HtmlOptions) {
     evidence: g.issue.evidence,
     styles: g.issue.styles,
     suggestion: g.issue.suggestion ?? null,
+    openFirst: g.issue.state ? openInstruction(g.issue.state).replace(/`/g, '') : null,
     screenshot: g.issue.screenshot ? (images.get(g.issue.screenshot) ?? null) : null,
     pages: g.routes.map((r) => ({
       route: routeLabel(r.route),
@@ -461,6 +462,7 @@ const JS = String.raw`
       mini.append(el('span', { class: 'bar ' + g.severity, style: 'left:' + left + '%;width:' + Math.max(pct(rg.to + 1) - left, 0.4) + '%' }));
     }
     const facts = [['Check', g.detectorLabel], ['Worst at', g.worstAt + 'px'], ['Element', el('code', { text: g.element.selector })]];
+    if (g.openFirst) facts.splice(2, 0, ['Open first', g.openFirst]);
     const src = g.element.source;
     if (src) {
       const at = src.line ? src.file + ':' + src.line : src.file;

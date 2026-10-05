@@ -103,6 +103,9 @@ describe('config', () => {
     ]);
     expect(() => validateConfig({ routes: '/' as unknown as string[] })).toThrow(/list of paths/);
     expect(() => validateConfig({ baseUrl: 'not a url' })).toThrow(/full URL/);
+    expect(() => validateConfig({ states: -1 })).toThrow(/states/);
+    expect(validateConfig({ states: false })).toEqual([]);
+    expect(validateConfig({ states: 3 })).toEqual([]);
   });
 });
 

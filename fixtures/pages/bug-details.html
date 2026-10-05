@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collapsed section overflows when expanded</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 16px; }
+summary { padding: 12px 0; cursor: pointer; }
+.specs { width: 560px; padding: 8px; background: #eef; }
+</style>
+</head>
+<body data-breakhound-ignore="edge-gutter">
+<main>
+  <h1>Kettle</h1>
+  <p>Boils a litre in two minutes.</p>
+  <details>
+    <summary>Technical details</summary>
+    <div class="specs" data-bh-expect="page-overflow@320-575:open">1.7 litres, 2200 watts, stainless steel, 1.2 kg, cord storage in the base</div>
+  </details>
+</main>
+</body>
+</html>

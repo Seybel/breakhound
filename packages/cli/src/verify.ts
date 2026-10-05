@@ -51,6 +51,11 @@ function looks(issue: Issue): string {
   return `${tag}|${issue.element.text ?? ''}`;
 }
 
+/** Which menu or dialog had to be open, so an issue in the open menu never matches one on the page. */
+function stateOf(issue: Issue): string {
+  return issue.state ? `${issue.state.kind}|${issue.state.label}` : '';
+}
+
 function sameSource(a: Issue, b: Issue): boolean {
   const x = a.element.source;
   const y = b.element.source;
@@ -82,6 +87,7 @@ export function compareRoute(route: string, before: Issue[], after: Issue[]) {
     const old = [...left.values()].find(
       (o) =>
         o.detector === issue.detector &&
+        stateOf(o) === stateOf(issue) &&
         (sameSource(o, issue) || (looks(o) === looks(issue) && issue.element.text !== null)),
     );
     if (old) {

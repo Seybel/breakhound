@@ -4,13 +4,28 @@ import type {
   IgnoreRule,
   Severity,
   SourceLocation,
+  ToggleKind,
 } from '@breakhound/analyzers/types';
 
-export type { DetectorId, ElementInfo, IgnoreRule, Severity, SourceLocation };
+export type { DetectorId, ElementInfo, IgnoreRule, Severity, SourceLocation, ToggleKind };
 
 export interface WidthRange {
   from: number;
   to: number;
+}
+
+/** A menu, dialog or disclosure that was opened for part of the scan. */
+export interface PageState {
+  kind: ToggleKind;
+  /** The accessible name of what was clicked: "Menu", "Open main menu". */
+  label: string;
+  /** Selector of what was clicked to open it. */
+  trigger: string;
+}
+
+export interface ScannedState extends PageState {
+  /** Widths where it could be opened and was measured open. */
+  ranges: WidthRange[];
 }
 
 export interface Issue {
@@ -34,6 +49,8 @@ export interface Issue {
   suggestion?: string;
   /** Screenshot file name inside the scan's screenshot directory. */
   screenshot?: string;
+  /** Set when the issue only shows while something is open, such as the mobile menu. */
+  state?: PageState;
 }
 
 export interface Breakpoints {
@@ -62,6 +79,8 @@ export interface PageResult {
   warnings: string[];
   breakpoints: Breakpoints;
   issues: Issue[];
+  /** Menus, dialogs and disclosures that were also scanned open. */
+  states?: ScannedState[];
   /** Number of distinct widths that were measured. */
   measurements: number;
   durationMs: number;
@@ -96,6 +115,8 @@ export interface ScanOptions {
   screenshotDir?: string;
   /** Most screenshots to take for one page. */
   screenshotLimit?: number;
+  /** Most menus, dialogs and disclosures to open and scan open on one page; 0 turns it off. */
+  states?: number;
 }
 
 export interface ScannerOptions {

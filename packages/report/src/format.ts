@@ -1,6 +1,7 @@
 import type {
   DetectorId,
   Issue,
+  PageState,
   RouteResult,
   ScanResult,
   Severity,
@@ -69,6 +70,19 @@ export function evidenceText(issue: Issue): string {
   return Object.entries(issue.evidence)
     .map(([k, v]) => `${k.replace(/([A-Z])/g, ' $1').toLowerCase()}: ${v}`)
     .join(', ');
+}
+
+/** How to get the page into the state an issue needs: click `button.burger` ("Menu"). */
+export function openInstruction(state: PageState): string {
+  const verb = state.kind === 'details' ? 'expand' : 'click';
+  const name = state.label !== state.kind ? ` ("${state.label}")` : '';
+  return `${verb} \`${state.trigger}\`${name}`;
+}
+
+/** "Open main menu" menu, "Contact us" dialog. */
+export function stateName(state: PageState): string {
+  const kind = state.kind === 'disclosure' || state.kind === 'details' ? 'section' : state.kind;
+  return state.label !== state.kind ? `"${state.label}" ${kind}` : kind;
 }
 
 export function plural(n: number, word: string): string {

@@ -102,6 +102,16 @@ Links that would log you out, delete something, or download a file are never fol
 
 Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media query explains.
 
+### Menus, dialogs and expandable sections
+
+A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign-up modal, an FAQ answer. After scanning a page as it loads, breakhound opens what it finds there one at a time and sweeps the widths where each can be opened. That covers buttons with `aria-expanded`, `<details>`, popovers, dialogs, Bootstrap toggles, and buttons that are clearly a menu (`hamburger`, `menu-toggle`, an accessible name of "Menu"). Only what breaks while something is open gets reported, with what to open first:
+
+```
+✖ 320–399px  Page scrolls horizontally (80px wider than the viewport), with "Menu" open
+```
+
+It never clicks a link to another page or a button that submits a form, and it opens only one question of an FAQ, since they all share a layout. It opens up to 5 per page. Set `states` to change that, or `--no-states` (or `data-breakhound-ignore="states"` on an element) to leave them closed.
+
 It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone. It also looks inside web components (open shadow roots) and handles right-to-left pages.
 
 ## Reports
@@ -227,6 +237,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `widths` | `{ min, max, step }` in CSS pixels |
 | `ignore`, `detectors` | Leave elements out, turn checks off or change their severity |
 | `failOn` | Exit 1 at `error`, `warning`, `info` or `none` |
+| `states` | Most menus, dialogs and expandable sections to open per page (default 5), or `false` |
 | `concurrency` | Browser tabs to use at once (default half your CPU cores, up to 4) |
 | `memoryLimit` | Most memory the dev server and browser may use together, e.g. `"6GB"`, `"50%"` or `"off"` (default 60% of your memory) |
 
@@ -263,6 +274,7 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 --fail-on <level>       Exit 1 at error, warning, info or none (default error)
 --pdf                   Also write report.pdf
 --no-screenshots        Skip screenshots
+--no-states             Don't open menus, dialogs and expandable sections
 --concurrency <n>       Browser tabs to use at once
 --memory-limit <size>   Memory the dev server and browser may use, e.g. 6GB, 50% or off
 --out <dir>             Report folder (default .breakhound)
