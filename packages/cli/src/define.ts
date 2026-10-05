@@ -59,6 +59,12 @@ export interface BreakhoundConfig {
    * it, one at a time. Default ["chromium"].
    */
   browsers?: ('chromium' | 'webkit' | 'firefox')[];
+  /** The model `breakhound fix` uses; flags and environment variables work too. */
+  fix?: {
+    /** anthropic, openai (or any compatible API) or ollama. Picked from your environment when left out. */
+    provider?: 'anthropic' | 'openai' | 'ollama';
+    model?: string;
+  };
   /** Browser tabs to use at once (default: half your CPU cores, up to 4). */
   concurrency?: number;
   /**

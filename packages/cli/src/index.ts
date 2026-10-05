@@ -13,10 +13,12 @@ import { installBrowsers } from './browser';
 import { isCI, reportToGitHub } from './ci';
 import { copyToClipboard } from './clipboard';
 import { type BreakhoundConfig, loadConfig, validateConfig } from './config';
+import { runFix } from './fix';
 import { MemoryError, parseMemoryLimit } from './guard';
 import { runInit } from './init';
 import { runMcpServer } from './mcp';
 import { type ClientId, installMcp } from './mcp-install';
+import { PROVIDERS, type Provider, resolveModel } from './model';
 import { openInDefaultApp } from './open';
 import { readLastResult, runScan } from './scan';
 import { checkpoint, listCheckpoints, undo } from './session';
@@ -42,6 +44,8 @@ Fixing
   breakhound verify [routes]     Scan again and compare with the last full scan: fixed, still there, new
   breakhound checkpoint <routes> Commit the current changes as the fix for these routes (-m for a message)
   breakhound undo [routes]       Revert the fixes for these routes (--session for all); lists them with no routes
+  breakhound fix [routes]        Fix the last scan's issues with your own model (Anthropic or OpenAI key, or
+                                 a local Ollama), verify each fix and commit it so it can be undone
   breakhound mcp install         Add breakhound's MCP server to Claude Code, Cursor, VS Code, Windsurf or Codex
   breakhound mcp                 Run the MCP server (your agent starts it)
 
@@ -68,6 +72,13 @@ Scan options
 
 Prompt and verify options
   --copy                Copy to the clipboard instead of printing
+  --all                 Include info-level issues
+
+Fix options
+  --provider <name>     anthropic, openai or ollama (default: whichever is set up:
+                        ANTHROPIC_API_KEY, OPENAI_API_KEY, then a local Ollama)
+  --model <name>        The model to ask, e.g. a model you pulled into Ollama
+  --limit <n>           Most issues to try (default 20)
   --all                 Include info-level issues
 
 MCP install options
@@ -126,6 +137,9 @@ async function main(argv: string[]): Promise<number> {
       message: { type: 'string', short: 'm' },
       session: { type: 'boolean' },
       client: { type: 'string', multiple: true },
+      provider: { type: 'string' },
+      model: { type: 'string' },
+      limit: { type: 'string' },
       yes: { type: 'boolean', short: 'y' },
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
@@ -257,6 +271,31 @@ async function main(argv: string[]): Promise<number> {
     reportToGitHub(v.current, v.reports.summary);
     if (v.unchecked.length) return 2;
     return severities.length && !verifyPassed(v, severities) ? 1 : 0;
+  }
+
+  if (command === 'fix') {
+    const provider = values.provider ?? fileConfig.fix?.provider;
+    if (provider && !(PROVIDERS as readonly string[]).includes(provider)) {
+      throw new Error(`--provider must be one of: ${PROVIDERS.join(', ')}`);
+    }
+    const model = await resolveModel({
+      ...(provider ? { provider: provider as Provider } : {}),
+      ...((values.model ?? fileConfig.fix?.model)
+        ? { model: values.model ?? fileConfig.fix?.model }
+        : {}),
+    });
+    const limit = positiveInt('limit', values.limit);
+    const results = await runFix({
+      cwd,
+      config: { ...fileConfig, outDir },
+      version: VERSION,
+      quiet: values.quiet ?? false,
+      model,
+      routes: rest,
+      severities: values.all ? ['error', 'warning', 'info'] : ['error', 'warning'],
+      ...(limit ? { limit } : {}),
+    });
+    return results.some((r) => r.outcome !== 'fixed') ? 1 : 0;
   }
 
   if (command === 'prompt') {

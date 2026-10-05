@@ -367,7 +367,7 @@ and continue until it reports no remaining issues and no new ones.
 |---|---|---|
 | 1. Export | `breakhound prompt`, "Copy for agent" button in HTML report, `.md` / PDF export | 1 |
 | 2. MCP | Agent calls breakhound tools, edits code, verifies, repeats | 3 |
-| 3. Built-in fixer | `breakhound fix` with bring-your-own API key or local model (Ollama) | 4 |
+| 3. Built-in fixer | `breakhound fix` with bring-your-own API key or local model (Ollama) | 4 ✅ |
 
 ### MCP tools
 
@@ -382,6 +382,19 @@ and continue until it reports no remaining issues and no new ones.
 | `undo` | Revert breakhound fix commits for given routes |
 
 Setup is one command: `npx breakhound mcp install` detects Claude Code / Cursor / VS Code / Windsurf config and adds the server entry (showing the change and asking first).
+
+### Built-in fixer
+
+`breakhound fix [routes]` is for people without a coding agent. The model is the developer's own: an Anthropic key, any OpenAI-compatible API (`OPENAI_BASE_URL`), or a local Ollama. It's picked from the environment in that order unless `--provider` or `fix.provider` says otherwise. breakhound has no key, service or model of its own.
+
+For each unique issue in the baseline (errors and warnings, at most 20 by default):
+
+1. Pick up to 4 files: the element's source file when known, then tracked files that mention its classes, id or text the most. Big files are cut down to the lines around those mentions. Files with uncommitted changes are left out.
+2. Ask for edits as exact search and replace blocks, limited to those files.
+3. Apply them all or none (a search must match exactly one place, ignoring trailing spaces), then `verify` the issue's routes against the dev server, which stays up for the whole run.
+4. If the issue is gone and nothing new appeared, checkpoint the edited files as that route's fix commit. Otherwise write the files back and try once more, telling the model what happened (still there at which widths, or what broke where).
+
+An API error stops the run, since it would fail every issue the same way.
 
 ### Verify loop
 

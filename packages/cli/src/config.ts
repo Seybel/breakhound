@@ -92,6 +92,7 @@ export const KNOWN_KEYS = new Set([
   'states',
   'pdf',
   'browsers',
+  'fix',
   'concurrency',
   'memoryLimit',
   'settle',
@@ -137,6 +138,14 @@ export function validateConfig(config: BreakhoundConfig): string[] {
     !(Number.isInteger(config.states) && config.states >= 0)
   ) {
     throw new Error('states must be true, false, or the most menus and dialogs to open per page');
+  }
+  if (config.fix !== undefined) {
+    const { provider, model } = config.fix ?? {};
+    if (provider !== undefined && !['anthropic', 'openai', 'ollama'].includes(provider)) {
+      throw new Error('fix.provider must be anthropic, openai or ollama');
+    }
+    if (model !== undefined && typeof model !== 'string')
+      throw new Error('fix.model must be a string');
   }
   if (config.browsers !== undefined) {
     const list = config.browsers;

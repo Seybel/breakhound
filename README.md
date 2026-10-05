@@ -164,6 +164,17 @@ npx breakhound prompt --copy
 
 Paste it into any agent. It lists each unique issue once with the widths, the element, the evidence and the likely fix, and tells the agent to run `npx breakhound verify` until nothing is left.
 
+### With your own model
+
+No agent at hand? `breakhound fix` works through the last scan's issues itself, using your own API key or a model running on your machine:
+
+```bash
+ANTHROPIC_API_KEY=... npx breakhound fix          # or OPENAI_API_KEY=... with --model <name>
+npx breakhound fix --provider ollama --model qwen2.5-coder   # free and local, with Ollama
+```
+
+For each issue it shows the model the issue and the files most likely behind it (where the element is written, then the files that mention its classes), applies the edits it suggests, and checks the pages again. A fix that clears the issue without breaking anything else, at any width, becomes its own commit, which `breakhound undo` can take back. One that doesn't is put back, and the model gets one more try with the reason. Files with uncommitted changes are never touched. It needs a git repository, and only the code around each issue is sent to the model you chose.
+
 ### Verify, checkpoint, undo
 
 The same loop works from the command line:
@@ -241,6 +252,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `widths` | `{ min, max, step }` in CSS pixels |
 | `ignore`, `detectors` | Leave elements out, turn checks off or change their severity |
 | `failOn` | Exit 1 at `error`, `warning`, `info` or `none` |
+| `fix` | The model `breakhound fix` uses: `{ provider: 'ollama', model: 'qwen2.5-coder' }` |
 | `browsers` | Engines to check in: `["chromium", "webkit", "firefox"]` (default Chromium only) |
 | `states` | Most menus, dialogs and expandable sections to open per page (default 5), or `false` |
 | `concurrency` | Browser tabs to use at once (default half your CPU cores, up to 4) |
