@@ -3,13 +3,14 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { type ParserPlugin, parse } from '@babel/parser';
 import { listFiles, remixFlatRoutes } from './files';
 import type { RoutePattern } from './pattern';
-import { fromReactRouterPath, fromVueRouterPath, joinPaths } from './syntax';
+import { fromAngularPath, fromReactRouterPath, fromVueRouterPath, joinPaths } from './syntax';
 
 /**
  * The static fallback for routes defined in code, used when the live router
  * can't be read (for example when every page sits behind a login). It follows
  * imports from the app's entry file so leftovers that nothing imports are
- * ignored, and reads `<Route path>` elements and `{ path, children }` objects.
+ * ignored, and reads `<Route path>` elements and `{ path, children }` objects
+ * (React Router, Vue Router and Angular).
  */
 
 // biome-ignore lint/suspicious/noExplicitAny: Babel AST nodes are walked generically.
@@ -135,6 +136,11 @@ const ROUTE_OBJECT_KEYS = [
   'loader',
   'components',
   'name',
+  // Angular
+  'loadComponent',
+  'loadChildren',
+  'redirectTo',
+  'pathMatch',
 ];
 
 function isRouteObject(obj: Node): boolean {
@@ -145,6 +151,25 @@ function isRouteObject(obj: Node): boolean {
 
 interface Found {
   paths: string[];
+  /** Files of lazily loaded child routes (Angular's loadChildren), with the path they sit under. */
+  bases: Map<string, string>;
+}
+
+/** The file a `() => import('./admin/admin.routes')` loads. */
+function importedFile(fn: Node, from: string, root: string): string | null {
+  let spec: string | null = null;
+  walk(fn, (n) => {
+    if (spec) return false;
+    if (n.type === 'ImportExpression' && n.source?.type === 'StringLiteral') spec = n.source.value;
+    else if (
+      n.type === 'CallExpression' &&
+      n.callee.type === 'Import' &&
+      n.arguments[0]?.type === 'StringLiteral'
+    )
+      spec = n.arguments[0].value;
+    return true;
+  });
+  return spec ? resolveImport(from, spec, root) : null;
 }
 
 /** An index route under "settings/*" is the page at /settings. */
@@ -152,15 +177,21 @@ function indexPath(base: string): string {
   return base.replace(/\/?\*$/, '') || '/';
 }
 
-function collectRoutes(ast: Node, found: Found): void {
+function collectRoutes(ast: Node, found: Found, file: string, root: string): void {
   const done = new WeakSet<Node>();
+  const fileBase = found.bases.get(file) ?? '';
 
   const fromObject = (obj: Node, base: string) => {
     done.add(obj);
-    if (propValue(obj, 'redirect')) return;
+    if (propValue(obj, 'redirect') || propValue(obj, 'redirectTo')) return;
     const path = propValue(obj, 'path');
     const full = path?.type === 'StringLiteral' ? joinPaths(base, path.value) : base;
-    if (path?.type === 'StringLiteral') found.paths.push(full || '/');
+    const lazy = propValue(obj, 'loadChildren');
+    const childFile = lazy ? importedFile(lazy, file, root) : null;
+    if (childFile) {
+      // Its own routes say which pages are there, starting at this path.
+      if (!found.bases.has(childFile)) found.bases.set(childFile, full);
+    } else if (path?.type === 'StringLiteral') found.paths.push(full || '/');
     else if (propValue(obj, 'index')?.value === true) found.paths.push(indexPath(base));
     const children = propValue(obj, 'children');
     if (children?.type === 'ArrayExpression') {
@@ -189,12 +220,12 @@ function collectRoutes(ast: Node, found: Found): void {
         attrValue(n, 'index') !== undefined ||
         n.children.some((c: Node) => c.type === 'JSXElement' && /Route$/.test(jsxName(c)));
       if (hasRouteShape) {
-        fromElement(n, '');
+        fromElement(n, fileBase);
         return false;
       }
     }
     if (n.type === 'ObjectExpression' && isRouteObject(n)) {
-      fromObject(n, '');
+      fromObject(n, fileBase);
       return false;
     }
     return true;
@@ -207,10 +238,10 @@ export interface SourceRoutes {
 }
 
 /** Routes defined in code, following imports from the entry files. */
-export function sourceRoutes(root: string, syntax: 'react' | 'vue'): SourceRoutes {
+export function sourceRoutes(root: string, syntax: 'react' | 'vue' | 'angular'): SourceRoutes {
   const queue = entryFiles(root);
   const seen = new Set(queue);
-  const found: Found = { paths: [] };
+  const found: Found = { paths: [], bases: new Map() };
   while (queue.length && seen.size <= MAX_FILES) {
     const file = queue.shift() as string;
     let code: string;
@@ -221,7 +252,7 @@ export function sourceRoutes(root: string, syntax: 'react' | 'vue'): SourceRoute
     }
     const ast = parseSource(file, code);
     if (!ast) continue;
-    collectRoutes(ast, found);
+    collectRoutes(ast, found, file, root);
     walk(ast, (n) => {
       let spec: string | undefined;
       if (
@@ -251,7 +282,12 @@ export function sourceRoutes(root: string, syntax: 'react' | 'vue'): SourceRoute
       return true;
     });
   }
-  const convert = syntax === 'vue' ? fromVueRouterPath : fromReactRouterPath;
+  const convert =
+    syntax === 'vue'
+      ? fromVueRouterPath
+      : syntax === 'angular'
+        ? fromAngularPath
+        : fromReactRouterPath;
   const routes = new Map<string, RoutePattern>();
   for (const p of found.paths) {
     const pattern = convert(p);

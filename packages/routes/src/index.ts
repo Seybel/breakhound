@@ -45,4 +45,9 @@ export {
   type RunningServer,
   startServer,
 } from './server';
-export { fromReactRouterPath, fromTanstackPath, fromVueRouterPath } from './syntax';
+export {
+  fromAngularPath,
+  fromReactRouterPath,
+  fromTanstackPath,
+  fromVueRouterPath,
+} from './syntax';

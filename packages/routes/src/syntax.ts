@@ -48,6 +48,12 @@ export function fromReactRouterPath(path: string): RoutePattern | null {
   return finish(segments);
 }
 
+/** Angular: React Router's syntax, except `**` is the not-found page rather than a page to scan. */
+export function fromAngularPath(path: string): RoutePattern | null {
+  if (path.split('/').includes('**')) return null;
+  return fromReactRouterPath(path);
+}
+
 /** Vue Router 4 (also Nuxt): `/user/:id`, `:id(\\d+)?`, `:slug(.*)*`, `:id()`. */
 export function fromVueRouterPath(path: string): RoutePattern | null {
   const segments: Segment[] = [];

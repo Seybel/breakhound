@@ -46,7 +46,7 @@ const FRAMEWORKS: Record<FrameworkId, Omit<Framework, 'id'>> = {
   remix: { name: 'Remix', routing: 'code' },
   'react-router': { name: 'React Router', routing: 'code' },
   tanstack: { name: 'TanStack Router', routing: 'files' },
-  angular: { name: 'Angular', routing: 'none' },
+  angular: { name: 'Angular', routing: 'code' },
   gatsby: { name: 'Gatsby', routing: 'none' },
   react: { name: 'React', routing: 'code' },
   vue: { name: 'Vue', routing: 'code' },

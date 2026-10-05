@@ -28,7 +28,7 @@ export function staticRoutes(project: Project): RouteSource | null {
   }
   const files = fileRoutes(root, framework.id);
   if (files?.routes.length) return files;
-  if (framework.id === 'react' || framework.id === 'vue') {
+  if (framework.id === 'react' || framework.id === 'vue' || framework.id === 'angular') {
     const code = sourceRoutes(root, framework.id);
     if (code.routes.length) return { from: 'your router code', routes: code.routes };
   }

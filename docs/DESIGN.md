@@ -142,7 +142,7 @@ Local development means we have the source, so routes come from the source or th
 | TanStack Router | generated `routeTree.gen.ts` | |
 | Vue Router (code-defined) | **Runtime**: `app.$router.getRoutes()` from the mounted Vue app | Same source Vue DevTools uses |
 | React Router (code-defined) | **Runtime**: data-router instance if present; otherwise walk the React fiber tree for `<Route path>`. **Static fallback**: parse route files with an AST (`createBrowserRouter([...])`, `<Route path>`) | Hardest case |
-| Angular | Runtime `Router.config` | Phase 4 |
+| Angular | Route objects in code, followed from `src/main.ts`; a `loadChildren` file's routes sit under that route's path; `**` and `redirectTo` are left out | |
 | Fallback | Same-origin link crawl from `/` (bounded depth and count) | For unknown setups only |
 
 Routes read from the live router come first where the framework has one (Nuxt, Vue, React Router, Remix, TanStack), because plugins and modules add routes that files don't show. React apps can declare more routes inside pages (`<Routes>` nested in a component), so the router is read again on every page scanned. The React fiber tree is read from the root's current tree (`stateNode.current`), since the container keeps the fiber from the first render.

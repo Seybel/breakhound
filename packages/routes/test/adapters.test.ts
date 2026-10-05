@@ -282,6 +282,35 @@ export default () => (
     ]);
   });
 
+  it('reads Angular routes, including lazily loaded child routes under their path', () => {
+    const root = project({
+      'src/index.html': '<app-root></app-root>',
+      'src/main.ts':
+        "import { appConfig } from './app/app.config';\nbootstrapApplication(AppComponent, appConfig);",
+      'src/app/app.config.ts':
+        "import { routes } from './app.routes';\nexport const appConfig = { providers: [provideRouter(routes)] };",
+      'src/app/app.routes.ts': `export const routes: Routes = [
+  { path: '', component: HomeComponent },
+  { path: 'products/:id', loadComponent: () => import('./product/product.component').then((m) => m.ProductComponent) },
+  { path: 'admin', loadChildren: () => import('./admin/admin.routes').then((m) => m.ADMIN_ROUTES) },
+  { path: 'old-home', redirectTo: '', pathMatch: 'full' },
+  { path: '**', component: NotFoundComponent },
+];`,
+      'src/app/product/product.component.ts': 'export class ProductComponent {}',
+      'src/app/admin/admin.routes.ts': `export const ADMIN_ROUTES: Routes = [
+  { path: '', component: AdminHomeComponent },
+  { path: 'users', component: UsersComponent, children: [{ path: ':id', component: UserComponent }] },
+];`,
+    });
+    expect(paths(sourceRoutes(root, 'angular').routes)).toEqual([
+      '/',
+      '/admin',
+      '/admin/users',
+      '/admin/users/[id]',
+      '/products/[id]',
+    ]);
+  });
+
   it('reads React Router 7 route config', () => {
     const root = project({
       'app/routes.ts': `import { type RouteConfig, index, layout, prefix, route } from '@react-router/dev/routes';

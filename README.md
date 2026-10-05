@@ -65,6 +65,7 @@ npx breakhound --url https://staging.example.com   # every route, on another ser
 | TanStack Router | `routeTree.gen.ts` and the live router |
 | React Router (code-defined) | the live route tree, including `<Routes>` nested inside pages; falls back to reading your router code |
 | Vue Router (code-defined) | the live router; falls back to reading your router code |
+| Angular | your route definitions, from `src/main.ts` on, with lazily loaded `loadChildren` routes under their path |
 | Anything else | links followed from the home page (up to 50 pages, a few per section) |
 
 **Dynamic routes** like `/blog/[slug]` are scanned once, using a real link found on your pages (routes that share a template share a layout). If no page links to one, it's listed with a hint, and you can give it a URL:
