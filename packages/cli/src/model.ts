@@ -8,12 +8,19 @@ export type Provider = 'anthropic' | 'openai' | 'ollama';
 
 export const PROVIDERS: readonly Provider[] = ['anthropic', 'openai', 'ollama'];
 
+/** A picture sent along with a prompt, for models that can see. */
+export interface ModelImage {
+  mediaType: 'image/png' | 'image/jpeg';
+  /** Base64. */
+  data: string;
+}
+
 export interface ModelClient {
   provider: Provider;
   model: string;
   /** Where requests go, to tell the developer before any code is sent. */
   endpoint: string;
-  complete(system: string, prompt: string): Promise<string>;
+  complete(system: string, prompt: string, images?: ModelImage[]): Promise<string>;
 }
 
 export interface ModelOptions {
@@ -67,11 +74,20 @@ function anthropic(key: string, model: string, base: string, timeoutMs: number):
     provider: 'anthropic',
     model,
     endpoint,
-    async complete(system, prompt) {
+    async complete(system, prompt, images = []) {
+      const content = images.length
+        ? [
+            ...images.map((i) => ({
+              type: 'image',
+              source: { type: 'base64', media_type: i.mediaType, data: i.data },
+            })),
+            { type: 'text', text: prompt },
+          ]
+        : prompt;
       const data = (await post(
         endpoint,
         { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-        { model, max_tokens: MAX_TOKENS, system, messages: [{ role: 'user', content: prompt }] },
+        { model, max_tokens: MAX_TOKENS, system, messages: [{ role: 'user', content }] },
         timeoutMs,
       )) as { content?: { type: string; text?: string }[] };
       return (data.content ?? [])
@@ -95,7 +111,16 @@ function chat(
     provider,
     model,
     endpoint,
-    async complete(system, prompt) {
+    async complete(system, prompt, images = []) {
+      const content = images.length
+        ? [
+            { type: 'text', text: prompt },
+            ...images.map((i) => ({
+              type: 'image_url',
+              image_url: { url: `data:${i.mediaType};base64,${i.data}` },
+            })),
+          ]
+        : prompt;
       const data = (await post(
         endpoint,
         key ? { authorization: `Bearer ${key}` } : {},
@@ -103,7 +128,7 @@ function chat(
           model,
           messages: [
             { role: 'system', content: system },
-            { role: 'user', content: prompt },
+            { role: 'user', content },
           ],
         },
         timeoutMs,

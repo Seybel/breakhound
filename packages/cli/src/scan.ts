@@ -44,8 +44,10 @@ import { AUTH_FILE } from './auth';
 import { ensureBrowsers } from './browser';
 import { type BreakhoundConfig, normalizeIgnore } from './config';
 import { guard, parseMemoryLimit } from './guard';
+import { resolveModel } from './model';
 import { printDiscovery, printFooter, printIssues, printNotes, printRouteLine } from './print';
 import { touchSession } from './session';
+import { lookAtPage, VISION_WIDTHS } from './vision';
 
 export interface ScanRequest {
   targets: string[];
@@ -554,6 +556,39 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
       const others = checks.get(r.route);
       if (others)
         r.route = { ...mergeBrowserResults(r.route, firstBrowser, others), route: r.route.route };
+    }
+
+    // A vision model's look at each page, when asked for. Never on verify: an opinion can't be verified.
+    if (config.vision && !jobs && scanned.length) {
+      const asked = typeof config.vision === 'object' ? config.vision : {};
+      const provider = asked.provider ?? config.fix?.provider;
+      const model = await resolveModel({
+        ...(provider ? { provider } : {}),
+        ...((asked.model ?? config.fix?.model) ? { model: asked.model ?? config.fix?.model } : {}),
+      });
+      const widths = (asked.widths ?? VISION_WIDTHS).filter((w) => w >= minWidth && w <= maxWidth);
+      if (!quiet) {
+        console.log(
+          styleText(
+            'dim',
+            `\n  Showing ${scanned.length === 1 ? '1 page' : `${scanned.length} pages`} at ${widths.join(', ')}px to ${model.model}. Screenshots go to ${new URL(model.endpoint).origin}.`,
+          ),
+        );
+      }
+      await pool(scanned, parallel, async (r) => {
+        try {
+          const found = await lookAtPage(scanner, r.route, model, {
+            widths,
+            height: DEFAULTS.height,
+            ...(baseOptions.screenshotDir ? { screenshotDir: baseOptions.screenshotDir } : {}),
+          });
+          r.route.issues.push(...found);
+        } catch (error) {
+          r.route.warnings.push(
+            `The vision check failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      });
     }
 
     // Dynamic routes no page linked to.

@@ -68,7 +68,9 @@ function sameSource(a: Issue, b: Issue): boolean {
  * selector), the same check on the same source line, or the same tag and
  * text, still counts as the same issue rather than a fix plus a new one.
  */
-export function compareRoute(route: string, before: Issue[], after: Issue[]) {
+export function compareRoute(route: string, allBefore: Issue[], after: Issue[]) {
+  // A vision model's opinion isn't measured again on verify, so it's neither fixed nor failing.
+  const before = allBefore.filter((i) => i.detector !== 'vision');
   const fixed: IssueChange[] = [];
   const failing: IssueChange[] = [];
   const regressions: IssueChange[] = [];

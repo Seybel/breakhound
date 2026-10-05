@@ -59,6 +59,14 @@ export interface BreakhoundConfig {
    * it, one at a time. Default ["chromium"].
    */
   browsers?: ('chromium' | 'webkit' | 'firefox')[];
+  /**
+   * Also show screenshots of each page at 375, 768 and 1280px to your own
+   * vision model (the one `fix` uses, or set one here) and report what it
+   * says looks off, as info. Off by default.
+   */
+  vision?:
+    | boolean
+    | { provider?: 'anthropic' | 'openai' | 'ollama'; model?: string; widths?: number[] };
   /** The model `breakhound fix` uses; flags and environment variables work too. */
   fix?: {
     /** anthropic, openai (or any compatible API) or ollama. Picked from your environment when left out. */

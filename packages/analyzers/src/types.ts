@@ -12,7 +12,9 @@ export type DetectorId =
   | 'small-tap-target'
   | 'tiny-text'
   | 'edge-gutter'
-  | 'viewport-meta';
+  | 'viewport-meta'
+  /** Opt-in: what a vision model noticed in screenshots. Never run in the page. */
+  | 'vision';
 
 export const DETECTOR_IDS: readonly DetectorId[] = [
   'page-overflow',

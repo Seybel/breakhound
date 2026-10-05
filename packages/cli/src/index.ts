@@ -63,6 +63,8 @@ Scan options
   --no-screenshots      Skip issue screenshots
   --no-states           Don't open menus, dialogs and expandable sections
   --browsers <list>     Also check other engines, e.g. chromium,webkit,firefox
+  --vision              Also ask your own vision model what looks off (info only;
+                        uses the same model setup as fix)
   --concurrency <n>     Browser tabs to use at once
   --memory-limit <size> Stop before the dev server and browser use more, e.g. 6GB,
                         50% or off (default 60% of your memory)
@@ -127,6 +129,7 @@ async function main(argv: string[]): Promise<number> {
       screenshots: { type: 'boolean' },
       states: { type: 'boolean' },
       browsers: { type: 'string' },
+      vision: { type: 'boolean' },
       concurrency: { type: 'string' },
       'memory-limit': { type: 'string' },
       config: { type: 'string' },
@@ -346,6 +349,7 @@ async function main(argv: string[]): Promise<number> {
     ...(values.screenshots !== undefined ? { screenshots: values.screenshots } : {}),
     ...(values.states === false ? { states: false } : {}),
     ...(browsers ? { browsers } : {}),
+    ...(values.vision !== undefined ? { vision: values.vision } : {}),
     ...(concurrency ? { concurrency } : {}),
     ...(maxRoutes ? { maxRoutes } : {}),
     ...(values.include?.length ? { include: values.include } : {}),

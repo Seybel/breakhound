@@ -21,7 +21,7 @@ Checking responsiveness today is manual: open responsive mode, click through dev
 
 ### Non-goals (v1)
 
-- Judging aesthetics ("this looks cramped"). Possible later via optional bring-your-own vision model.
+- Judging aesthetics ("this looks cramped") as a rule. An opt-in vision model can add its opinion as info (6.6).
 - Replacing visual-regression tools (Percy, Chromatic). We detect bugs; we don't diff approved screenshots.
 - Deterministic automatic code edits. Framework and styling diversity makes that fragile; agents do the edits.
 
@@ -225,6 +225,10 @@ Findings that the closed page also has at that width are removed, so only what b
 ### 6.5 Other browsers
 
 `browsers` (or `--browsers chromium,webkit,firefox`) adds engines. The first one does everything a scan does: it finds the routes, follows links and reads routers. The others then scan the pages it could scan, at the same URLs, one browser after another, so only one engine is ever running. Results are merged per page by issue id: the first browser's breakpoints and details are kept, every issue lists `browsers`, and one missing from some of them ends with "(only in WebKit)". Screenshots from extra browsers go in a folder named after the browser. Missing browsers are downloaded on first use, like Chromium.
+
+### 6.6 Vision model (opt-in)
+
+`--vision` (or `vision: true`) shows each scanned page at 375, 768 and 1280px (JPEG, the top 1800px) to the developer's own vision model, picked the same way as for `breakhound fix`. It asks for clear problems only, as JSON: width, title, a few words of visible text near the problem, and a likely fix. Each becomes a `vision` issue at that width, with severity `info`, tied to the smallest element showing that text (or the page), and screenshotted like any other. A model's opinion isn't a measurement: it never fails a run, it isn't run on verify, and verify ignores the baseline's vision issues.
 
 ---
 

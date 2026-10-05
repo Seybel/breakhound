@@ -164,6 +164,7 @@ declare global {
       markShown: () => void;
       newlyShown: (toggle: string) => string | null;
       selectorShown: (selector: string) => boolean;
+      findByText: (text: string) => import('@breakhound/analyzers').ElementInfo | null;
     };
   }
 }

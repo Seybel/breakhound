@@ -21,6 +21,7 @@ export const DETECTOR_LABELS: Record<DetectorId, string> = {
   'tiny-text': 'Tiny text',
   'edge-gutter': 'No edge spacing',
   'viewport-meta': 'Viewport meta',
+  vision: 'Looks off',
 };
 
 export const SEVERITY_ORDER: Record<Severity, number> = { error: 0, warning: 1, info: 2 };

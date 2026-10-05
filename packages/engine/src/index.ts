@@ -31,6 +31,8 @@ import type {
 export { DETECTOR_IDS } from '@breakhound/analyzers/types';
 export { BROWSER_LABELS, mergeBrowserResults } from './browsers';
 export { createScanResult, type ResultMeta } from './result';
+export { captureIssues } from './screenshots';
+export { settleResize } from './settle';
 export { describeState } from './states';
 export type * from './types';
 export { BROWSER_NAMES } from './types';
@@ -165,7 +167,7 @@ export class Scanner {
     });
   }
 
-  /** Loads a page the way a scan would, runs `fn` on it, and closes it. */
+  /** Loads a page the way a scan would (with the analyzers in it), runs `fn` on it, and closes it. */
   async visit<T>(
     url: string,
     fn: (page: Page) => Promise<T>,
@@ -175,6 +177,7 @@ export class Scanner {
     const context = await this.newContext(opts.maxWidth, opts.height);
     try {
       await context.addInitScript({ content: RESIZE_PROBE });
+      await context.addInitScript({ content: loadAnalyzerScript() });
       const page = await this.openPage(context, url, opts.networkIdleMs, []);
       return await fn(page);
     } finally {

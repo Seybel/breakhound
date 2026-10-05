@@ -29,7 +29,10 @@ export type { HighlightOptions, Region } from './highlight';
 export type * from './types';
 export { DETECTOR_IDS };
 
-const DETECTORS: Record<Exclude<DetectorId, 'unexpected-wrap'>, (s: Snapshot) => Finding[]> = {
+const DETECTORS: Record<
+  Exclude<DetectorId, 'unexpected-wrap' | 'vision'>,
+  (s: Snapshot) => Finding[]
+> = {
   'page-overflow': pageOverflow,
   'media-overflow': mediaOverflow,
   'content-overflow': contentOverflow,
@@ -139,6 +142,7 @@ export function hasContent(): boolean {
 }
 
 export { clearHighlights, highlight } from './highlight';
+export { findByText } from './selector';
 export { settleAfterResize } from './settle';
 export {
   clickPoint,

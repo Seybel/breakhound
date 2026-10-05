@@ -180,6 +180,29 @@ function openingTag(el: Element): string {
   return out.length > 200 ? `${out.slice(0, 197)}...>` : out;
 }
 
+/**
+ * The smallest element showing this text, for findings that come with words
+ * rather than an element (a vision model quoting what it saw).
+ */
+export function findByText(wanted: string): ElementInfo | null {
+  const needle = wanted.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (needle.length < 3 || !document.body) return null;
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const el = node.parentElement;
+    if (!el || el.closest('script, style, noscript')) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    // The text can be split over inline elements, so match against the block that holds it.
+    for (let p: Element | null = el; p && p !== document.body; p = p.parentElement) {
+      const text = (p.textContent ?? '').replace(/\s+/g, ' ').toLowerCase();
+      if (text.includes(needle)) return describe(p);
+      if (text.length > needle.length * 4) break;
+    }
+  }
+  return null;
+}
+
 export function describe(el: Element): ElementInfo {
   const cached = cache.get(el);
   if (cached) return cached;

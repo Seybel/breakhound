@@ -117,6 +117,10 @@ A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign
 
 It never clicks a link to another page or a button that submits a form, and it opens only one question of an FAQ, since they all share a layout. It opens up to 5 per page. Set `states` to change that, or `--no-states` (or `data-breakhound-ignore="states"` on an element) to leave them closed.
 
+### A second opinion from a vision model (optional)
+
+Rules can't tell when a layout is merely cramped or awkward. `--vision` shows each page at 375, 768 and 1280px to your own vision model (an Anthropic or OpenAI key, or a local Ollama model such as `qwen2.5vl`, set up the same way as `breakhound fix`) and adds what it says looks off. Those come in as info, tied to the element whose text the model quotes, and never fail a run. Verify leaves them out, since an opinion can't be measured again.
+
 It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone. It also looks inside web components (open shadow roots) and handles right-to-left pages.
 
 ## Reports
@@ -253,6 +257,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `widths` | `{ min, max, step }` in CSS pixels |
 | `ignore`, `detectors` | Leave elements out, turn checks off or change their severity |
 | `failOn` | Exit 1 at `error`, `warning`, `info` or `none` |
+| `vision` | `true` to add a vision model's opinion, or `{ model, provider, widths }` |
 | `fix` | The model `breakhound fix` uses: `{ provider: 'ollama', model: 'qwen2.5-coder' }` |
 | `browsers` | Engines to check in: `["chromium", "webkit", "firefox"]` (default Chromium only) |
 | `states` | Most menus, dialogs and expandable sections to open per page (default 5), or `false` |
@@ -294,6 +299,7 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 --no-screenshots        Skip screenshots
 --no-states             Don't open menus, dialogs and expandable sections
 --browsers <list>       Also check other engines, e.g. chromium,webkit,firefox
+--vision                Also ask your own vision model what looks off (info only)
 --concurrency <n>       Browser tabs to use at once
 --memory-limit <size>   Memory the dev server and browser may use, e.g. 6GB, 50% or off
 --out <dir>             Report folder (default .breakhound)

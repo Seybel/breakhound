@@ -93,6 +93,7 @@ export const KNOWN_KEYS = new Set([
   'pdf',
   'browsers',
   'fix',
+  'vision',
   'concurrency',
   'memoryLimit',
   'settle',
@@ -146,6 +147,22 @@ export function validateConfig(config: BreakhoundConfig): string[] {
     }
     if (model !== undefined && typeof model !== 'string')
       throw new Error('fix.model must be a string');
+  }
+  if (config.vision !== undefined && typeof config.vision !== 'boolean') {
+    const { provider, model, widths } = config.vision ?? {};
+    if (provider !== undefined && !['anthropic', 'openai', 'ollama'].includes(provider)) {
+      throw new Error('vision.provider must be anthropic, openai or ollama');
+    }
+    if (model !== undefined && typeof model !== 'string')
+      throw new Error('vision.model must be a string');
+    if (
+      widths !== undefined &&
+      (!Array.isArray(widths) ||
+        !widths.length ||
+        widths.some((w) => !Number.isInteger(w) || w <= 0))
+    ) {
+      throw new Error('vision.widths must be a list of widths in pixels, like [375, 768, 1280]');
+    }
   }
   if (config.browsers !== undefined) {
     const list = config.browsers;

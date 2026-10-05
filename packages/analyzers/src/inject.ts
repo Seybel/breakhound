@@ -3,6 +3,7 @@ import {
   clearHighlights,
   clickPoint,
   declaredBreakpoints,
+  findByText,
   hasContent,
   highlight,
   markShown,
@@ -28,6 +29,7 @@ const api = {
   markShown,
   newlyShown,
   selectorShown,
+  findByText,
 };
 
 declare global {
