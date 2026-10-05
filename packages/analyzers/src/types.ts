@@ -121,4 +121,6 @@ export interface AnalyzeResult {
   signature: string;
   /** Present when asked for with `toggles`. */
   toggles?: Toggle[];
+  /** Which container query thresholds each size container is past; absent without container queries. */
+  containers?: string;
 }

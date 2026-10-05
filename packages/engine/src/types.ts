@@ -58,7 +58,9 @@ export interface Breakpoints {
   observed: number[];
   /** Widths declared by CSS media queries. */
   declared: number[];
-  /** Observed changes with no declared breakpoint nearby. */
+  /** Widths where a container query switches (@container). */
+  containers?: number[];
+  /** Observed changes with no media or container query nearby. */
   unexplained: number[];
 }
 

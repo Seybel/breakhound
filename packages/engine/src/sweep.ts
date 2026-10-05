@@ -59,7 +59,7 @@ export function stateKey(r: AnalyzeResult): string {
     .map((w) => `${w.kind}|${w.element.selector}|${w.lines}`)
     .sort()
     .join(',');
-  return `${r.signature}#${findings}#${wraps}`;
+  return `${r.signature}#${findings}#${wraps}#${r.containers ?? ''}`;
 }
 
 export class Sweeper {

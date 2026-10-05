@@ -156,7 +156,7 @@ export function renderDetailed(result: ScanResult, imageBase = 'screenshots/'): 
     lines.push(
       `Layout changes at: ${bp.observed.length ? bp.observed.map((w) => `${w}px`).join(', ') : 'none'}` +
         (bp.unexplained.length
-          ? ` (no media query explains ${bp.unexplained.map((w) => `${w}px`).join(', ')})`
+          ? ` (no media or container query explains ${bp.unexplained.map((w) => `${w}px`).join(', ')})`
           : ''),
       '',
     );

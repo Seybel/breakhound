@@ -205,7 +205,8 @@ We also read declared breakpoints from `@media` / `@container` rules in `documen
 
 - `observed`: widths where the layout actually changes
 - `declared`: widths the CSS declares
-- `unexplained`: observed changes with no nearby declared breakpoint (often a wrap or overflow bug)
+- `containers`: widths where a container query switches. At each width the analyzers note which `@container` width thresholds each size container is past, so the sweep bisects to the exact pixel where one flips.
+- `unexplained`: observed changes with neither a media query nor a container query switching nearby (often a wrap or overflow bug)
 
 ### 6.4 Interaction states
 

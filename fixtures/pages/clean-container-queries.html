@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cards that adapt with container queries</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+.page { display: grid; gap: 16px; padding: 16px; }
+@media (min-width: 900px) { .page { grid-template-columns: 1fr 1fr; } }
+.slot { container-type: inline-size; container-name: card; }
+.card { display: grid; gap: 12px; padding: 12px; background: #f4f4f4; }
+.card .thumb { height: 80px; background: #ccd; }
+@container card (min-width: 480px) {
+  .card { grid-template-columns: 160px 1fr; }
+}
+</style>
+</head>
+<body>
+<!-- Layout changes: the cards go side by side at 512 (480 + padding), back to stacked at 900 when the page splits into two columns, and side by side again at 1008. Only 900 is a media query. -->
+<div class="page" data-bh-breakpoints="512,900,1008">
+  <div class="slot"><article class="card"><div class="thumb"></div><p>Hand-thrown mugs in four glazes, each one a little different from the last.</p></article></div>
+  <div class="slot"><article class="card"><div class="thumb"></div><p>Linen tea towels, washed soft and ready to use from the first day.</p></article></div>
+</div>
+</body>
+</html>

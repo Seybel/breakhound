@@ -100,7 +100,7 @@ Links that would log you out, delete something, or download a file are never fol
 | `edge-gutter` | Text pressed against the edge of a phone screen |
 | `viewport-meta` | A missing responsive viewport tag |
 
-Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media query explains.
+Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media or container query explains.
 
 ### Menus, dialogs and expandable sections
 

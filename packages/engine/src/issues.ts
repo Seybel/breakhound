@@ -339,19 +339,25 @@ export function buildBreakpoints(
   maxWidth: number,
 ): Breakpoints {
   const found = new Set<number>();
+  const switched = new Set<number>();
   for (const results of tabs) {
     const widths = [...results.keys()].sort((a, b) => a - b);
     for (let i = 1; i < widths.length; i++) {
       const prev = results.get(widths[i - 1] as number);
       const cur = results.get(widths[i] as number);
-      if (prev && cur && prev.signature !== cur.signature) found.add(widths[i] as number);
+      if (!prev || !cur) continue;
+      if (prev.signature !== cur.signature) found.add(widths[i] as number);
+      if ((prev.containers ?? '') !== (cur.containers ?? '')) switched.add(widths[i] as number);
     }
   }
   const observed = [...found].sort((a, b) => a - b);
+  const containers = [...switched].sort((a, b) => a - b);
   const inRange = declared.filter((w) => w > minWidth && w <= maxWidth);
+  const explained = [...inRange, ...containers];
   return {
     observed,
     declared: inRange,
-    unexplained: observed.filter((w) => !inRange.some((d) => Math.abs(d - w) <= 1)),
+    ...(containers.length ? { containers } : {}),
+    unexplained: observed.filter((w) => !explained.some((d) => Math.abs(d - w) <= 1)),
   };
 }

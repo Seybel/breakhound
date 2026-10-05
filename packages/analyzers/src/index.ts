@@ -12,7 +12,7 @@ import {
   type Snapshot,
   snapshot,
 } from './dom';
-import { declaredBreakpoints, layoutSignature } from './fingerprint';
+import { containerSignature, declaredBreakpoints, layoutSignature } from './fingerprint';
 import { cachedSelector, elementOf, resolveSelector } from './selector';
 import { findToggles } from './states';
 import {
@@ -96,11 +96,13 @@ export function analyze(options: AnalyzeOptions = {}): AnalyzeResult {
     ? wrapStats(snap).filter((w) => !isIgnored(w.element, 'unexpected-wrap', rules))
     : [];
 
+  const containers = containerSignature(snap);
   return {
     width: snap.viewportWidth,
     findings,
     wraps,
     signature: layoutSignature(snap, cachedSelector),
+    ...(containers ? { containers } : {}),
     ...(options.toggles ? { toggles: findToggles(rules) } : {}),
   };
 }

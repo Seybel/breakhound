@@ -28,6 +28,19 @@ describe('behavioural breakpoints', () => {
     expect(result.breakpoints.unexplained).toEqual([]);
   });
 
+  it('counts a container query switching as declared, not unexplained', async () => {
+    const file = join(PAGES, 'clean-container-queries.html');
+    const expected = readFileSync(file, 'utf8')
+      .match(/data-bh-breakpoints="([^"]+)"/)?.[1]
+      ?.split(',')
+      .map(Number);
+    const result = await scanPage(pathToFileURL(file).href);
+    expect(result.breakpoints.observed).toEqual(expected);
+    expect(result.breakpoints.declared).toEqual([900]);
+    expect(result.breakpoints.containers).toEqual([512, 900, 1008]);
+    expect(result.breakpoints.unexplained).toEqual([]);
+  });
+
   it('does not treat wrapping flex content as a breakpoint', async () => {
     const result = await scanPage(pathToFileURL(join(PAGES, 'clean-text.html')).href);
     expect(result.breakpoints.observed).toEqual([]);
