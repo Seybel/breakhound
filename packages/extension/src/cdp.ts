@@ -47,14 +47,14 @@ export async function evaluate<T>(
     );
   });
   try {
-    const reply = await Promise.race([
-      cdp.send<EvaluateReply>('Runtime.evaluate', {
-        expression,
-        awaitPromise: true,
-        returnByValue: true,
-      }),
-      timeout,
-    ]);
+    const sent = cdp.send<EvaluateReply>('Runtime.evaluate', {
+      expression,
+      awaitPromise: true,
+      returnByValue: true,
+    });
+    // After a timeout nobody waits for the reply any more; a late failure isn't an error then.
+    sent.catch(() => {});
+    const reply = await Promise.race([sent, timeout]);
     if (reply.exceptionDetails) {
       const d = reply.exceptionDetails;
       throw new Error(d.exception?.description?.split('\n')[0] ?? d.text ?? 'The page threw');

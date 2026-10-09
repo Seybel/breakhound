@@ -473,8 +473,29 @@ async function resetView(): Promise<void> {
 /** Selects the element in the Elements panel. */
 function inspect(issue: Issue): void {
   const selector = JSON.stringify(issue.element.selector);
+  // `inspect` is the console's, which DevTools offers to this eval. The callback form keeps a
+  // refusal (a page extensions may not touch, or one in the middle of loading) out of the error log.
   chrome.devtools.inspectedWindow.eval(
-    `inspect(window.__breakhound ? window.__breakhound.resolveSelector(${selector}) : document.querySelector(${selector}))`,
+    `(() => {
+      let el = null;
+      try {
+        el = window.__breakhound ? window.__breakhound.resolveSelector(${selector}) : document.querySelector(${selector});
+      } catch {}
+      if (el) inspect(el);
+      return !!el;
+    })()`,
+    (found, problem) => {
+      if (problem) {
+        notify(
+          `Couldn't select it in Elements: ${problem.isException ? problem.value : (problem.details?.[0] ?? 'DevTools refused')}. DevTools won't let extensions do this on chrome:// pages, the Chrome Web Store, file:// pages without file access, or a page that is still loading.`,
+        );
+      } else if (!found) {
+        notify(
+          "That element isn't on the page right now. It may only appear after something else happens, like opening a menu.",
+          'note',
+        );
+      }
+    },
   );
 }
 
@@ -1209,6 +1230,14 @@ new ResizeObserver(() => {
     drawZones();
   }
 }).observe(document.body);
+
+// Anything that still slips through is shown here rather than left in the extension's error log.
+addEventListener('unhandledrejection', (e) => {
+  e.preventDefault();
+  const reason = e.reason instanceof Error ? e.reason.message : String(e.reason);
+  console.warn('breakhound:', e.reason);
+  notify(`Something went wrong: ${reason}`);
+});
 
 // Leave the tab as it was when DevTools closes.
 addEventListener('pagehide', () => {

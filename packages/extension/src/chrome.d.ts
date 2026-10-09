@@ -33,7 +33,17 @@ declare namespace chrome {
       // biome-ignore lint/suspicious/noShadowRestrictedNames: the API's real name.
       function eval(
         expression: string,
-        callback?: (result: unknown, exception?: { isException?: boolean; value?: string }) => void,
+        callback?: (
+          result: unknown,
+          problem?: {
+            /** The expression threw; `value` is what it threw. */
+            isException?: boolean;
+            value?: string;
+            /** DevTools refused to run it; `details` says why ("Permission denied"). */
+            isError?: boolean;
+            details?: unknown[];
+          },
+        ) => void,
       ): void;
     }
     namespace panels {
