@@ -32,6 +32,8 @@ const REPLACED = new Set([
 interface Item {
   rec: ElementRecord;
   box: Box;
+  /** What actually paints: the line pieces of text, or the box itself. */
+  parts: Box[];
   /** Height of one text line, or 0 for media and controls. */
   lineHeight: number;
 }
@@ -90,6 +92,73 @@ function intersect(a: Box, b: Box): { w: number; h: number } {
   };
 }
 
+/** The largest overlap between what two items actually paint, piece by piece. */
+function paintedOverlap(x: Item, y: Item): { w: number; h: number } {
+  let best = { w: 0, h: 0 };
+  for (const a of x.parts) {
+    for (const b of y.parts) {
+      const o = intersect(a, b);
+      if (o.w > 0 && o.h > 0 && o.w * o.h > best.w * best.h) best = o;
+    }
+  }
+  return best;
+}
+
+interface Spill {
+  /** The box whose content no longer fits in it. */
+  box: ElementRecord;
+  direction: 'down' | 'across';
+}
+
+interface Group {
+  a: ElementRecord;
+  b: ElementRecord;
+  lca: ElementRecord | null;
+  w: number;
+  h: number;
+  pairs: number;
+  spill: Spill | null;
+}
+
+/** Room for borders and rounding before content counts as sticking out of its box. */
+const SPILL_PX = 2;
+
+/** Whether `branch` holds one of the two items, and that item sticks out of it. */
+function spillOf(branch: ElementRecord, x: Item, y: Item): Spill | null {
+  for (const item of [x, y]) {
+    if (!ancestors(item.rec).includes(branch) || item.rec === branch) continue;
+    const box = branch.rect;
+    if (item.box.bottom > box.bottom + SPILL_PX) return { box: branch, direction: 'down' };
+    if (item.box.right > box.right + SPILL_PX || item.box.left < box.left - SPILL_PX) {
+      return { box: branch, direction: 'across' };
+    }
+  }
+  return null;
+}
+
+function name(rec: ElementRecord): string {
+  return `\`${describe(rec.el).selector}\``;
+}
+
+/** The likely fix, from how the two are laid out next to each other. */
+function suggestionFor(g: Group): string {
+  if (g.spill?.direction === 'down') {
+    return `The content of ${name(g.spill.box)} is taller than its box at this width and runs down over what comes next. Its height is fixed (height or max-height) and the content no longer fits once it wraps; use min-height instead, or let it grow with its content.`;
+  }
+  if (g.spill?.direction === 'across') {
+    return `The content of ${name(g.spill.box)} is wider than its box at this width and runs sideways into its neighbour. Let it shrink or wrap (min-width: 0 on flex or grid items, overflow-wrap: anywhere for long words, max-width: 100% for media).`;
+  }
+  const lca = g.lca;
+  const display = lca?.style.display ?? '';
+  if (lca && display.includes('flex') && !lca.style.flexDirection.startsWith('column')) {
+    return `They sit side by side in the flex row ${name(lca)}, which runs out of room at this width. Let the row wrap (flex-wrap: wrap), let the item that should give way shrink (min-width: 0), or stack them below this width with a media query.`;
+  }
+  if (lca && display.includes('grid')) {
+    return `They share the grid ${name(lca)}, whose columns are too narrow here for what is in them. Use minmax(0, 1fr) columns so items can shrink, or switch to fewer columns below this width.`;
+  }
+  return 'These two areas stop making room for each other at this width. Stack them earlier with a media query, or let the narrower one shrink (min-width: 0).';
+}
+
 /**
  * In-flow content (text, media, controls) painted on top of other in-flow
  * content. Pairs are grouped by the two sibling branches where their DOM paths
@@ -102,12 +171,19 @@ export function overlap(snap: Snapshot): Finding[] {
     const box = itemBox(rec);
     if (!box || box.width < 1 || box.height < 1) continue;
     const isText = !REPLACED.has(rec.el.tagName);
-    items.push({ rec, box, lineHeight: isText ? box.height / Math.max(1, rec.textLines) : 0 });
+    const parts = isText
+      ? rec.textFragments
+          .map((f) => intersectBox(f, rec.clip))
+          .filter((f): f is Box => !!f && f.width > 0 && f.height > 0)
+      : [];
+    items.push({
+      rec,
+      box,
+      parts: parts.length ? parts : [box],
+      lineHeight: isText ? box.height / Math.max(1, rec.textLines) : 0,
+    });
   }
-  const groups = new Map<
-    string,
-    { a: ElementRecord; b: ElementRecord; w: number; h: number; pairs: number }
-  >();
+  const groups = new Map<string, Group>();
   const index = new Map<ElementRecord, number>();
   for (const [i, r] of snap.records.entries()) index.set(r, i);
 
@@ -131,7 +207,11 @@ export function overlap(snap: Snapshot): Finding[] {
         const y = list[j] as Item;
         if (y.box.left >= x.box.right - MIN_OVERLAP) break;
         if (Math.floor(Math.max(x.box.top, y.box.top) / BAND_PX) !== band) continue;
-        const { w, h } = intersect(x.box, y.box);
+        // The union boxes overlapping is only a hint: text wrapping beside other text has
+        // boxes that cross while every line piece sits clear of the rest.
+        const rough = intersect(x.box, y.box);
+        if (rough.w < MIN_OVERLAP || rough.h < MIN_OVERLAP) continue;
+        const { w, h } = paintedOverlap(x, y);
         const minH = Math.max(
           MIN_OVERLAP,
           MIN_TEXT_LINE_SHARE * Math.max(x.lineHeight, y.lineHeight),
@@ -144,13 +224,15 @@ export function overlap(snap: Snapshot): Finding[] {
             ? [split.a, split.b]
             : [split.b, split.a];
         const key = `${index.get(first)}:${index.get(second)}`;
+        const spill = spillOf(first, x, y) ?? spillOf(second, x, y);
         const g = groups.get(key);
         if (g) {
           g.w = Math.max(g.w, w);
           g.h = Math.max(g.h, h);
           g.pairs++;
+          g.spill ??= spill;
         } else {
-          groups.set(key, { a: first, b: second, w, h, pairs: 1 });
+          groups.set(key, { a: first, b: second, lca: split.lca, w, h, pairs: 1, spill });
         }
       }
     }
@@ -165,8 +247,7 @@ export function overlap(snap: Snapshot): Finding[] {
       element: describe(g.a.el),
       related: describe(g.b.el),
       evidence: { overlapWidth: px(g.w), overlapHeight: px(g.h), overlappingPairs: g.pairs },
-      suggestion:
-        'These two areas stop making room for each other at this width. Stack them earlier with a media query, or let the narrower one shrink (min-width: 0).',
+      suggestion: suggestionFor(g),
       styles: pick(g.a.style, [
         'display',
         'position',

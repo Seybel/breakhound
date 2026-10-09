@@ -14,6 +14,11 @@ export interface ElementRecord {
   rect: Box;
   /** Union of this element's own (direct) text nodes that is actually painted, if any. */
   textRect: Box | null;
+  /**
+   * The same text one line piece at a time. Text that wraps has a union box
+   * covering most of both lines, though it only paints its own pieces.
+   */
+  textFragments: Box[];
   /** Same as textRect but before any clipping. */
   rawTextRect: Box | null;
   /** The element's own text, whitespace-collapsed. */
@@ -224,12 +229,21 @@ export function isVisuallyHidden(rec: ElementRecord): boolean {
   return false;
 }
 
-function measureOwnText(el: Element): { rect: Box | null; lines: number; text: string } {
+/** Line pieces kept per element; past this, the union box stands in for the rest. */
+const MAX_FRAGMENTS = 64;
+
+function measureOwnText(el: Element): {
+  rect: Box | null;
+  fragments: Box[];
+  lines: number;
+  text: string;
+} {
   let left = Infinity;
   let right = -Infinity;
   let top = Infinity;
   let bottom = -Infinity;
   const lineTops: number[] = [];
+  const pieces: DOMRect[] = [];
   const range = document.createRange();
   let text = '';
   for (const node of el.childNodes) {
@@ -242,14 +256,27 @@ function measureOwnText(el: Element): { rect: Box | null; lines: number; text: s
       right = Math.max(right, r.right);
       top = Math.min(top, r.top);
       bottom = Math.max(bottom, r.bottom);
+      pieces.push(r);
       if (!lineTops.some((t) => Math.abs(t - r.top) < r.height / 2)) lineTops.push(r.top);
     }
   }
   text = text.replace(/\s+/g, ' ').trim();
-  if (left === Infinity) return { rect: null, lines: 0, text };
+  if (left === Infinity) return { rect: null, fragments: [], lines: 0, text };
   const sx = window.scrollX;
   const sy = window.scrollY;
+  const fragments =
+    pieces.length <= MAX_FRAGMENTS
+      ? pieces.map((r) => ({
+          left: r.left + sx,
+          right: r.right + sx,
+          top: r.top + sy,
+          bottom: r.bottom + sy,
+          width: r.width,
+          height: r.height,
+        }))
+      : [];
   return {
+    fragments,
     rect: {
       left: left + sx,
       right: right + sx,
@@ -288,7 +315,9 @@ export function snapshot(): Snapshot {
       return;
     }
 
-    const own = LEAF_TAGS.has(el.tagName) ? { rect: null, lines: 0, text: '' } : measureOwnText(el);
+    const own = LEAF_TAGS.has(el.tagName)
+      ? { rect: null, fragments: [], lines: 0, text: '' }
+      : measureOwnText(el);
     let outOfFlow = parent?.outOfFlow ?? null;
     if (style.position === 'fixed') outOfFlow = 'fixed';
     else if (style.position === 'absolute' && outOfFlow !== 'fixed') outOfFlow = 'absolute';
@@ -308,6 +337,7 @@ export function snapshot(): Snapshot {
         own.rect && style.overflowX === 'visible' && style.overflowY === 'visible'
           ? own.rect
           : own.rect && intersectBox(own.rect, innerClip),
+      textFragments: own.fragments,
       rawTextRect: own.rect,
       text: own.text,
       textLines: own.lines,

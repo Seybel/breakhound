@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bold text and links wrapping inside a paragraph</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.2; }
+main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+.byline { color: #555; }
+.byline a, footer a { color: inherit; text-decoration: underline; }
+footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid #ddd; display: flex; flex-direction: column; gap: 8px; }
+.columns { display: grid; gap: 24px; }
+@media (min-width: 900px) { .columns { grid-template-columns: 2fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="columns">
+    <article>
+      <p class="byline">Reporting by the newsroom. <strong>Our editorial policy and award-winning standards</strong> are described in <a href="#ethics">our ethics statement</a> and in <a href="#awards">the coverage that won this year's journalism award</a>, which we keep updated.</p>
+      <p>Body copy that goes on for a while so the column has some real text in it, with a <strong>bold phrase that wraps</strong> across lines and <a href="#more">a link that also wraps onto the next line at some widths</a> right after it.</p>
+    </article>
+    <aside>
+      <p class="byline">Disclosure: <strong>the publisher is owned by a larger group</strong>, as set out in <a href="#owner">our ownership page</a> and <a href="#conflicts">conflicts of interest policy</a>.</p>
+    </aside>
+  </div>
+  <footer>
+    <p>By using this site you agree to our <a href="#terms">Terms of Use</a>, <a href="#privacy">Privacy Policy</a>, <a href="#cookies">Cookie Policy</a>, and <a href="#data">Do Not Sell My Personal Information</a>, all of which may change from time to time.</p>
+  </footer>
+</main>
+</body>
+</html>
