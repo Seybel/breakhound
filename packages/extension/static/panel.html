@@ -7,52 +7,79 @@
   <link rel="stylesheet" href="panel.css">
 </head>
 <body>
-  <header class="toolbar">
-    <button id="scan" class="primary" type="button">Scan this page</button>
-    <button id="stop" type="button" hidden>Stop</button>
-    <label class="field" title="Narrowest and widest viewport widths to check">
+  <header class="topbar">
+    <span class="brand" title="breakhound"><span class="mark"></span><span class="word"></span></span>
+    <span class="divider"></span>
+    <button id="scan" class="btn primary" type="button"></button>
+    <button id="stop" class="btn" type="button" hidden></button>
+    <label class="range" title="Narrowest and widest widths to check">
       <input id="min" type="number" min="200" max="3840" step="1" aria-label="Narrowest width">
-      <span>to</span>
+      <span class="dash">–</span>
       <input id="max" type="number" min="200" max="3840" step="1" aria-label="Widest width">
-      <span>px</span>
+      <span class="unit">px</span>
     </label>
-    <label class="check" title="Reloads the page first, so breakhound can wait for the page's own resize handlers exactly, the way the CLI does. Leave it off to scan the page as it is right now.">
-      <input id="reload" type="checkbox"> Reload first
+    <label class="switch" title="Reloads the page first, so breakhound can wait for the page's own resize handlers exactly, the way the CLI does. Leave it off to scan the page as it is right now.">
+      <input id="reload" type="checkbox"><span class="track" aria-hidden="true"></span><span>Reload first</span>
     </label>
+    <span class="grow"></span>
     <span id="status" class="status" role="status" aria-live="polite"></span>
-    <span class="spacer"></span>
-    <button id="copy-all" type="button" hidden>Copy prompt for your agent</button>
+    <button id="copy-all" class="btn ghost" type="button" hidden></button>
   </header>
 
-  <div id="stale" class="banner" hidden>The page changed since this scan. Scan again to see where it stands now.</div>
-  <div id="error" class="banner error" hidden></div>
-  <div id="preview" class="banner preview" hidden>
-    <span id="preview-text"></span>
-    <button id="preview-end" type="button">Back to the normal width</button>
+  <div id="notice" class="notice" hidden>
+    <span id="notice-text"></span>
+    <button id="notice-close" class="icon-btn" type="button" aria-label="Dismiss"></button>
   </div>
 
   <main>
     <section id="intro" class="intro">
+      <div class="hero-mark" aria-hidden="true"></div>
       <h1>Find where this page breaks</h1>
-      <p>breakhound resizes this tab from the narrowest to the widest width, finds every width where the layout changes, and lists what breaks: horizontal scrolling, content spilling out, overlaps, wrapped rows, clipped or squished text, small tap targets. Every range is exact to the pixel.</p>
-      <p class="muted">While it scans, Chrome shows a bar saying breakhound started debugging this browser. That is how it resizes the page. The bar goes away when the scan ends, and the tab is put back the way it was.</p>
+      <p class="lede">breakhound sweeps this tab across every width, finds each one where the layout changes, and pins every bug to the exact pixel range where it happens.</p>
+      <button id="intro-scan" class="btn primary large" type="button"></button>
+      <ul class="points">
+        <li><strong>Every width</strong><span>320 to 1920px, not a handful of device presets</span></li>
+        <li><strong>Exact to the pixel</strong><span>Each change is narrowed down until it can't be narrower</span></li>
+        <li><strong>Ready to fix</strong><span>Copy a prompt with the widths, the element and the likely fix</span></li>
+      </ul>
+      <p class="fine">While it scans, Chrome shows a bar saying breakhound started debugging this browser. That is how an extension resizes a tab. The bar goes away afterwards, and the tab goes back to its own width.</p>
     </section>
 
-    <section id="results" hidden>
-      <p id="summary" class="summary"></p>
-      <div id="timeline" class="timeline" aria-hidden="true">
-        <div class="axis" id="axis"></div>
-        <div class="lanes" id="lanes"></div>
-        <div class="cursor" id="cursor" hidden><span></span></div>
-        <div class="now" id="now" hidden></div>
+    <section id="results" class="results" hidden>
+      <div id="stats" class="stats"></div>
+
+      <div class="card ruler">
+        <div class="ruler-top">
+          <span class="eyebrow">Viewport width</span>
+          <span class="hint">Drag across to resize the page · ← → to nudge</span>
+          <span class="grow"></span>
+          <span id="viewing" class="viewing" hidden>
+            <span id="viewing-text"></span>
+            <button id="viewing-reset" class="btn ghost small" type="button"></button>
+          </span>
+        </div>
+        <div id="timeline" class="timeline" tabindex="0" role="slider" aria-label="Viewport width to show the page at" aria-valuemin="320" aria-valuemax="1920" aria-valuenow="320">
+          <div id="devices" class="devices" aria-hidden="true"></div>
+          <canvas id="zones" class="zones" aria-hidden="true"></canvas>
+          <div id="lanes" class="lanes"></div>
+          <div id="axis" class="axis" aria-hidden="true"></div>
+          <div id="hover" class="line hover" hidden><span class="tag"></span></div>
+          <div id="playhead" class="line playhead" hidden><span class="tag"></span></div>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><i class="key zone"></i>Same layout</span>
+          <span><i class="key declared"></i>Media query</span>
+          <span><i class="key unexplained"></i>Change no media or container query explains</span>
+          <span><i class="key problem"></i>Something breaks here</span>
+        </div>
       </div>
-      <p class="legend">
-        <span class="key declared"></span> media query
-        <span class="key change"></span> layout changes
-        <span class="key unexplained"></span> changes with no media or container query
-        <span class="hint">Click anywhere on the timeline to see the page at that width.</span>
-      </p>
-      <ul id="issues" class="issues"></ul>
+
+      <div id="filters" class="filters" role="toolbar" aria-label="Show"></div>
+
+      <div id="split" class="split">
+        <ul id="issues" class="issues"></ul>
+        <aside id="detail" class="detail"></aside>
+      </div>
     </section>
   </main>
   <script src="panel.js"></script>
