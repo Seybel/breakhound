@@ -25,6 +25,56 @@ declare namespace chrome {
   export namespace runtime {
     const lastError: { message?: string } | undefined;
     function getManifest(): { version: string };
+    const onInstalled: { addListener(callback: () => void): void };
+  }
+
+  export namespace tabs {
+    interface Tab {
+      id?: number;
+      windowId: number;
+    }
+    const onUpdated: {
+      addListener(
+        callback: (tabId: number, changeInfo: { status?: 'loading' | 'complete' }) => void,
+      ): void;
+    };
+  }
+
+  export namespace sidePanel {
+    function setOptions(options: {
+      tabId?: number;
+      path?: string;
+      enabled?: boolean;
+    }): Promise<void>;
+    function open(options: { tabId?: number; windowId?: number }): Promise<void>;
+  }
+
+  export namespace contextMenus {
+    type Context =
+      | 'all'
+      | 'page'
+      | 'frame'
+      | 'selection'
+      | 'link'
+      | 'editable'
+      | 'image'
+      | 'video'
+      | 'audio'
+      | 'action';
+    function create(properties: {
+      id: string;
+      title: string;
+      contexts?: Context[];
+      documentUrlPatterns?: string[];
+    }): void;
+    function update(id: string, properties: { title?: string }): Promise<void>;
+    const onClicked: {
+      addListener(callback: (info: { menuItemId: string | number }, tab?: tabs.Tab) => void): void;
+    };
+  }
+
+  export namespace action {
+    const onClicked: { addListener(callback: (tab: tabs.Tab) => void): void };
   }
 
   export namespace devtools {

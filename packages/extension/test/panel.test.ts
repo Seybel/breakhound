@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type BrowserContext, chromium, type Page } from 'playwright';
+import { type BrowserContext, chromium, type Page, type Worker } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const here = import.meta.dirname;
@@ -14,16 +14,13 @@ let server: Server;
 let origin: string;
 let context: BrowserContext;
 let extensionId: string;
+let worker: Worker;
 
 beforeAll(async () => {
   execFileSync(process.execPath, [join(here, '../build.mjs')], { stdio: 'inherit' });
-  // A copy with an empty service worker, only so the test can learn the extension's id.
+  // A copy, so a build running alongside can't change it under the browser.
   const unpacked = mkdtempSync(join(tmpdir(), 'breakhound-ext-'));
   cpSync(join(here, '../dist'), unpacked, { recursive: true });
-  const manifest = JSON.parse(readFileSync(join(unpacked, 'manifest.json'), 'utf8'));
-  manifest.background = { service_worker: 'test-worker.js' };
-  writeFileSync(join(unpacked, 'manifest.json'), JSON.stringify(manifest));
-  writeFileSync(join(unpacked, 'test-worker.js'), '');
 
   // Served over http: Chrome only lets extensions debug file:// pages when the user allows it.
   server = createServer((req, res) => {
@@ -50,7 +47,7 @@ beforeAll(async () => {
       args: [`--disable-extensions-except=${unpacked}`, `--load-extension=${unpacked}`],
     },
   );
-  const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
+  worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
   extensionId = new URL(worker.url()).host;
 });
 
@@ -60,7 +57,7 @@ afterAll(async () => {
 });
 
 /** Opens a site page and the panel for it, the panel as a plain extension page. */
-async function open(file: string): Promise<{ site: Page; panel: Page }> {
+async function open(file: string, query = ''): Promise<{ site: Page; panel: Page }> {
   const site = await context.newPage();
   await site.goto(`${origin}/${file}`);
   const panel = await context.newPage();
@@ -74,7 +71,7 @@ async function open(file: string): Promise<{ site: Page; panel: Page }> {
     ).chrome.debugger.getTargets();
     return targets.find((t) => t.url === url)?.tabId;
   }, `${origin}/${file}`);
-  await panel.goto(`chrome-extension://${extensionId}/panel.html?tab=${tab}`);
+  await panel.goto(`chrome-extension://${extensionId}/panel.html?tab=${tab}${query}`);
   return { site, panel };
 }
 
@@ -166,6 +163,31 @@ describe('the DevTools panel', () => {
 
     await panel.keyboard.press('Escape');
     await expect.poll(() => innerWidth(site)).toBe(width);
+    await site.close();
+    await panel.close();
+  });
+
+  it('offers Scan with breakhound on the right-click menu, which opens the panel scanning', async () => {
+    // The item exists once the extension is installed: updating a missing item fails.
+    await expect
+      .poll(() =>
+        worker.evaluate(() =>
+          (
+            globalThis as unknown as {
+              chrome: { contextMenus: { update: (id: string, p: object) => Promise<void> } };
+            }
+          ).chrome.contextMenus
+            .update('breakhound-scan', { title: 'Scan with breakhound' })
+            .then(() => true)
+            .catch(() => false),
+        ),
+      )
+      .toBe(true);
+
+    // The menu opens the panel in the side panel with ?scan, and it starts on its own.
+    const { site, panel } = await open('bug-fixed-width.html', `&scan=${Date.now()}`);
+    await panel.waitForSelector('body[data-phase="done"]', { timeout: 60_000 });
+    expect(await panel.locator('.issue-title').count()).toBeGreaterThan(0);
     await site.close();
     await panel.close();
   });

@@ -5,7 +5,7 @@ function attachError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error);
   if (/already attached/i.test(message)) {
     return new Error(
-      'Another tool is already controlling this tab (another extension, or a test runner). Close it and try again.',
+      'Something else is already controlling this tab: breakhound open in another view (DevTools or the side panel), another extension, or a test runner. Close it and try again.',
     );
   }
   if (/chrome:\/\/|chrome-extension:\/\/|webstore|Cannot access/i.test(message)) {

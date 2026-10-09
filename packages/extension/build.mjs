@@ -21,7 +21,11 @@ manifest.version = version.split('-')[0];
 writeFileSync(join(out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 await build({
-  entryPoints: { panel: join(here, 'src/panel.ts'), devtools: join(here, 'src/devtools.ts') },
+  entryPoints: {
+    panel: join(here, 'src/panel.ts'),
+    devtools: join(here, 'src/devtools.ts'),
+    background: join(here, 'src/background.ts'),
+  },
   outdir: out,
   bundle: true,
   format: 'iife',

@@ -11,11 +11,15 @@ import { Cancelled, evaluate, fitScale, setWidth, type Viewport } from './cdp';
 import { scanTab, TAB_DEFAULTS } from './scan';
 import { TabSession } from './session';
 
-/** Inside DevTools the tab is the inspected one; opened as a page (tests), `?tab=`. */
+/**
+ * Inside DevTools the tab is the inspected one. In the side panel (opened from
+ * the right-click menu or the toolbar icon) it is `?tab=`, and `?scan=` means
+ * scan as soon as the panel opens.
+ */
 const inDevtools = typeof chrome.devtools?.inspectedWindow?.tabId === 'number';
-const tabId = inDevtools
-  ? chrome.devtools.inspectedWindow.tabId
-  : Number(new URLSearchParams(location.search).get('tab'));
+const params = new URLSearchParams(location.search);
+const tabId = inDevtools ? chrome.devtools.inspectedWindow.tabId : Number(params.get('tab'));
+const scanOnOpen = !inDevtools && params.has('scan');
 
 const session = new TabSession(tabId);
 
@@ -1207,13 +1211,19 @@ session.onDetach = () => {
   renderViewing();
 };
 
+function pageChanged(): void {
+  if (state.phase === 'scanning') return;
+  void resetView();
+  if (state.result) {
+    notify('The page changed since this scan. Scan again to see where it stands now.', 'note');
+  }
+}
+
 if (inDevtools) {
-  chrome.devtools.network.onNavigated.addListener(() => {
-    if (state.phase === 'scanning') return;
-    void resetView();
-    if (state.result) {
-      notify('The page changed since this scan. Scan again to see where it stands now.', 'note');
-    }
+  chrome.devtools.network.onNavigated.addListener(pageChanged);
+} else {
+  chrome.tabs?.onUpdated.addListener((id, change) => {
+    if (id === tabId && change.status === 'loading') pageChanged();
   });
 }
 
@@ -1247,3 +1257,4 @@ addEventListener('pagehide', () => {
 loadSettings();
 state.wide = document.body.clientWidth - 24 >= WIDE_AT;
 render();
+if (scanOnOpen) void scan();
