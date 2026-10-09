@@ -14,12 +14,17 @@ const out = join(here, 'static');
 const MARK = { x: 570, y: 112, width: 384, height: 284 };
 const WORDMARK = { x: 494, y: 396, width: 550, height: 104 };
 const ICON_SIZES = [16, 32, 48, 128];
+// The k's stem is the b's (x 501-514 from row 419) moved 201px right; above its arms nothing else is there.
+const B_STEM = { x: 499 };
+const K_STEM = { x: 690, y: 396, width: 28, height: 40, shift: 201 };
+// The rows of the o in "hound" with the blot, and the o's middle.
+const O_LETTER = { x: 812, y: 455, width: 58, height: 24, centerX: 840 };
 
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage();
   const files = await page.evaluate(
-    async ({ sheet, MARK, WORDMARK, ICON_SIZES }) => {
+    async ({ sheet, MARK, WORDMARK, ICON_SIZES, B_STEM, K_STEM, O_LETTER }) => {
       const img = new Image();
       img.src = `data:image/webp;base64,${sheet}`;
       await img.decode();
@@ -32,6 +37,28 @@ try {
       const bg = at(20, 20);
       const bgLum = (bg[0] + bg[1] + bg[2]) / 3;
       const inkLum = 240;
+
+      // The wordmark's k has a wedge for a stem that pokes above the other letters. Give it a
+      // plain stem like the b's: same stroke and height, copied from the b onto the k.
+      sg.fillStyle = `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`;
+      sg.fillRect(K_STEM.x, K_STEM.y, K_STEM.width, K_STEM.height);
+      sg.putImageData(
+        sg.getImageData(B_STEM.x, K_STEM.y, K_STEM.width, K_STEM.height),
+        B_STEM.x + K_STEM.shift,
+        K_STEM.y,
+      );
+
+      // A grey blot sits in the left half of the o in "hound"; the o is symmetric, so mirror its clean right half over it.
+      const o = sg.getImageData(O_LETTER.x, O_LETTER.y, O_LETTER.width, O_LETTER.height);
+      const ox = O_LETTER.centerX - O_LETTER.x;
+      for (let y = 0; y < O_LETTER.height; y++) {
+        for (let x = 0; x < ox; x++) {
+          const from = (y * O_LETTER.width + (2 * ox - x)) * 4;
+          const to = (y * O_LETTER.width + x) * 4;
+          for (let k = 0; k < 4; k++) o.data[to + k] = o.data[from + k];
+        }
+      }
+      sg.putImageData(o, O_LETTER.x, O_LETTER.y);
 
       /** The white shape in a region, as white with alpha from how bright each pixel is. */
       const cut = (r) => {
@@ -81,7 +108,7 @@ try {
       }
       return result;
     },
-    { sheet, MARK, WORDMARK, ICON_SIZES },
+    { sheet, MARK, WORDMARK, ICON_SIZES, B_STEM, K_STEM, O_LETTER },
   );
   for (const [name, base64] of Object.entries(files)) {
     mkdirSync(dirname(join(out, name)), { recursive: true });
