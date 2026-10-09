@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "breakhound",
   "version": "0.0.0",
-  "description": "Finds responsive layout bugs at the exact widths they happen. Right-click a page and choose Scan with breakhound, or use its DevTools panel.",
+  "description": "Find responsive layout bugs at the exact widths they break. Right-click any page to scan it.",
   "devtools_page": "devtools.html",
   "background": {
     "service_worker": "background.js"

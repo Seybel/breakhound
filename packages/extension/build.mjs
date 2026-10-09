@@ -18,6 +18,12 @@ cpSync(join(here, 'static'), out, { recursive: true });
 const manifest = JSON.parse(readFileSync(join(out, 'manifest.json'), 'utf8'));
 // Chrome only takes plain dotted numbers, so a prerelease like 1.0.0-beta.2 ships as 1.0.0.
 manifest.version = version.split('-')[0];
+// Chrome cuts the description off at 132 characters, and the Web Store refuses longer ones.
+if (manifest.description.length > 132) {
+  throw new Error(
+    `The manifest description is ${manifest.description.length} characters; keep it to 132.`,
+  );
+}
 writeFileSync(join(out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 await build({
