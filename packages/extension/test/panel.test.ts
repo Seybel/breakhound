@@ -288,6 +288,44 @@ describe('the DevTools panel', () => {
     }
   });
 
+  it('fills in the widths from Mobile, Tablet and Desktop, and picking neighbours checks both', async () => {
+    const { site, panel } = await open('bug-fixed-width.html');
+    const pick = (name: string) => panel.click(`#presets button:text-is("${name}")`);
+    const picked = async () => ({
+      widths: [await panel.inputValue('#min'), await panel.inputValue('#max')],
+      pressed: await panel.locator('#presets [aria-pressed="true"]').allTextContents(),
+    });
+
+    await pick('All');
+    expect(await picked()).toEqual({ widths: ['320', '1920'], pressed: ['All'] });
+    await pick('Mobile');
+    expect(await picked()).toEqual({ widths: ['320', '599'], pressed: ['Mobile'] });
+    await pick('Tablet');
+    expect(await picked()).toEqual({ widths: ['320', '1023'], pressed: ['Mobile', 'Tablet'] });
+    await pick('Mobile');
+    expect(await picked()).toEqual({ widths: ['600', '1023'], pressed: ['Tablet'] });
+    // Mobile and Desktop take in Tablet too, since a range has no gaps: that's every width.
+    await pick('Mobile');
+    await pick('Desktop');
+    expect(await picked()).toEqual({ widths: ['320', '1920'], pressed: ['All'] });
+    await pick('Desktop');
+    await pick('Desktop');
+    expect(await picked()).toEqual({ widths: ['320', '1920'], pressed: ['All'] });
+
+    // Widths of your own match none of them.
+    await panel.fill('#max', '700');
+    expect((await picked()).pressed).toEqual([]);
+
+    await pick('Mobile');
+    await panel.click('#scan');
+    await panel.waitForSelector('body[data-phase="done"]', { timeout: 60_000 });
+    expect(await panel.textContent('#stats')).toContain('320–599px');
+    await panel.reload();
+    expect((await picked()).pressed).toEqual(['Mobile']);
+    await site.close();
+    await panel.close();
+  });
+
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');
     await scanned(panel);

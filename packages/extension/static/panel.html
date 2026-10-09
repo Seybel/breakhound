@@ -16,12 +16,15 @@
       <button id="mode-page" type="button" aria-pressed="true" title="Scan the page this tab is on">This page</button>
       <button id="mode-site" type="button" aria-pressed="false" title="Find the site's pages (from its router, or by following links) and scan each one in this tab, then come back here">Whole site</button>
     </span>
-    <label class="range" title="Narrowest and widest widths to check">
-      <input id="min" type="number" min="200" max="3840" step="1" aria-label="Narrowest width">
-      <span class="dash">–</span>
-      <input id="max" type="number" min="200" max="3840" step="1" aria-label="Widest width">
-      <span class="unit">px</span>
-    </label>
+    <span class="widths">
+      <fieldset id="presets" class="segmented presets" aria-label="Widths to check"></fieldset>
+      <label class="range" title="Narrowest and widest widths to check">
+        <input id="min" type="number" min="200" max="3840" step="1" aria-label="Narrowest width">
+        <span class="dash">–</span>
+        <input id="max" type="number" min="200" max="3840" step="1" aria-label="Widest width">
+        <span class="unit">px</span>
+      </label>
+    </span>
     <label id="reload-switch" class="switch" title="Reloads the page first, so breakhound can wait for the page's own resize handlers exactly, the way the CLI does. Leave it off to scan the page as it is right now.">
       <input id="reload" type="checkbox"><span class="track" aria-hidden="true"></span><span>Reload first</span>
     </label>
@@ -42,7 +45,7 @@
       <p class="lede">breakhound sweeps this tab across every width, finds each one where the layout changes, and pins every bug to the exact pixel range where it happens.</p>
       <button id="intro-scan" class="btn primary large" type="button"></button>
       <ul class="points">
-        <li><strong>Every width</strong><span>320 to 1920px, not a handful of device presets</span></li>
+        <li><strong>Every width</strong><span>Every pixel from 320 to 1920px, or only the Mobile, Tablet or Desktop ones</span></li>
         <li><strong>Exact to the pixel</strong><span>Each change is narrowed down until it can't be narrower</span></li>
         <li><strong>Ready to fix</strong><span>Copy a prompt with the widths, the element and the likely fix</span></li>
       </ul>

@@ -237,6 +237,10 @@ svg.icon {
   flex: 1;
 }
 
+.widths {
+  display: inline-flex;
+  gap: 6px;
+}
 .range {
   display: inline-flex;
   align-items: center;
@@ -1061,6 +1065,19 @@ main {
 .segmented button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+fieldset.segmented {
+  min-inline-size: 0;
+  margin: 0;
+}
+/* Neighbouring picks read as one range. */
+.presets button[aria-pressed="true"]:has(+ button[aria-pressed="true"]) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.presets button[aria-pressed="true"] + button[aria-pressed="true"] {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 /* ---- pages of a whole-site scan ---- */

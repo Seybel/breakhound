@@ -36,6 +36,7 @@ const ui = {
   stop: $<HTMLButtonElement>('stop'),
   min: $<HTMLInputElement>('min'),
   max: $<HTMLInputElement>('max'),
+  presets: $('presets'),
   reload: $<HTMLInputElement>('reload'),
   reloadSwitch: $('reload-switch'),
   modePage: $<HTMLButtonElement>('mode-page'),
@@ -241,6 +242,99 @@ function saveSettings(): void {
     // Not remembered; nothing else depends on it.
   }
 }
+
+// ---- quick picks for the widths ----
+
+/**
+ * Side by side they cover the default range with no gaps, so picking a neighbour as well checks
+ * both: Mobile and Tablet is 320 to 1023px. 600 is where phones end and tablets start in most
+ * design systems, and 1024 is a tablet turned sideways and the usual desktop breakpoint.
+ */
+const DEVICE_WIDTHS = [
+  {
+    name: 'Mobile',
+    min: TAB_DEFAULTS.minWidth,
+    max: 599,
+    about: 'Phones held upright',
+  },
+  {
+    name: 'Tablet',
+    min: 600,
+    max: 1023,
+    about: 'Tablets, and phones turned sideways',
+  },
+  {
+    name: 'Desktop',
+    min: 1024,
+    max: TAB_DEFAULTS.maxWidth,
+    about: 'Laptops and desktops, and tablets turned sideways',
+  },
+];
+const LAST_DEVICE = DEVICE_WIDTHS.length - 1;
+
+const allWidths = h(
+  'button',
+  {
+    type: 'button',
+    title: `Every width, ${TAB_DEFAULTS.minWidth} to ${TAB_DEFAULTS.maxWidth}px`,
+  },
+  'All',
+) as HTMLButtonElement;
+const deviceButtons = DEVICE_WIDTHS.map((d, i) => {
+  const next = DEVICE_WIDTHS[i + 1] ?? DEVICE_WIDTHS[i - 1];
+  return h(
+    'button',
+    {
+      type: 'button',
+      title: `${d.about}, ${d.min} to ${d.max}px. Pick ${next?.name} as well to check both.`,
+    },
+    d.name,
+  );
+});
+ui.presets.replaceChildren(allWidths, ...deviceButtons);
+
+/** The run of neighbouring picks the width fields match exactly, or null for widths of your own. */
+function pickedDevices(): [number, number] | null {
+  const from = DEVICE_WIDTHS.findIndex((d) => d.min === Math.round(ui.min.valueAsNumber));
+  const to = DEVICE_WIDTHS.findIndex((d) => d.max === Math.round(ui.max.valueAsNumber));
+  return from >= 0 && to >= from ? [from, to] : null;
+}
+
+function setWidths(from: number, to: number): void {
+  ui.min.value = String(DEVICE_WIDTHS[from]?.min);
+  ui.max.value = String(DEVICE_WIDTHS[to]?.max);
+  saveSettings();
+  renderPresets();
+}
+
+function pickDevice(k: number): void {
+  const run = pickedDevices();
+  let [from, to] = [k, k];
+  if (run && !(run[0] === 0 && run[1] === LAST_DEVICE)) {
+    const [a, b] = run;
+    // Out of the run, it joins it. In it, the only one goes back to every width, and an end comes off.
+    if (k < a || k > b) [from, to] = [Math.min(a, k), Math.max(b, k)];
+    else if (a === b) [from, to] = [0, LAST_DEVICE];
+    else if (k === a) [from, to] = [a + 1, b];
+    else if (k === b) [from, to] = [a, b - 1];
+  }
+  setWidths(from, to);
+}
+
+function renderPresets(): void {
+  const run = pickedDevices();
+  const all = run?.[0] === 0 && run[1] === LAST_DEVICE;
+  allWidths.setAttribute('aria-pressed', String(all));
+  deviceButtons.forEach((b, i) => {
+    b.setAttribute('aria-pressed', String(!all && !!run && i >= run[0] && i <= run[1]));
+  });
+}
+
+allWidths.addEventListener('click', () => setWidths(0, LAST_DEVICE));
+deviceButtons.forEach((b, i) => {
+  b.addEventListener('click', () => pickDevice(i));
+});
+for (const input of [ui.min, ui.max]) input.addEventListener('input', renderPresets);
 
 function readRange(): { min: number; max: number } | null {
   const min = Math.round(ui.min.valueAsNumber);
@@ -676,6 +770,7 @@ function renderToolbar(): void {
   label(ui.stop, 'stop', state.stopping ? 'Stopping' : 'Stop');
   ui.min.disabled = scanning;
   ui.max.disabled = scanning;
+  for (const b of [allWidths, ...deviceButtons]) b.disabled = scanning;
   ui.reload.disabled = scanning;
   ui.modePage.disabled = scanning;
   ui.modeSite.disabled = scanning;
@@ -1563,6 +1658,7 @@ addEventListener('pagehide', () => {
 });
 
 loadSettings();
+renderPresets();
 state.wide = document.body.clientWidth - 24 >= WIDE_AT;
 render();
 if (scanOnOpen) void scan();
