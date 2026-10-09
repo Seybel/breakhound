@@ -8,4 +8,4 @@ export {
   renderSummary,
   sourceText,
 } from './markdown';
-export { type WriteOptions, type WrittenReports, writeReports } from './write';
+export { makeOutputFolder, type WriteOptions, type WrittenReports, writeReports } from './write';

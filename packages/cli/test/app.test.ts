@@ -102,7 +102,9 @@ describe('scanning a whole app with no config', () => {
       },
     );
     expect(existsSync(join(root, AUTH_FILE))).toBe(true);
-    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toContain('.breakhound/');
+    // The folder ignores itself, so the saved login can't be committed.
+    expect(readFileSync(join(root, '.breakhound/.gitignore'), 'utf8')).toMatch(/^\*$/m);
+    expect(existsSync(join(root, '.gitignore'))).toBe(false);
 
     const { result } = await runScan({
       targets: ['/account'],

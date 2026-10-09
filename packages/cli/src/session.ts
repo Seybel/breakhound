@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
+import { makeOutputFolder } from '@breakhound/report';
 import { globMatches } from '@breakhound/routes';
 
 /**
@@ -111,7 +112,7 @@ export function readSession(cwd: string, outDir = '.breakhound'): Session | null
 }
 
 function saveSession(cwd: string, outDir: string, session: Session): Session {
-  mkdirSync(resolve(cwd, outDir), { recursive: true });
+  makeOutputFolder(resolve(cwd, outDir));
   writeFileSync(sessionPath(cwd, outDir), `${JSON.stringify(session, null, 2)}\n`);
   return session;
 }

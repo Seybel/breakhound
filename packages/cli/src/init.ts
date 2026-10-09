@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { styleText } from 'node:util';
-import { ignoreBreakhoundFolder } from './auth';
 
 const TEMPLATE = (
   baseUrl: string,
@@ -101,8 +100,5 @@ export function runInit(cwd: string): void {
     );
   }
 
-  if (ignoreBreakhoundFolder(cwd)) {
-    console.log(`${styleText('green', '✔')} Added .breakhound/ to .gitignore`);
-  }
   console.log(`\nNow run ${styleText('bold', 'npx breakhound')}.`);
 }

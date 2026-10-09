@@ -1,9 +1,9 @@
-import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { styleText } from 'node:util';
 import { launch } from '@breakhound/engine';
+import { makeOutputFolder } from '@breakhound/report';
 import type { Page } from 'playwright';
 import { resolveServer } from './app';
 import { ensureBrowsers } from './browser';
@@ -11,26 +11,6 @@ import type { BreakhoundConfig } from './config';
 
 /** The saved login session. Always in the project folder, whatever --out says, and never committed. */
 export const AUTH_FILE = '.breakhound/auth.json';
-
-/** Makes sure the session file can't be committed by accident. */
-export function ignoreBreakhoundFolder(cwd: string): boolean {
-  // Git knows about every .gitignore up to the repo root; 0 means ignored, 1 means not, in a repo.
-  const check = spawnSync('git', ['check-ignore', '-q', '.breakhound/auth.json'], {
-    cwd,
-    stdio: 'ignore',
-  });
-  if (check.status === 0) return false;
-  const gitignore = join(cwd, '.gitignore');
-  const content = existsSync(gitignore) ? readFileSync(gitignore, 'utf8') : '';
-  if (/^\/?\.breakhound\/?$/m.test(content)) return false;
-  const inRepo = check.status === 1 || existsSync(join(cwd, '.git'));
-  if (!inRepo && !content) return false;
-  appendFileSync(
-    gitignore,
-    `${content && !content.endsWith('\n') ? '\n' : ''}${content ? '\n' : ''}# breakhound reports and saved login\n.breakhound/\n`,
-  );
-  return true;
-}
 
 function waitForEnter(): { promise: Promise<void>; close: () => void } {
   if (!process.stdin.isTTY) return { promise: new Promise(() => {}), close: () => {} };
@@ -102,14 +82,12 @@ export async function runLogin(
     clearInterval(timer);
     state = await context.storageState().catch(() => state);
 
-    mkdirSync(dirname(file), { recursive: true });
+    makeOutputFolder(dirname(file));
     writeFileSync(file, JSON.stringify(state, null, 2), { mode: 0o600 });
     const cookies = state.cookies.length;
     log(
       `${styleText('green', '✔')} Saved your session to ${AUTH_FILE} (${cookies} cookie${cookies === 1 ? '' : 's'}). Scans will now use it.`,
     );
-    if (ignoreBreakhoundFolder(cwd))
-      log(`${styleText('green', '✔')} Added .breakhound/ to .gitignore`);
     if (cookies === 0 && state.origins.length === 0) {
       log(
         styleText('yellow', '  Nothing was saved. Did the login finish before the window closed?'),

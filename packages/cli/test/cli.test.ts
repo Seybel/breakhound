@@ -115,7 +115,7 @@ describe('config', () => {
 });
 
 describe('init', () => {
-  it('writes a config using the dev port and ignores the report folder', () => {
+  it('writes a config using the dev port, and leaves the .gitignore alone', () => {
     const dir = tempDir();
     writeFileSync(
       join(dir, 'package.json'),
@@ -129,7 +129,7 @@ describe('init', () => {
     expect(readFileSync(join(dir, 'breakhound.config.mjs'), 'utf8')).toContain(
       "baseUrl: 'http://localhost:4000'",
     );
-    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toContain('.breakhound/');
+    expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('node_modules\n');
   });
 
   it("writes a JSON config when breakhound isn't installed, so nothing fails to type-check", async () => {

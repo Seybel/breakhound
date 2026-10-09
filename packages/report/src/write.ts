@@ -39,13 +39,26 @@ function loadImages(result: ScanResult, dir: string | undefined): Map<string, st
   return images;
 }
 
+/**
+ * Creates breakhound's folder with a `.gitignore` of its own that ignores everything in it, the
+ * way tool caches do, so reports and a saved login never get committed and the project's own
+ * `.gitignore` is left alone.
+ */
+export function makeOutputFolder(dir: string): void {
+  mkdirSync(dir, { recursive: true });
+  const ignore = join(dir, '.gitignore');
+  if (!existsSync(ignore)) {
+    writeFileSync(ignore, '# Made by breakhound: its reports stay out of git.\n*\n');
+  }
+}
+
 /** Writes every report format into `outDir` and returns their paths. */
 export async function writeReports(
   result: ScanResult,
   outDir: string,
   options: WriteOptions = {},
 ): Promise<WrittenReports> {
-  mkdirSync(outDir, { recursive: true });
+  makeOutputFolder(outDir);
   const promptOptions = options.verifyCommand ? { verifyCommand: options.verifyCommand } : {};
   const paths: WrittenReports = {
     json: join(outDir, 'result.json'),

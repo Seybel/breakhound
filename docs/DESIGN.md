@@ -156,7 +156,7 @@ For each dynamic pattern (`/products/[id]`), look for a real matching link on al
 
 ### 5.4 Auth
 
-If a route redirects to a login-like page (a sign-in path, another origin, or a page with a visible password field), or answers 401/403, it's reported with status `login` and not scanned. A redirect to a page that is scanned anyway is reported as `redirect`. Neither fails the run; only pages that errored or rendered nothing exit with 2. `breakhound login` opens a headed browser; the developer logs in themselves; the session (Playwright `storageState`) is saved to `.breakhound/auth.json` (mode 600), and `.breakhound/` is added to `.gitignore`. breakhound never sees or stores passwords.
+If a route redirects to a login-like page (a sign-in path, another origin, or a page with a visible password field), or answers 401/403, it's reported with status `login` and not scanned. A redirect to a page that is scanned anyway is reported as `redirect`. Neither fails the run; only pages that errored or rendered nothing exit with 2. `breakhound login` opens a headed browser; the developer logs in themselves; the session (Playwright `storageState`) is saved to `.breakhound/auth.json` (mode 600), in a folder that keeps itself out of git (see §9). breakhound never sees or stores passwords.
 
 ### 5.4.1 Dev server
 
@@ -348,7 +348,7 @@ Issue `id` is stable across scans, which is what makes `verify` possible (fixed 
 
 ## 9. Reports
 
-Written to `.breakhound/` (gitignored by default):
+Written to `.breakhound/`, or `--out`. Whoever creates the folder (a scan, `login`, the fix session) also writes a `.gitignore` inside it containing `*`, as pytest and ruff do with their caches, so reports, screenshots and a saved login are never committed and the project's own `.gitignore` is never edited. It's only written when missing, so a developer who wants to commit reports can change it.
 
 | Output | Content |
 |---|---|

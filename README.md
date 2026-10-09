@@ -80,7 +80,7 @@ samples: { '/products/[id]': '/products/42' }
 npx breakhound login
 ```
 
-A browser window opens; log in as you normally would, then press Enter. The session is saved to `.breakhound/auth.json` (added to `.gitignore`) and used by later scans. breakhound never sees your password.
+A browser window opens; log in as you normally would, then press Enter. The session is saved to `.breakhound/auth.json`, which is never committed (see below), and used by later scans. breakhound never sees your password.
 
 Links that would log you out, delete something, or download a file are never followed.
 
@@ -135,6 +135,8 @@ Every run writes to `.breakhound/`:
 | `prompt.md` | Instructions for a coding agent |
 | `result.json` | The raw result |
 | `report.pdf` | With `--pdf` |
+
+The folder is for you, not your repo, so it keeps itself out of git: breakhound puts a `.gitignore` inside it that ignores everything there, the way tool caches like `.pytest_cache` do. Nothing to add to your own `.gitignore`, and breakhound never edits it. To commit a report anyway, edit or delete that inner `.gitignore`; breakhound only writes it when it's missing.
 
 ## In Chrome DevTools
 
