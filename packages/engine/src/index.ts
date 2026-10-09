@@ -13,11 +13,11 @@ import {
   webkit,
 } from 'playwright';
 import { BROWSER_LABELS } from './browsers';
-import { buildBreakpoints, buildIssues, findingKey } from './issues';
+import { buildBreakpoints, buildIssues } from './issues';
 import { captureIssues } from './screenshots';
 import { NetworkTracker, RESIZE_PROBE, settlePage } from './settle';
 import { pickToggles, type ScannedStates, scanStates } from './states';
-import { coarseWidths, Sweeper, splitWidths } from './sweep';
+import { coarseWidths, confirmNarrowIssues, Sweeper, splitWidths } from './sweep';
 import type {
   BrowserName,
   Issue,
@@ -58,8 +58,6 @@ export const DEFAULTS = {
   states: 5,
 } satisfies ScanOptions;
 
-/** Ranges this narrow get re-measured before being reported. */
-const CONFIRM_BELOW_PX = 3;
 const MAX_PAGE_ERRORS = 10;
 /** Dev servers can take a while to compile a route the first time it is requested. */
 const NAVIGATION_TIMEOUT_MS = 90_000;
@@ -396,21 +394,6 @@ export class Scanner {
     this.browser = null;
     await (await browser?.catch(() => null))?.close();
   }
-}
-
-async function confirmNarrowIssues(issues: Issue[], sweeper: Sweeper): Promise<Issue[]> {
-  const kept: Issue[] = [];
-  for (const issue of issues) {
-    const narrow = issue.ranges.every((r) => r.to - r.from < CONFIRM_BELOW_PX);
-    if (!narrow || issue.detector === 'unexpected-wrap') {
-      kept.push(issue);
-      continue;
-    }
-    const again = await sweeper.probe(issue.worstAt);
-    const reproduced = again.findings.some((f) => findingKey(f) === issue.fingerprint);
-    if (reproduced) kept.push(issue);
-  }
-  return kept;
 }
 
 /** One-off scan that manages its own browser. */

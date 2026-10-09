@@ -4,9 +4,11 @@ import type {
   HighlightOptions,
   Region,
 } from '@breakhound/analyzers';
-import type { Page } from 'playwright';
 import { findingKey, INACTIVE } from './issues';
-import { settleResize } from './settle';
+import { type SweepPage, settleResize } from './settle';
+import type { Issue } from './types';
+
+export type { SweepPage };
 
 export type Measurements = Map<number, AnalyzeResult>;
 
@@ -73,7 +75,7 @@ export class Sweeper {
   private readonly keys = new Map<number, string>();
 
   constructor(
-    readonly page: Page,
+    readonly page: SweepPage,
     private readonly settings: SweepSettings,
     private readonly prepare?: Prepare,
   ) {}
@@ -146,6 +148,28 @@ export class Sweeper {
       if (stateKey(again) !== this.key(start)) this.unstable = true;
     }
   }
+}
+
+/** Ranges this narrow get re-measured before being reported. */
+const CONFIRM_BELOW_PX = 3;
+
+/**
+ * Measures issues that only show across a pixel or two once more, coming from
+ * the other end of the range, and drops the ones that don't show up again.
+ */
+export async function confirmNarrowIssues(issues: Issue[], sweeper: Sweeper): Promise<Issue[]> {
+  const kept: Issue[] = [];
+  for (const issue of issues) {
+    const narrow = issue.ranges.every((r) => r.to - r.from < CONFIRM_BELOW_PX);
+    if (!narrow || issue.detector === 'unexpected-wrap') {
+      kept.push(issue);
+      continue;
+    }
+    const again = await sweeper.probe(issue.worstAt);
+    const reproduced = again.findings.some((f) => findingKey(f) === issue.fingerprint);
+    if (reproduced) kept.push(issue);
+  }
+  return kept;
 }
 
 declare global {

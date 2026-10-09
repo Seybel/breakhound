@@ -141,7 +141,7 @@ export const RESIZE_PROBE = `(() => {
   });
 })();`;
 
-const FREEZE_CSS = `
+export const FREEZE_CSS = `
 *, *::before, *::after {
   animation-duration: 0s !important;
   animation-delay: 0s !important;
@@ -181,7 +181,13 @@ export async function settlePage(
   await network.quiet(networkIdleMs);
 }
 
+/**
+ * The little the width sweep needs from a page. A Playwright page is one; the
+ * DevTools panel provides the same over the Chrome DevTools Protocol.
+ */
+export type SweepPage = Pick<Page, 'setViewportSize' | 'evaluate'>;
+
 /** Waits for the page's own resize handling to finish (see settleAfterResize in the analyzers). */
-export async function settleResize(page: Page, maxWaitMs: number): Promise<void> {
+export async function settleResize(page: SweepPage, maxWaitMs: number): Promise<void> {
   await page.evaluate((maxWait) => window.__breakhound?.settleAfterResize(maxWait), maxWaitMs);
 }

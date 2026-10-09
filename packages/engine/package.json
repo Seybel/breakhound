@@ -6,7 +6,8 @@
   "description": "Drives a real browser across viewport widths and turns analyzer output into issues.",
   "exports": {
     ".": "./src/index.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./core": "./src/core.ts"
   },
   "dependencies": {
     "@breakhound/analyzers": "*",
