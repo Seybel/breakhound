@@ -138,12 +138,12 @@ Every run writes to `.breakhound/`:
 
 ## In Chrome DevTools
 
-The breakhound panel runs the same checks on the tab you have open, with nothing to install in your project. Open DevTools, pick the **breakhound** tab and press **Scan this page**. It resizes the tab from 320px to 1920px (or the widths you set), then shows:
+The breakhound panel runs the same checks on the tab you have open, with nothing to install in your project. Open DevTools, pick the **breakhound** tab and press **Scan**. The page grows steadily from 320px to 1920px (or the widths you set) while the timeline fills in live: each run of widths that share a layout, every width where the layout changes, and where something breaks. Then you get:
 
-- a timeline of every width where the layout changes, with the media query widths, the changes no media or container query explains, and a bar for each issue across the widths it covers
-- each issue with the element, the numbers, and the likely fix
+- the issues, each with its exact width ranges, the element, the numbers and the likely fix
+- the timeline: the layout bands, the media query widths, the changes no media or container query explains, and a bar for each issue across the widths it covers
 
-Click an issue to see the page at the width where it's worst, with the element outlined, or click anywhere on the timeline to see the page at that width. **Select in Elements** jumps to the element, and **Copy prompt** gives your coding agent the same instructions `breakhound prompt` would. It finds what the CLI finds on the same page, since both run the same code.
+Drag across the timeline to resize the page live, click anywhere on it to jump to a width, or use the arrow keys to nudge a pixel at a time. Widths wider than the tab are zoomed out to fit, like DevTools' device mode, so a 1920px layout is shown whole. Click an issue to see the page at the width where it's worst, with the element outlined. **Select in Elements** jumps to the element, and **Copy prompt** gives your coding agent the same instructions `breakhound prompt` would. It finds what the CLI finds on the same page, since both run the same code.
 
 While it scans or shows a width, Chrome displays a bar saying breakhound started debugging this browser: that is how an extension resizes a tab. The bar goes away afterwards, and the tab goes back to its own width and scroll position. **Reload first** reloads the page before scanning, so breakhound can wait for the page's own resize handlers exactly, as the CLI does. Leave it off to scan the page as you have it.
 
