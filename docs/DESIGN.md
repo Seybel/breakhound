@@ -70,7 +70,7 @@ TypeScript monorepo (npm workspaces). Users install one package, `breakhound`; t
 ```
 packages/
   analyzers/   Pure DOM functions: detectors + layout fingerprint. No Node APIs.
-               Runs in any page context (Playwright today, DevTools panel later).
+               Runs in any page context (Playwright, and the DevTools panel).
   engine/      Playwright orchestration: launch, settle, sweep + bisect,
                run analyzers, dedupe issues across widths, capture screenshots.
   routes/      Project detection (framework, package manager, dev server)
@@ -80,7 +80,8 @@ packages/
                with data-bh-src="file:line:column".
   cli/         `breakhound` command. Wires everything together, and holds the
                MCP server, verify, and git checkpoints/undo.
-  extension/   (Phase 5) Chrome DevTools panel reusing analyzers.
+  extension/   Chrome DevTools panel: the engine's sweep run on the inspected
+               tab over the DevTools Protocol.
 fixtures/      Synthetic pages with known, labelled responsive bugs (test corpus).
 docs/
 ```
@@ -98,7 +99,7 @@ routes ──► engine ──(injects)──► analyzers (in page)
               └──►  mcp (agent reads issues, edits code, calls verify)
 ```
 
-**Key decision:** detection logic lives only in `analyzers` and has no dependency on Playwright. That's what lets the CLI, MCP server, CI and a future DevTools panel all share one engine.
+**Key decision:** detection logic lives only in `analyzers` and has no dependency on Playwright. That's what lets the CLI, MCP server, CI and the DevTools panel all share one engine.
 
 ### Tech choices
 
@@ -229,6 +230,14 @@ Findings that the closed page also has at that width are removed, so only what b
 ### 6.6 Vision model (opt-in)
 
 `--vision` (or `vision: true`) shows each scanned page at 375, 768 and 1280px (JPEG, the top 1800px) to the developer's own vision model, picked the same way as for `breakhound fix`. It asks for clear problems only, as JSON: width, title, a few words of visible text near the problem, and a likely fix. Each becomes a `vision` issue at that width, with severity `info`, tied to the smallest element showing that text (or the page), and screenshotted like any other. A model's opinion isn't a measurement: it never fails a run, it isn't run on verify, and verify ignores the baseline's vision issues.
+
+### 6.7 DevTools panel
+
+The extension (Manifest V3, one permission: `debugger`) adds a breakhound panel to DevTools. The panel attaches `chrome.debugger` to the inspected tab and runs the engine's own `Sweeper`, `buildIssues`, `confirmNarrowIssues` and `buildBreakpoints`, imported from `@breakhound/engine/core`, which has no Playwright and no Node in it. A small adapter gives the sweep what it needs from a page: setting a viewport is `Emulation.setDeviceMetricsOverride` (with the screen size matching, as Playwright does), and evaluating is `Runtime.evaluate`. Issue ids hash with a bundled SHA-1 in place of `node:crypto`, so the panel and the CLI give an issue the same id, and the prompt it copies is `renderPrompt` from the report package.
+
+It scans the page as it is: the analyzers are injected, animations frozen and reduced motion set for the scan, and afterwards the emulation, styles and scroll position are put back and the debugger detached. Since the page's resize handlers were set up before the probe could see them, "Reload first" adds the resize probe and analyzers as scripts for new documents and reloads, which makes it measure exactly like the CLI. Interaction states, other browsers and screenshots stay in the CLI. Chrome shows its "started debugging this browser" bar while attached, so the panel attaches only while it scans or shows a width.
+
+Tested two ways: the scan core against a Playwright CDP session, required to give the same issues and breakpoints as `Scanner.scanPage` on the same fixtures, and the built extension loaded into Chromium, driving the panel page against a fixture tab.
 
 ---
 
@@ -431,7 +440,7 @@ We build in phases but don't stop until v1.0 is launched.
 | **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
 | **3 · Agent loop** ✅ | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
 | **4 · Depth** | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
-| **5 · DevTools panel** | Chrome DevTools panel reusing `analyzers` for live single-page use | Panel shows issues and breakpoint timeline for the inspected tab |
+| **5 · DevTools panel** ✅ | Chrome DevTools panel reusing `analyzers` for live single-page use | Panel shows issues and breakpoint timeline for the inspected tab |
 | **6 · Launch (v1.0)** | Docs site, README with demo GIF, examples repo, contribution guide, issue templates, npm publish, Chrome Web Store listing, launch posts | Public release |
 
 ---

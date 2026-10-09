@@ -103,6 +103,8 @@ Links that would log you out, delete something, or download a file are never fol
 
 Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media or container query explains.
 
+It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone. It also looks inside web components (open shadow roots) and handles right-to-left pages.
+
 ### Safari and Firefox
 
 Chromium finds most layout bugs, but Safari and Firefox lay some things out differently (flex gaps, `dvh` units, form controls, font metrics). `--browsers chromium,webkit,firefox` checks the pages again in WebKit (Safari's engine) and Firefox once Chromium is done, one browser at a time so memory stays flat. An issue that shows up in only some of them says so: `(only in WebKit)`. Each extra browser is a one-time download of about 80 to 90 MB.
@@ -121,8 +123,6 @@ It never clicks a link to another page or a button that submits a form, and it o
 
 Rules can't tell when a layout is merely cramped or awkward. `--vision` shows each page at 375, 768 and 1280px to your own vision model (an Anthropic or OpenAI key, or a local Ollama model such as `qwen2.5vl`, set up the same way as `breakhound fix`) and adds what it says looks off. Those come in as info, tied to the element whose text the model quotes, and never fail a run. Verify leaves them out, since an opinion can't be measured again.
 
-It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone. It also looks inside web components (open shadow roots) and handles right-to-left pages.
-
 ## Reports
 
 Every run writes to `.breakhound/`:
@@ -135,6 +135,27 @@ Every run writes to `.breakhound/`:
 | `prompt.md` | Instructions for a coding agent |
 | `result.json` | The raw result |
 | `report.pdf` | With `--pdf` |
+
+## In Chrome DevTools
+
+The breakhound panel runs the same checks on the tab you have open, with nothing to install in your project. Open DevTools, pick the **breakhound** tab and press **Scan this page**. It resizes the tab from 320px to 1920px (or the widths you set), then shows:
+
+- a timeline of every width where the layout changes, with the media query widths, the changes no media or container query explains, and a bar for each issue across the widths it covers
+- each issue with the element, the numbers, and the likely fix
+
+Click an issue to see the page at the width where it's worst, with the element outlined, or click anywhere on the timeline to see the page at that width. **Select in Elements** jumps to the element, and **Copy prompt** gives your coding agent the same instructions `breakhound prompt` would. It finds what the CLI finds on the same page, since both run the same code.
+
+While it scans or shows a width, Chrome displays a bar saying breakhound started debugging this browser: that is how an extension resizes a tab. The bar goes away afterwards, and the tab goes back to its own width and scroll position. **Reload first** reloads the page before scanning, so breakhound can wait for the page's own resize handlers exactly, as the CLI does. Leave it off to scan the page as you have it.
+
+The panel scans one page as it is. For every route, menus opened, other browsers, screenshots and reports, use the CLI.
+
+To try it before it's in the Chrome Web Store, build it and load it unpacked:
+
+```bash
+npm install && npm run build:extension
+```
+
+Then open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked** and pick `packages/extension/dist`.
 
 ## Fix it with your coding agent
 
@@ -335,6 +356,7 @@ npm test            # accuracy suite in real Chromium, plus unit tests
 npm run typecheck
 npm run lint
 npm run build       # builds the publishable package in packages/cli/dist
+npm run build:extension   # builds the DevTools panel in packages/extension/dist
 npm run dev -- http://localhost:3000
 ```
 
