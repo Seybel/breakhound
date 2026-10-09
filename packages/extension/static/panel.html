@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>breakhound</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header class="toolbar">
+    <button id="scan" class="primary" type="button">Scan this page</button>
+    <button id="stop" type="button" hidden>Stop</button>
+    <label class="field" title="Narrowest and widest viewport widths to check">
+      <input id="min" type="number" min="200" max="3840" step="1" aria-label="Narrowest width">
+      <span>to</span>
+      <input id="max" type="number" min="200" max="3840" step="1" aria-label="Widest width">
+      <span>px</span>
+    </label>
+    <label class="check" title="Reloads the page first, so breakhound can wait for the page's own resize handlers exactly, the way the CLI does. Leave it off to scan the page as it is right now.">
+      <input id="reload" type="checkbox"> Reload first
+    </label>
+    <span id="status" class="status" role="status" aria-live="polite"></span>
+    <span class="spacer"></span>
+    <button id="copy-all" type="button" hidden>Copy prompt for your agent</button>
+  </header>
+
+  <div id="stale" class="banner" hidden>The page changed since this scan. Scan again to see where it stands now.</div>
+  <div id="error" class="banner error" hidden></div>
+  <div id="preview" class="banner preview" hidden>
+    <span id="preview-text"></span>
+    <button id="preview-end" type="button">Back to the normal width</button>
+  </div>
+
+  <main>
+    <section id="intro" class="intro">
+      <h1>Find where this page breaks</h1>
+      <p>breakhound resizes this tab from the narrowest to the widest width, finds every width where the layout changes, and lists what breaks: horizontal scrolling, content spilling out, overlaps, wrapped rows, clipped or squished text, small tap targets. Every range is exact to the pixel.</p>
+      <p class="muted">While it scans, Chrome shows a bar saying breakhound started debugging this browser. That is how it resizes the page. The bar goes away when the scan ends, and the tab is put back the way it was.</p>
+    </section>
+
+    <section id="results" hidden>
+      <p id="summary" class="summary"></p>
+      <div id="timeline" class="timeline" aria-hidden="true">
+        <div class="axis" id="axis"></div>
+        <div class="lanes" id="lanes"></div>
+        <div class="cursor" id="cursor" hidden><span></span></div>
+        <div class="now" id="now" hidden></div>
+      </div>
+      <p class="legend">
+        <span class="key declared"></span> media query
+        <span class="key change"></span> layout changes
+        <span class="key unexplained"></span> changes with no media or container query
+        <span class="hint">Click anywhere on the timeline to see the page at that width.</span>
+      </p>
+      <ul id="issues" class="issues"></ul>
+    </section>
+  </main>
+  <script src="panel.js"></script>
+</body>
+</html>

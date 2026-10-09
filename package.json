@@ -8,7 +8,8 @@
     "packages/routes",
     "packages/source",
     "packages/report",
-    "packages/cli"
+    "packages/cli",
+    "packages/extension"
   ],
   "engines": {
     "node": ">=20.16"
@@ -18,10 +19,11 @@
     "dev": "npm run build:analyzers && tsx packages/cli/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/analyzers && tsc -p packages/engine && tsc -p packages/routes && tsc -p packages/source && tsc -p packages/report && tsc -p packages/cli",
+    "typecheck": "tsc -p packages/analyzers && tsc -p packages/engine && tsc -p packages/routes && tsc -p packages/source && tsc -p packages/report && tsc -p packages/cli && tsc -p packages/extension",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "build": "npm run build -w breakhound"
+    "build": "npm run build -w breakhound",
+    "build:extension": "npm run build:analyzers && npm run build -w @breakhound/extension"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
