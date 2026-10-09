@@ -7,7 +7,7 @@ Instead of dragging the browser or clicking through device presets, run one comm
 ```
 ✔ Next.js running at http://localhost:3000
 ✔ 14 routes from src/app (2 dynamic, filled in from links on your pages)
-breakhound 0.1.0 · 14 pages · 320–1920px
+breakhound 1.0.0 · 14 pages · 320–1920px
 
   ✖ /pricing        2 issues · layout changes at 768, 1024   4.1s
   ✔ /about          clean · layout changes at 640, 1024      3.2s

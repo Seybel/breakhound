@@ -1,6 +1,6 @@
 {
   "name": "@breakhound/source",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Build plugins that mark each element with where it's written, in development.",

@@ -1,6 +1,6 @@
 {
   "name": "@breakhound/extension",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Chrome DevTools panel that sweeps the inspected tab across widths with the breakhound analyzers.",

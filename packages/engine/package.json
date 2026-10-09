@@ -1,6 +1,6 @@
 {
   "name": "@breakhound/engine",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Drives a real browser across viewport widths and turns analyzer output into issues.",
