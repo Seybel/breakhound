@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Finds a project's framework, dev server and routes.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./browser": "./src/browser.ts"
   },
   "dependencies": {
     "@babel/parser": "^7.29.0"

@@ -37,6 +37,7 @@ export {
   type PackageManager,
   type Project,
 } from './project';
+export { type Job, RouteQueue, type Target } from './queue';
 export { type RuntimeRoutes, readLinks, readRuntimeRoutes } from './runtime';
 export {
   findRunningServer,
