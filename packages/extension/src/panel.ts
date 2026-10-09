@@ -8,8 +8,9 @@ import {
 import { DETECTOR_LABELS, formatRange, formatRanges } from '@breakhound/report/format';
 import { renderPrompt } from '@breakhound/report/markdown';
 import { Cancelled, evaluate, fitScale, setWidth, type Viewport } from './cdp';
-import { scanTab, TAB_DEFAULTS } from './scan';
+import { loadPage, scanTab, TAB_DEFAULTS } from './scan';
 import { TabSession } from './session';
+import { SITE_MAX_PAGES, scanSite } from './site';
 
 /**
  * Inside DevTools the tab is the inspected one. In the side panel (opened from
@@ -36,6 +37,11 @@ const ui = {
   min: $<HTMLInputElement>('min'),
   max: $<HTMLInputElement>('max'),
   reload: $<HTMLInputElement>('reload'),
+  reloadSwitch: $('reload-switch'),
+  modePage: $<HTMLButtonElement>('mode-page'),
+  modeSite: $<HTMLButtonElement>('mode-site'),
+  pages: $('pages'),
+  rulerPage: $('ruler-page'),
   status: $('status'),
   copyAll: $<HTMLButtonElement>('copy-all'),
   notice: $('notice'),
@@ -62,16 +68,33 @@ const ui = {
 };
 
 type Filter = 'all' | Severity | 'here';
+type Live = Map<number, { layout: string; worst: Severity | null }>;
+
+/** One scanned page: its result, and what each width looked like while it was measured. */
+interface PageView {
+  route: RouteResult;
+  live: Live;
+}
 
 interface State {
   phase: 'idle' | 'scanning' | 'done';
+  /** The page the tab is on, or every page of the site. */
+  mode: 'page' | 'site';
   stopping: boolean;
+  /** Every page of the last scan; one unless it was a whole-site scan. */
+  pages: PageView[];
+  /** The page shown: `result` and `live` are its. */
+  current: number;
+  /** In a whole-site scan, the page being scanned now. */
+  scanning: { index: number; planned: number; route: string } | null;
+  /** Where a whole-site scan found its pages. */
+  from: string | null;
   result: RouteResult | null;
   /** Widths the result (or the scan running now) covers; the inputs may have changed since. */
   range: { min: number; max: number };
   startedAt: Date;
   /** What each width measured looked like: its layout, and the worst thing found there. */
-  live: Map<number, { layout: string; worst: Severity | null }>;
+  live: Live;
   /** Where the running scan is. */
   scanAt: number | null;
   measured: number;
@@ -87,7 +110,12 @@ interface State {
 
 const state: State = {
   phase: 'idle',
+  mode: 'page',
   stopping: false,
+  pages: [],
+  current: 0,
+  scanning: null,
+  from: null,
   result: null,
   range: { min: TAB_DEFAULTS.minWidth, max: TAB_DEFAULTS.maxWidth },
   startedAt: new Date(),
@@ -183,7 +211,7 @@ function notify(message: string | null, kind: 'error' | 'note' = 'error'): void 
 const SETTINGS_KEY = 'breakhound.settings';
 
 function loadSettings(): void {
-  let saved: { min?: number; max?: number; reload?: boolean } = {};
+  let saved: { min?: number; max?: number; reload?: boolean; mode?: 'page' | 'site' } = {};
   try {
     saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
   } catch {
@@ -192,6 +220,7 @@ function loadSettings(): void {
   ui.min.value = String(saved.min ?? TAB_DEFAULTS.minWidth);
   ui.max.value = String(saved.max ?? TAB_DEFAULTS.maxWidth);
   ui.reload.checked = saved.reload ?? false;
+  state.mode = saved.mode === 'site' ? 'site' : 'page';
 }
 
 function saveSettings(): void {
@@ -202,6 +231,7 @@ function saveSettings(): void {
         min: ui.min.valueAsNumber,
         max: ui.max.valueAsNumber,
         reload: ui.reload.checked,
+        mode: state.mode,
       }),
     );
   } catch {
@@ -249,8 +279,10 @@ async function copyWith(b: HTMLButtonElement, text: string): Promise<void> {
 }
 
 function prompt(fingerprints?: string[]): string {
-  const route = state.result as RouteResult;
-  const result = createScanResult([route], {
+  const routes = state.pages.map((p) => p.route);
+  const route = state.result ?? (routes[0] as RouteResult);
+  // Every page at once, so a shared header breaking on five pages is one fix, listed once.
+  const result = createScanResult(routes, {
     version: __VERSION__,
     startedAt: state.startedAt,
     minWidth: state.range.min,
@@ -282,6 +314,32 @@ function scheduleLive(): void {
   });
 }
 
+/** Shows one page of the last scan: its timeline, issues and details. */
+function showPage(index: number): void {
+  const page = state.pages[index];
+  if (!page) return;
+  state.current = index;
+  state.result = page.route;
+  state.live = page.live;
+  state.selected = null;
+  if (state.filter === 'here') state.filter = 'all';
+}
+
+/** The page worth opening first: the most errors, then the most issues. */
+function firstWorthSeeing(pages: PageView[]): number {
+  let best = 0;
+  let score = -1;
+  pages.forEach((p, i) => {
+    const issues = p.route.issues;
+    const s = issues.filter((x) => x.severity === 'error').length * 1000 + issues.length;
+    if (s > score) {
+      score = s;
+      best = i;
+    }
+  });
+  return best;
+}
+
 async function scan(): Promise<void> {
   const range = readRange();
   if (!range) {
@@ -294,16 +352,25 @@ async function scan(): Promise<void> {
   notify(null);
   await resetView();
   const previous = {
+    pages: state.pages,
+    current: state.current,
     result: state.result,
     range: state.range,
     live: state.live,
     startedAt: state.startedAt,
+    from: state.from,
   };
+  const site = state.mode === 'site';
   const startedAt = new Date();
+  const pages: PageView[] = [];
   Object.assign(state, {
     phase: 'scanning',
     startedAt,
     stopping: false,
+    pages,
+    current: 0,
+    scanning: null,
+    from: null,
     result: null,
     range,
     live: new Map(),
@@ -315,30 +382,56 @@ async function scan(): Promise<void> {
   render();
   // The clock keeps going while a slow page settles, between measurements.
   const tick = setInterval(scheduleLive, 1000);
+  const common = {
+    analyzerScript: __ANALYZER_SCRIPT__,
+    minWidth: range.min,
+    maxWidth: range.max,
+    onProgress: ({ width, measured }: { width: number; measured: number }) => {
+      state.scanAt = width;
+      state.measured = measured;
+      scheduleLive();
+    },
+    onMeasure: (width: number, r: AnalyzeResult) => {
+      state.live.set(width, { layout: r.signature, worst: worstOf(r) });
+    },
+    cancelled: () => state.stopping,
+  };
   let finished = false;
   try {
     await session.attach();
-    const result = await scanTab(session, {
-      analyzerScript: __ANALYZER_SCRIPT__,
-      minWidth: range.min,
-      maxWidth: range.max,
-      reload: ui.reload.checked,
-      onProgress: ({ width, measured }) => {
-        state.scanAt = width;
-        state.measured = measured;
-        scheduleLive();
-      },
-      onMeasure: (width, r) => {
-        state.live.set(width, { layout: r.signature, worst: worstOf(r) });
-      },
-      cancelled: () => state.stopping,
-    });
-    state.result = result;
-    state.startedAt = startedAt;
-    finished = true;
-    if (result.status !== 'scanned') notify(result.error ?? 'The page could not be scanned.');
+    if (site) {
+      const done = await scanSite(session, {
+        ...common,
+        maxPages: SITE_MAX_PAGES,
+        onPage: ({ index, planned, route }) => {
+          state.scanning = { index, planned, route };
+          state.live = new Map();
+          state.scanAt = range.min;
+          state.measured = 0;
+          renderPages();
+          scheduleLive();
+        },
+        onResult: (route) => {
+          pages.push({ route, live: state.live });
+          renderPages();
+        },
+      });
+      state.from = done.from;
+      finished = true;
+    } else {
+      const route = await scanTab(session, { ...common, reload: ui.reload.checked });
+      pages.push({ route, live: state.live });
+      finished = true;
+      if (route.status !== 'scanned') notify(route.error ?? 'The page could not be scanned.');
+    }
   } catch (error) {
-    if (!(error instanceof Cancelled)) {
+    if (error instanceof Cancelled) {
+      // A whole-site scan keeps the pages it finished.
+      if (site && pages.length) {
+        finished = true;
+        notify(`Stopped after ${pages.length} ${pages.length === 1 ? 'page' : 'pages'}.`, 'note');
+      }
+    } else {
       const message = error instanceof Error ? error.message : String(error);
       notify(
         /detached|target closed|No tab with given id/i.test(message)
@@ -349,8 +442,19 @@ async function scan(): Promise<void> {
   } finally {
     clearInterval(tick);
     await session.detach();
-    if (!finished) Object.assign(state, previous);
-    state.phase = state.result ? 'done' : 'idle';
+    // A whole-site scan ends back on the page it started from: that was breakhound, not the developer.
+    navigatedAt = Date.now();
+    if (finished && pages.length) {
+      state.startedAt = startedAt;
+      showPage(firstWorthSeeing(pages));
+      if (site && !pages.some((p) => p.route.status === 'scanned')) {
+        notify('None of the pages could be scanned.');
+      }
+    } else {
+      Object.assign(state, previous);
+    }
+    state.phase = state.pages.length ? 'done' : 'idle';
+    state.scanning = null;
     state.scanAt = null;
     render();
   }
@@ -368,6 +472,9 @@ interface ViewJob {
 
 let pending: ViewJob | null = null;
 let pumping = false;
+/** When breakhound last moved the tab to another page, so that isn't taken for the developer's doing. */
+let navigatedAt = 0;
+let navigating = false;
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -407,6 +514,20 @@ async function pump(): Promise<void> {
           height: window.innerHeight,
         }));
         renderViewing();
+      }
+      // An issue from another page of the site: take the tab there first.
+      const target = state.result?.finalUrl;
+      if (target && state.result?.status === 'scanned') {
+        const here = await evaluate<string>(session, () => location.href);
+        if (here !== target) {
+          navigating = true;
+          try {
+            await loadPage(session, target);
+          } finally {
+            navigating = false;
+            navigatedAt = Date.now();
+          }
+        }
       }
       await setWidth(session, job.width, 0, state.natural ?? undefined);
       if (job.settle && !pending) await settle(job);
@@ -552,7 +673,64 @@ function renderToolbar(): void {
   ui.min.disabled = scanning;
   ui.max.disabled = scanning;
   ui.reload.disabled = scanning;
-  ui.copyAll.hidden = scanning || !state.result?.issues.some((i) => i.severity !== 'info');
+  ui.modePage.disabled = scanning;
+  ui.modeSite.disabled = scanning;
+  ui.modePage.setAttribute('aria-pressed', String(state.mode === 'page'));
+  ui.modeSite.setAttribute('aria-pressed', String(state.mode === 'site'));
+  // Every page of a whole-site scan is loaded fresh, with the tracking the switch would add.
+  ui.reloadSwitch.hidden = state.mode === 'site';
+  ui.copyAll.hidden =
+    scanning || !state.pages.some((p) => p.route.issues.some((i) => i.severity !== 'info'));
+}
+
+/** The pages of a whole-site scan, to pick which one the timeline and issues show. */
+function renderPages(): void {
+  const site = state.pages.length > 1 || state.scanning !== null || state.from !== null;
+  ui.pages.hidden = !site;
+  ui.rulerPage.hidden = !site;
+  const shown = state.phase === 'scanning' ? state.scanning?.route : state.result?.route;
+  ui.rulerPage.textContent = shown ?? '';
+  if (!site) return;
+  const chips: Node[] = state.pages.map((p, i) => {
+    const r = p.route;
+    const worst = SEVERITIES.find((s) => r.issues.some((x) => x.severity === s));
+    const dot = r.status !== 'scanned' ? 'failed' : (worst ?? 'clean');
+    const selected = state.phase === 'done' && i === state.current;
+    const chip = h(
+      'button',
+      {
+        class: 'page-chip',
+        type: 'button',
+        role: 'tab',
+        'aria-selected': String(selected),
+        title:
+          r.status === 'scanned'
+            ? `${r.url}\n${r.issues.length} ${r.issues.length === 1 ? 'issue' : 'issues'}`
+            : `${r.url}\n${r.error ?? 'Could not be scanned'}`,
+      },
+      h('i', { class: `dot ${dot}` }),
+      h('span', { class: 'path' }, r.route),
+      r.status === 'scanned' ? h('span', { class: 'count' }, String(r.issues.length)) : null,
+    );
+    chip.addEventListener('click', () => {
+      if (state.phase !== 'done' || i === state.current) return;
+      showPage(i);
+      render();
+      if (state.viewing !== null) view(state.viewing);
+    });
+    return chip;
+  });
+  if (state.phase === 'scanning' && state.scanning) {
+    chips.push(
+      h(
+        'span',
+        { class: 'page-chip pending' },
+        h('i', { class: 'dot' }),
+        h('span', { class: 'path' }, state.scanning.route),
+      ),
+    );
+  }
+  ui.pages.replaceChildren(...chips);
 }
 
 function stat(name: string, value: Child, sub: Child, cls = ''): HTMLElement {
@@ -594,7 +772,24 @@ function renderStats(): void {
     const at = state.scanAt ?? min;
     const pct = Math.max(0, Math.min(100, Math.round(((at - min) / (max - min)) * 100)));
     const { layouts, problems } = liveCounts();
-    ui.status.textContent = `Scanning · ${pct}%`;
+    const page = state.scanning;
+    ui.status.textContent = page
+      ? `Page ${page.index + 1} of about ${page.planned} · ${pct}%`
+      : `Scanning · ${pct}%`;
+    if (page) {
+      const found = state.pages.reduce((n, p) => n + p.route.issues.length, 0);
+      ui.stats.replaceChildren(
+        stat('Page', `${page.index + 1} of ${page.planned}`, page.route),
+        stat('Measuring', `${at}px`, `${pct}% of the way to ${max}px`),
+        stat(
+          'Time',
+          duration(Date.now() - state.startedAt.getTime()),
+          `${state.pages.length} ${state.pages.length === 1 ? 'page' : 'pages'} done`,
+        ),
+        stat('Issues so far', String(found), 'on the pages done'),
+      );
+      return;
+    }
     ui.stats.replaceChildren(
       stat('Measuring', `${at}px`, `${pct}% of the way to ${max}px`),
       stat(
@@ -616,6 +811,46 @@ function renderStats(): void {
   if (!r) return;
   const bp = r.breakpoints;
   const url = new URL(r.url);
+  if (state.pages.length > 1 || state.from) {
+    // Counted like the CLI does: a shared header breaking on every page is one issue.
+    const { summary } = createScanResult(
+      state.pages.map((p) => p.route),
+      { version: __VERSION__, startedAt: state.startedAt, minWidth: min, maxWidth: max, step: 16 },
+    );
+    const scanned = state.pages.filter((p) => p.route.status === 'scanned').length;
+    const failed = state.pages.length - scanned;
+    const total = state.pages.reduce((n, p) => n + p.route.durationMs, 0);
+    ui.stats.replaceChildren(
+      stat(
+        'Issues',
+        String(summary.uniqueIssues),
+        h(
+          'span',
+          { class: 'sevs' },
+          ...SEVERITIES.flatMap((s) => {
+            const n = summary.bySeverity[s];
+            return n ? [h('span', {}, h('i', { class: `dot ${s}` }), `${n} ${s}`)] : [];
+          }),
+          summary.uniqueIssues ? null : 'nothing breaks',
+        ),
+      ),
+      stat(
+        'Pages',
+        String(scanned),
+        failed ? `${failed} could not be scanned` : `found from ${state.from ?? 'links'}`,
+      ),
+      stat('Scan time', duration(total), `${min}–${max}px on every page`),
+      stat(
+        'This page',
+        url.pathname + url.hash,
+        r.status === 'scanned'
+          ? `${bp.observed.length} layout ${bp.observed.length === 1 ? 'change' : 'changes'}`
+          : 'could not be scanned',
+        'page',
+      ),
+    );
+    return;
+  }
   ui.stats.replaceChildren(
     stat(
       'Issues',
@@ -1084,6 +1319,18 @@ function renderIssues(): void {
   }
   const r = state.result;
   if (!r) return;
+  if (r.status !== 'scanned') {
+    ui.issues.replaceChildren(
+      h(
+        'li',
+        { class: 'empty-list' },
+        h('strong', {}, "This page couldn't be scanned."),
+        r.error ?? '',
+      ),
+    );
+    ui.detail.hidden = true;
+    return;
+  }
   const issues = visibleIssues();
   if (!r.issues.length) {
     ui.issues.replaceChildren(
@@ -1108,12 +1355,14 @@ function renderIssues(): void {
 
 function render(): void {
   document.body.dataset.phase = state.phase;
-  const showResults = state.phase === 'scanning' || state.result?.status === 'scanned';
+  const showResults =
+    state.phase === 'scanning' || state.pages.some((p) => p.route.status === 'scanned');
   ui.intro.hidden = showResults;
   ui.results.hidden = !showResults;
   renderToolbar();
   if (!showResults) return;
   renderStats();
+  renderPages();
   renderFilters();
   renderIssues();
   renderTimeline();
@@ -1218,6 +1467,16 @@ ui.viewingReset.addEventListener('click', () => void resetView());
 ui.noticeClose.addEventListener('click', () => notify(null));
 ui.copyAll.addEventListener('click', () => void copyWith(ui.copyAll, prompt()));
 for (const input of [ui.min, ui.max, ui.reload]) input.addEventListener('change', saveSettings);
+for (const [button, mode] of [
+  [ui.modePage, 'page'],
+  [ui.modeSite, 'site'],
+] as const) {
+  button.addEventListener('click', () => {
+    state.mode = mode;
+    saveSettings();
+    renderToolbar();
+  });
+}
 
 session.onDetach = () => {
   // The developer closed the debugging bar, or the tab went away.
@@ -1230,9 +1489,10 @@ session.onDetach = () => {
 };
 
 function pageChanged(): void {
-  if (state.phase === 'scanning') return;
+  if (state.phase === 'scanning' || navigating || Date.now() - navigatedAt < 3000) return;
   void resetView();
-  if (state.result) {
+  // After a whole-site scan, moving between its pages is expected.
+  if (state.result && state.pages.length === 1) {
     notify('The page changed since this scan. Scan again to see where it stands now.', 'note');
   }
 }

@@ -219,6 +219,75 @@ describe('the DevTools panel', () => {
     await panel.close();
   });
 
+  it('scans every page of the site, and shows an issue on the page it is on', async () => {
+    // A small site: a few pages linking to each other, one with a banner that never shrinks.
+    const page = (body: string) =>
+      `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{margin:0;font:16px/1.4 Arial,sans-serif}main{padding:16px}</style></head><body><main>${body}</main></body></html>`;
+    const nav = '<a href="/">Home</a> <a href="/about">About</a> <a href="/pricing">Pricing</a>';
+    const pages: Record<string, string> = {
+      '/': page(`<h1>Home</h1>${nav}`),
+      '/about': page(`<h1>About</h1>${nav}`),
+      '/pricing': page(
+        `<h1>Pricing</h1>${nav}<div style="width:600px;height:40px;background:#eee">Plans</div>`,
+      ),
+    };
+    const siteServer = createServer((req, res) => {
+      const body = pages[req.url ?? '/'];
+      if (!body) {
+        res.writeHead(404).end();
+        return;
+      }
+      res.writeHead(200, { 'content-type': 'text/html' }).end(body);
+    });
+    await new Promise<void>((r) => siteServer.listen(0, '127.0.0.1', r));
+    const siteOrigin = `http://127.0.0.1:${(siteServer.address() as AddressInfo).port}`;
+    try {
+      const site = await context.newPage();
+      await site.goto(`${siteOrigin}/about`);
+      const panel = await context.newPage();
+      await panel.goto(`chrome-extension://${extensionId}/panel.html`);
+      const tab = await panel.evaluate(async (url) => {
+        const targets = await (
+          globalThis as unknown as {
+            chrome: { debugger: { getTargets: () => Promise<{ tabId?: number; url: string }[]> } };
+          }
+        ).chrome.debugger.getTargets();
+        return targets.find((t) => t.url === url)?.tabId;
+      }, `${siteOrigin}/about`);
+      await panel.goto(`chrome-extension://${extensionId}/panel.html?tab=${tab}`);
+      await panel.setViewportSize({ width: 1000, height: 700 });
+      await panel.click('#mode-site');
+      expect(await panel.isHidden('#reload-switch')).toBe(true);
+      await scanned(panel);
+
+      const chips = await panel.locator('.page-chip .path').allTextContents();
+      expect(chips.sort()).toEqual(['/', '/about', '/pricing']);
+      // It opens on the page with the worst problems, and the tab is back where it started.
+      expect(await panel.locator('.page-chip[aria-selected="true"] .path').textContent()).toBe(
+        '/pricing',
+      );
+      expect(site.url()).toBe(`${siteOrigin}/about`);
+      expect(await panel.textContent('#stats')).toMatch(/Pages\s*3/);
+
+      // Showing an issue from /pricing takes the tab there first.
+      await panel.locator('.issue-head').first().click();
+      await expect.poll(() => site.url()).toBe(`${siteOrigin}/pricing`);
+      const worst = Number(
+        (await panel.textContent('#viewing-text'))?.match(/Showing (\d+)px/)?.[1],
+      );
+      await expect.poll(() => innerWidth(site)).toBe(worst);
+
+      // The choice is remembered.
+      await panel.reload();
+      expect(await panel.getAttribute('#mode-site', 'aria-pressed')).toBe('true');
+      await panel.click('#mode-page');
+      await site.close();
+      await panel.close();
+    } finally {
+      siteServer.close();
+    }
+  });
+
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');
     await scanned(panel);

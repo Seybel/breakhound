@@ -12,13 +12,17 @@
     <span class="divider"></span>
     <button id="scan" class="btn primary" type="button"></button>
     <button id="stop" class="btn" type="button" hidden></button>
+    <span class="segmented">
+      <button id="mode-page" type="button" aria-pressed="true" title="Scan the page this tab is on">This page</button>
+      <button id="mode-site" type="button" aria-pressed="false" title="Find the site's pages (from its router, or by following links) and scan each one in this tab, then come back here">Whole site</button>
+    </span>
     <label class="range" title="Narrowest and widest widths to check">
       <input id="min" type="number" min="200" max="3840" step="1" aria-label="Narrowest width">
       <span class="dash">–</span>
       <input id="max" type="number" min="200" max="3840" step="1" aria-label="Widest width">
       <span class="unit">px</span>
     </label>
-    <label class="switch" title="Reloads the page first, so breakhound can wait for the page's own resize handlers exactly, the way the CLI does. Leave it off to scan the page as it is right now.">
+    <label id="reload-switch" class="switch" title="Reloads the page first, so breakhound can wait for the page's own resize handlers exactly, the way the CLI does. Leave it off to scan the page as it is right now.">
       <input id="reload" type="checkbox"><span class="track" aria-hidden="true"></span><span>Reload first</span>
     </label>
     <span class="grow"></span>
@@ -47,10 +51,12 @@
 
     <section id="results" class="results" hidden>
       <div id="stats" class="stats"></div>
+      <div id="pages" class="pages" role="tablist" aria-label="Pages" hidden></div>
 
       <div class="card ruler">
         <div class="ruler-top">
           <span class="eyebrow">Viewport width</span>
+          <code id="ruler-page" class="ruler-page" hidden></code>
           <span class="hint">Drag across to resize the page · ← → to nudge</span>
           <span class="grow"></span>
           <span id="viewing" class="viewing" hidden>

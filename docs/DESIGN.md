@@ -239,6 +239,8 @@ Someone is watching the tab, so the sweep runs in `ascending` order: each change
 
 It scans the page as it is: the analyzers are injected, animations frozen and reduced motion set for the scan, and afterwards the emulation, styles and scroll position are put back and the debugger detached. Since the page's resize handlers were set up before the probe could see them, "Reload first" adds the resize probe and analyzers as scripts for new documents and reloads, which makes it measure exactly like the CLI. Interaction states, other browsers and screenshots stay in the CLI. Chrome shows its "started debugging this browser" bar while attached, so the panel attaches only while it scans or shows a width.
 
+"Whole site" scans the site the tab is on with the CLI's own planner (`RouteQueue`, `Crawler`, `routeFor`, the live router readers), which live in `@breakhound/routes/browser` with no Node in them: routes from the live router when there is one, dynamic ones filled in from links on scanned pages, otherwise links followed from this page and the home page, at most 25 pages. Pages load one at a time in the same tab with the resize probe and analyzers added for every new document, so each is measured as the CLI measures it, and the tab ends back on the page it started from. The developer's own session applies, so pages behind a login are scanned. Results are per page; the counts and the copied prompt go through `createScanResult`, so a shared component is one issue listed with its pages.
+
 Tested two ways: the scan core against a Playwright CDP session, required to give the same issues and breakpoints as `Scanner.scanPage` on the same fixtures, and the built extension loaded into Chromium, driving the panel page against a fixture tab.
 
 ---

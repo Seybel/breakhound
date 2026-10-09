@@ -1024,3 +1024,112 @@ main {
     transition: none;
   }
 }
+
+/* ---- what to scan ---- */
+
+.segmented {
+  display: inline-flex;
+  height: 26px;
+  padding: 2px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.segmented button {
+  padding: 0 9px;
+  font:
+    500 12px / 1 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--text-2);
+  white-space: nowrap;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.segmented button:hover:not(:disabled) {
+  color: var(--text);
+}
+.segmented button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+}
+.segmented button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- pages of a whole-site scan ---- */
+
+.pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.page-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  height: 26px;
+  padding: 0 10px;
+  font: 500 11px var(--mono);
+  color: var(--text-2);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.page-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.page-chip[aria-selected="true"] {
+  color: var(--text);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.page-chip .path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-chip .count {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.page-chip .dot.clean {
+  background: var(--change);
+}
+.page-chip .dot.failed {
+  background: transparent;
+  border: 1.5px solid var(--text-3);
+}
+.page-chip.pending {
+  cursor: default;
+  border-style: dashed;
+}
+.page-chip.pending .dot {
+  background: var(--accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+.ruler-page {
+  padding: 0 5px;
+  color: var(--text-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-chip.pending .dot {
+    animation: none;
+  }
+}

@@ -34,6 +34,8 @@ export interface TabScanOptions {
    * now, and handlers the page set up before can't be waited for exactly.
    */
   reload?: boolean;
+  /** The route the page stands for, which salts issue ids (`/blog/[slug]`); its path otherwise. */
+  route?: string;
   onProgress?: (progress: { width: number; measured: number }) => void;
   /** Every width measured for the sweep, with what was found there, as it happens. */
   onMeasure?: (width: number, result: AnalyzeResult) => void;
@@ -52,7 +54,11 @@ export function routeOf(href: string): string {
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Reloads with the resize probe and analyzers added before any page script, and waits for it to settle. */
-async function reloadTracked(cdp: Cdp, analyzerScript: string): Promise<string[]> {
+/**
+ * Adds breakhound's resize tracking and analyzers to every document the tab
+ * loads from now on, as the CLI loads pages. Returns what to remove later.
+ */
+export async function addTracking(cdp: Cdp, analyzerScript: string): Promise<string[]> {
   // Scripts added for new documents only run once the Page domain is on.
   await cdp.send('Page.enable');
   const ids: string[] = [];
@@ -63,25 +69,63 @@ async function reloadTracked(cdp: Cdp, analyzerScript: string): Promise<string[]
     );
     ids.push(identifier);
   }
-  await evaluate(cdp, () => {
-    (window as unknown as { __breakhound_old?: boolean }).__breakhound_old = true;
-  });
-  await cdp.send('Page.reload', { ignoreCache: false });
-  const deadline = Date.now() + RELOAD_TIMEOUT_MS;
-  for (;;) {
-    const loaded = await evaluate<boolean>(
-      cdp,
-      () =>
-        !(window as unknown as { __breakhound_old?: boolean }).__breakhound_old &&
-        document.readyState === 'complete',
-    ).catch(() => false);
-    if (loaded) break;
-    if (Date.now() > deadline) throw new Error('The page took over a minute to load again.');
-    await pause(100);
+  return ids;
+}
+
+export async function removeTracking(cdp: Cdp, ids: string[]): Promise<void> {
+  for (const identifier of ids) {
+    await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }).catch(() => {});
   }
-  // A moment for requests started on load, then web fonts.
+}
+
+/**
+ * Loads `url` in the tab (or the page again, with null) and waits for it to
+ * settle: the new document complete, a moment for requests started on load,
+ * then web fonts. A link into a hash router only changes the hash, so that
+ * page is shown without a new document.
+ */
+export async function loadPage(cdp: Cdp, url: string | null): Promise<void> {
+  const here = await evaluate<string>(cdp, () => location.href);
+  const sameDocument =
+    url !== null &&
+    new URL(url).hash.startsWith('#/') &&
+    new URL(url).href.split('#')[0] === here.split('#')[0];
+  if (sameDocument) {
+    await evaluate(
+      cdp,
+      (to: string) => {
+        location.href = to;
+      },
+      url,
+    );
+  } else {
+    await evaluate(cdp, () => {
+      (window as unknown as { __breakhound_old?: boolean }).__breakhound_old = true;
+    });
+    if (url === null) await cdp.send('Page.reload', { ignoreCache: false });
+    else await cdp.send('Page.navigate', { url });
+    const deadline = Date.now() + RELOAD_TIMEOUT_MS;
+    for (;;) {
+      const loaded = await evaluate<boolean>(
+        cdp,
+        () =>
+          !(window as unknown as { __breakhound_old?: boolean }).__breakhound_old &&
+          document.readyState === 'complete',
+        undefined,
+        5000,
+      ).catch(() => false);
+      if (loaded) break;
+      if (Date.now() > deadline) throw new Error('The page took over a minute to load.');
+      await pause(100);
+    }
+  }
   await pause(500);
   await evaluate(cdp, () => document.fonts.ready.then(() => undefined));
+}
+
+async function reloadTracked(cdp: Cdp, analyzerScript: string): Promise<string[]> {
+  const ids = await addTracking(cdp, analyzerScript);
+  await loadPage(cdp, null);
   return ids;
 }
 
@@ -144,7 +188,7 @@ export async function scanTab(cdp: Cdp, options: TabScanOptions): Promise<RouteR
     height: window.innerHeight,
     hasContent: window.__breakhound?.hasContent() ?? false,
   }));
-  const route = routeOf(where.href);
+  const route = opts.route ?? routeOf(where.href);
   const base = {
     url: where.href,
     finalUrl: where.href,
@@ -204,8 +248,6 @@ export async function scanTab(cdp: Cdp, options: TabScanOptions): Promise<RouteR
     };
   } finally {
     await restore(cdp, where);
-    for (const identifier of scripts) {
-      await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier }).catch(() => {});
-    }
+    await removeTracking(cdp, scripts);
   }
 }

@@ -147,7 +147,9 @@ Drag across the timeline to resize the page live, click anywhere on it to jump t
 
 While it scans or shows a width, Chrome displays a bar saying breakhound started debugging this browser: that is how an extension resizes a tab. The bar goes away afterwards, and the tab goes back to its own width and scroll position. **Reload first** reloads the page before scanning, so breakhound can wait for the page's own resize handlers exactly, as the CLI does. Leave it off to scan the page as you have it.
 
-The panel scans one page as it is. For every route, menus opened, other browsers, screenshots and reports, use the CLI.
+Switch to **Whole site** to scan every page, not just this one. breakhound finds the pages the way the CLI does: from the app's live router when it has one (Vue, React Router, Nuxt, Remix, TanStack), otherwise by following links from this page and the home page (never a logout, delete or file link, and a few pages per section, since blog posts share a layout), up to 25 pages. It loads each one in this tab, scans it, and comes back to where you were. Your own login applies, so pages behind it are scanned too. Each page gets a chip with its issue count; an issue shared by several pages is counted once, and **Copy prompt** lists it once with every page it's on. Showing an issue from another page takes the tab there first.
+
+Routes only your project's files list (Next.js, SvelteKit and Astro route folders) need the CLI, as do menus opened, other browsers, screenshots and reports.
 
 To try it before it's in the Chrome Web Store, build it and load it unpacked:
 
