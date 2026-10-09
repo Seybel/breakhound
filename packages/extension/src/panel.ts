@@ -1247,16 +1247,26 @@ if (inDevtools) {
 
 // Lay out again when DevTools is resized: the side-by-side view and the axis labels depend on it.
 const WIDE_AT = 760;
+let laidOutAt = document.body.clientWidth;
+let relayout = 0;
 new ResizeObserver(() => {
-  const wide = document.body.clientWidth - 24 >= WIDE_AT;
-  if (wide !== state.wide) {
-    state.wide = wide;
-    if (state.phase === 'done') renderIssues();
-  }
-  if (!ui.results.hidden) {
-    renderAxis();
-    drawZones();
-  }
+  // Only the width matters (the body grows taller whenever an issue opens), and the work waits for
+  // the next frame: changing the page inside the observer's own callback makes Chrome warn of a loop.
+  const width = document.body.clientWidth;
+  if (width === laidOutAt || relayout) return;
+  relayout = requestAnimationFrame(() => {
+    relayout = 0;
+    laidOutAt = document.body.clientWidth;
+    const wide = laidOutAt - 24 >= WIDE_AT;
+    if (wide !== state.wide) {
+      state.wide = wide;
+      if (state.phase === 'done') renderIssues();
+    }
+    if (!ui.results.hidden) {
+      renderAxis();
+      drawZones();
+    }
+  });
 }).observe(document.body);
 
 // Anything that still slips through is shown here rather than left in the extension's error log.

@@ -192,6 +192,33 @@ describe('the DevTools panel', () => {
     await panel.close();
   });
 
+  it('keeps its console clean while DevTools is resized', async () => {
+    const { site, panel } = await open('bug-sidebar-overlap.html');
+    // Chrome reports a ResizeObserver loop as a window error event, which never reaches the console.
+    await panel.evaluate(() => {
+      const seen: string[] = [];
+      (window as unknown as { seen: string[] }).seen = seen;
+      addEventListener('error', (e) => seen.push(e.message));
+    });
+    const problems: string[] = [];
+    panel.on('console', (m) => {
+      if (m.type() === 'error' || m.type() === 'warning') problems.push(m.text());
+    });
+    panel.on('pageerror', (e) => problems.push(e.message));
+    await panel.setViewportSize({ width: 1000, height: 700 });
+    await scanned(panel);
+    await panel.locator('.issue-head').first().click();
+    for (const width of [520, 900, 400, 1100, 760, 759, 761, 1000]) {
+      await panel.setViewportSize({ width, height: 700 });
+      await panel.waitForTimeout(60);
+    }
+    await panel.waitForTimeout(200);
+    problems.push(...(await panel.evaluate(() => (window as unknown as { seen: string[] }).seen)));
+    expect(problems).toEqual([]);
+    await site.close();
+    await panel.close();
+  });
+
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');
     await scanned(panel);
