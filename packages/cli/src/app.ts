@@ -80,6 +80,7 @@ export async function resolveServer(
   }
   if (config.server?.port) {
     project.ports = [config.server.port, ...project.ports.filter((p) => p !== config.server?.port)];
+    project.configuredPorts = [config.server.port, ...project.configuredPorts];
   }
   const running = config.server?.command ? null : await findRunningServer(project);
   if (running) {

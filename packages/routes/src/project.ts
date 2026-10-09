@@ -34,6 +34,11 @@ export interface Project {
   devScript: { name: string; command: string } | null;
   /** Ports to look for a running dev server on, most likely first. */
   ports: number[];
+  /**
+   * The ones the project sets itself (dev script, framework config, breakhound
+   * config), as opposed to framework defaults and common guesses.
+   */
+  configuredPorts: number[];
   /** Where the app is mounted, e.g. "/docs" for Next's basePath; "" at the root. */
   basePath: string;
 }
@@ -210,17 +215,15 @@ export function detectProject(cwd: string): Project | null {
   const framework = detectFramework(deps);
   const devScript = pickDevScript(pkg.scripts ?? {});
   const defaultPort = DEFAULT_PORT[framework.id];
-  const ports = [
-    ...configuredPorts(cwd, devScript?.command),
-    ...(defaultPort ? [defaultPort] : []),
-    ...COMMON_PORTS,
-  ];
+  const configured = [...new Set(configuredPorts(cwd, devScript?.command))];
+  const ports = [...configured, ...(defaultPort ? [defaultPort] : []), ...COMMON_PORTS];
   return {
     root: cwd,
     framework,
     packageManager: detectPackageManager(cwd, pkg),
     devScript,
     ports: [...new Set(ports)],
+    configuredPorts: configured,
     basePath: detectBasePath(cwd),
   };
 }

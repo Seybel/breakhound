@@ -80,8 +80,24 @@ function viteEntry(root: string): string | null {
   );
 }
 
-/** Whether the page served on a port is this project, not some other app left running. */
-export function looksLikeProject(project: Project, page: Probe): boolean {
+/** The framework a page's markers give away, if any. */
+function frameworkOf(page: Probe): FrameworkId | null {
+  if (/next\.js/i.test(String(page.headers['x-powered-by'] ?? ''))) return 'next';
+  for (const [id, fingerprint] of Object.entries(FINGERPRINTS)) {
+    // Vite's client script shows up in many dev servers, so it names no framework on its own.
+    if (id === 'angular' && !/<app-root|ng-version/.test(page.html)) continue;
+    if (fingerprint.test(page.html)) return id as FrameworkId;
+  }
+  return null;
+}
+
+/**
+ * Whether the page served on a port is this project, not some other app left
+ * running. `configured` is true for a port the project itself sets; on a port
+ * that is only a guess, a setup breakhound can't fingerprint never counts,
+ * since any other app running there would look the same.
+ */
+export function looksLikeProject(project: Project, page: Probe, configured = true): boolean {
   const { html, headers } = page;
   if (project.framework.id === 'next' && /next\.js/i.test(String(headers['x-powered-by'] ?? '')))
     return true;
@@ -91,8 +107,10 @@ export function looksLikeProject(project: Project, page: Probe): boolean {
   if (entry) return html.includes(entry);
   if (/react-scripts/.test(project.devScript?.command ?? ''))
     return /\/static\/js\/bundle\.js/.test(html);
-  // Unknown setup: any HTML page will do.
-  return /<html|<!doctype html/i.test(html);
+  if (!configured) return false;
+  // Unknown setup on its own port: any HTML page will do, unless it is plainly another framework's.
+  const other = frameworkOf(page);
+  return /<html|<!doctype html/i.test(html) && (!other || other === project.framework.id);
 }
 
 /** Whether anything answers at this URL. */
@@ -118,7 +136,8 @@ export async function findRunningServer(project: Project): Promise<RunningServer
     checks.map(async ({ port, host }) => {
       const url = `http://${host}:${port}`;
       const page = await probe(`${url}/`);
-      return page && page.status < 500 && looksLikeProject(project, page) ? url : null;
+      const configured = project.configuredPorts.includes(port);
+      return page && page.status < 500 && looksLikeProject(project, page, configured) ? url : null;
     }),
   );
   // Keep the preferred port order; prefer "localhost" on the same port.

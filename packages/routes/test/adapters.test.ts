@@ -11,6 +11,7 @@ import {
   fromTanstackPath,
   fromVueRouterPath,
   globMatches,
+  looksLikeProject,
   matchesPattern,
   nextAppRoutes,
   nextPagesRoutes,
@@ -356,6 +357,26 @@ describe('project detection', () => {
       }),
     });
     expect(detectProject(root)?.devScript).toBeNull();
+  });
+
+  it("doesn't take another app on a guessed port for a project it can't fingerprint", () => {
+    const root = project({
+      'package.json': JSON.stringify({ scripts: { dev: 'node server.js --port 4100' } }),
+    });
+    const p = detectProject(root);
+    if (!p) throw new Error('no project');
+    expect(p.configuredPorts).toEqual([4100]);
+    const plain = { status: 200, headers: {}, html: '<!doctype html><html><body>Hi</body></html>' };
+    const next = {
+      status: 200,
+      headers: { 'x-powered-by': 'Next.js' },
+      html: '<!doctype html><html><script src="/_next/static/chunks/main.js"></script></html>',
+    };
+    // On the port it sets itself, a plain page is the project; on a common port it could be anything.
+    expect(looksLikeProject(p, plain, true)).toBe(true);
+    expect(looksLikeProject(p, plain, false)).toBe(false);
+    // Another framework's app is never it, even on its own port.
+    expect(looksLikeProject(p, next, true)).toBe(false);
   });
 });
 
