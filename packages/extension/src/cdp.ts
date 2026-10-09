@@ -6,6 +6,11 @@ import type { SweepPage } from '@breakhound/engine/core';
  */
 export interface Cdp {
   send<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  /**
+   * Told when measuring has to wait because the tab is hidden (Chrome stops
+   * drawing hidden tabs, so nothing settles), and again when it is back.
+   */
+  onHidden?: ((hidden: boolean) => void) | null;
 }
 
 interface EvaluateReply {
@@ -20,9 +25,30 @@ export class Cancelled extends Error {
   }
 }
 
+/** How often a slow answer is checked on: is the tab hidden, or is the page busy? */
+const CHECK_EVERY_MS = 2000;
+
+const pause = (ms: number) => new Promise<'waiting'>((r) => setTimeout(() => r('waiting'), ms));
+
+/** Whether the tab is hidden. Unknown (null) when the page is too busy to say. */
+async function tabHidden(cdp: Cdp): Promise<boolean | null> {
+  const asked = cdp
+    .send<EvaluateReply>('Runtime.evaluate', {
+      expression: 'document.visibilityState',
+      returnByValue: true,
+    })
+    .then((r) => r.result?.value === 'hidden')
+    .catch(() => null);
+  return Promise.race([asked, pause(1000).then(() => null)]);
+}
+
 /**
  * Runs `fn(arg)` in the page and returns the result by value, like
  * Playwright's page.evaluate. `fn` must not use anything outside itself.
+ *
+ * It gives up once the page has been visible and silent for `timeoutMs`.
+ * While the tab is hidden it waits as long as it takes, since a hidden tab
+ * draws nothing and measuring carries on by itself once it is shown again.
  */
 export async function evaluate<T>(
   cdp: Cdp,
@@ -34,34 +60,46 @@ export async function evaluate<T>(
     typeof fn === 'string'
       ? fn
       : `(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () =>
-        reject(
-          new Error(
-            'The page stopped responding. Keep the tab visible while it scans, since hidden tabs pause.',
-          ),
-        ),
-      timeoutMs,
-    );
+  const sent = cdp.send<EvaluateReply>('Runtime.evaluate', {
+    expression,
+    awaitPromise: true,
+    returnByValue: true,
   });
+  // After giving up nobody waits for the reply any more; a late failure isn't an error then.
+  sent.catch(() => {});
+  let silentFor = 0;
+  let hidden = false;
   try {
-    const sent = cdp.send<EvaluateReply>('Runtime.evaluate', {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-    });
-    // After a timeout nobody waits for the reply any more; a late failure isn't an error then.
-    sent.catch(() => {});
-    const reply = await Promise.race([sent, timeout]);
-    if (reply.exceptionDetails) {
-      const d = reply.exceptionDetails;
-      throw new Error(d.exception?.description?.split('\n')[0] ?? d.text ?? 'The page threw');
+    for (;;) {
+      const step = Math.min(CHECK_EVERY_MS, timeoutMs);
+      const reply = await Promise.race([sent, pause(step)]);
+      if (reply !== 'waiting') {
+        if (reply.exceptionDetails) {
+          const d = reply.exceptionDetails;
+          throw new Error(d.exception?.description?.split('\n')[0] ?? d.text ?? 'The page threw');
+        }
+        return reply.result?.value as T;
+      }
+      const nowHidden = await tabHidden(cdp);
+      if (nowHidden) {
+        if (!hidden) cdp.onHidden?.(true);
+        hidden = true;
+        silentFor = 0;
+        continue;
+      }
+      if (hidden && nowHidden === false) {
+        hidden = false;
+        cdp.onHidden?.(false);
+      }
+      silentFor += step;
+      if (silentFor >= timeoutMs) {
+        throw new Error(
+          'The page stopped responding: it was busy for too long, paused in the debugger, or showing a dialog.',
+        );
+      }
     }
-    return reply.result?.value as T;
   } finally {
-    clearTimeout(timer);
+    if (hidden) cdp.onHidden?.(false);
   }
 }
 

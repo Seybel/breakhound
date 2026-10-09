@@ -97,6 +97,8 @@ interface State {
   live: Live;
   /** Where the running scan is. */
   scanAt: number | null;
+  /** Measuring is waiting for the tab to be in view again. */
+  paused: boolean;
   measured: number;
   selected: string | null;
   filter: Filter;
@@ -121,6 +123,7 @@ const state: State = {
   startedAt: new Date(),
   live: new Map(),
   scanAt: null,
+  paused: false,
   measured: 0,
   selected: null,
   filter: 'all',
@@ -456,6 +459,7 @@ async function scan(): Promise<void> {
     state.phase = state.pages.length ? 'done' : 'idle';
     state.scanning = null;
     state.scanAt = null;
+    state.paused = false;
     render();
   }
 }
@@ -773,9 +777,11 @@ function renderStats(): void {
     const pct = Math.max(0, Math.min(100, Math.round(((at - min) / (max - min)) * 100)));
     const { layouts, problems } = liveCounts();
     const page = state.scanning;
-    ui.status.textContent = page
-      ? `Page ${page.index + 1} of about ${page.planned} · ${pct}%`
-      : `Scanning · ${pct}%`;
+    ui.status.textContent = state.paused
+      ? 'Paused: the tab is out of view'
+      : page
+        ? `Page ${page.index + 1} of about ${page.planned} · ${pct}%`
+        : `Sniffing · ${pct}%`;
     if (page) {
       const found = state.pages.reduce((n, p) => n + p.route.issues.length, 0);
       ui.stats.replaceChildren(
@@ -1310,7 +1316,7 @@ function renderIssues(): void {
       h(
         'li',
         { class: 'empty-list' },
-        h('strong', {}, 'Sweeping…'),
+        h('strong', {}, 'Sniffing…'),
         'Issues are listed as soon as every width is measured.',
       ),
     );
@@ -1477,6 +1483,20 @@ for (const [button, mode] of [
     renderToolbar();
   });
 }
+
+session.onHidden = (hidden) => {
+  state.paused = hidden;
+  if (hidden) {
+    notify(
+      'Paused while the tab is out of view. Chrome stops drawing hidden tabs, so breakhound waits, and carries on by itself when you switch back to it.',
+      'note',
+    );
+    scheduleLive();
+  } else {
+    notify(null);
+    scheduleLive();
+  }
+};
 
 session.onDetach = () => {
   // The developer closed the debugging bar, or the tab went away.

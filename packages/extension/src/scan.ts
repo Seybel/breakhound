@@ -120,7 +120,12 @@ export async function loadPage(cdp: Cdp, url: string | null): Promise<void> {
     }
   }
   await pause(500);
-  await evaluate(cdp, () => document.fonts.ready.then(() => undefined));
+  // Web fonts, but not forever: a font that never finishes loading shouldn't hold up the scan.
+  await evaluate(cdp, () =>
+    Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]).then(
+      () => undefined,
+    ),
+  );
 }
 
 async function reloadTracked(cdp: Cdp, analyzerScript: string): Promise<string[]> {

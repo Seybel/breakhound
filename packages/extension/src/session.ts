@@ -30,6 +30,7 @@ export class TabSession implements Cdp {
   private attached = false;
   /** Called when Chrome or the developer ends the session (the bar's Cancel, the tab closing). */
   onDetach: ((reason: string) => void) | null = null;
+  onHidden: ((hidden: boolean) => void) | null = null;
 
   constructor(readonly tabId: number) {
     chrome.debugger.onDetach.addListener((source, reason) => {

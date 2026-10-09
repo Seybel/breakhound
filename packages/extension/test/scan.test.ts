@@ -106,6 +106,68 @@ describe('scanning the inspected tab', () => {
     }
   });
 
+  it('waits while the tab is hidden instead of failing, and carries on when it is back', async () => {
+    const { page, cdp } = await openTab(pathToFileURL(join(PAGES, 'bug-fixed-width.html')).href);
+    try {
+      // What Chrome does to a hidden tab: it says so, and stops drawing frames.
+      const hide = () =>
+        page.evaluate(() => {
+          const w = window as unknown as {
+            held: FrameRequestCallback[];
+            realRaf: typeof requestAnimationFrame;
+          };
+          w.held = [];
+          w.realRaf = window.requestAnimationFrame;
+          window.requestAnimationFrame = (cb) => {
+            w.held.push(cb);
+            return 0;
+          };
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => 'hidden',
+          });
+        });
+      const show = () =>
+        page.evaluate(() => {
+          const w = window as unknown as {
+            held: FrameRequestCallback[];
+            realRaf: typeof requestAnimationFrame;
+          };
+          window.requestAnimationFrame = w.realRaf;
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true,
+            get: () => 'visible',
+          });
+          for (const cb of w.held) w.realRaf(cb);
+        });
+      const told: boolean[] = [];
+      cdp.onHidden = (hidden) => told.push(hidden);
+      let measured = 0;
+      let hiddenAt = 0;
+      const scanning = scanTab(cdp, {
+        analyzerScript,
+        ...SCAN,
+        onProgress: () => {
+          measured++;
+          if (measured === 5) {
+            hiddenAt = Date.now();
+            void hide();
+          }
+        },
+      });
+      // Hidden for longer than a silent page is given before it counts as stuck.
+      await expect.poll(() => told, { timeout: 15_000 }).toEqual([true]);
+      await new Promise((r) => setTimeout(r, 22_000 - (Date.now() - hiddenAt)));
+      await show();
+      const result = await scanning;
+      expect(told).toEqual([true, false]);
+      expect(result.status).toBe('scanned');
+      expect(result.issues.map((i) => i.detector)).toContain('page-overflow');
+    } finally {
+      await page.context().close();
+    }
+  }, 90_000);
+
   it('stops when asked', async () => {
     const { page, cdp } = await openTab(pathToFileURL(join(PAGES, 'bug-nav-wrap.html')).href);
     try {
