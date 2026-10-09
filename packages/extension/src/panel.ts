@@ -293,9 +293,16 @@ async function scan(): Promise<void> {
   saveSettings();
   notify(null);
   await resetView();
-  const previous = { result: state.result, range: state.range, live: state.live };
+  const previous = {
+    result: state.result,
+    range: state.range,
+    live: state.live,
+    startedAt: state.startedAt,
+  };
+  const startedAt = new Date();
   Object.assign(state, {
     phase: 'scanning',
+    startedAt,
     stopping: false,
     result: null,
     range,
@@ -306,7 +313,8 @@ async function scan(): Promise<void> {
     filter: 'all',
   });
   render();
-  const startedAt = new Date();
+  // The clock keeps going while a slow page settles, between measurements.
+  const tick = setInterval(scheduleLive, 1000);
   let finished = false;
   try {
     await session.attach();
@@ -339,6 +347,7 @@ async function scan(): Promise<void> {
       );
     }
   } finally {
+    clearInterval(tick);
     await session.detach();
     if (!finished) Object.assign(state, previous);
     state.phase = state.result ? 'done' : 'idle';
@@ -570,6 +579,15 @@ function liveCounts(): { layouts: number; problems: number } {
   return { layouts, problems };
 }
 
+/** 4.2s, 38s, 1m 05s. */
+function duration(ms: number): string {
+  const seconds = ms / 1000;
+  if (seconds < 10) return `${seconds.toFixed(1)}s`;
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const whole = Math.round(seconds);
+  return `${Math.floor(whole / 60)}m ${String(whole % 60).padStart(2, '0')}s`;
+}
+
 function renderStats(): void {
   const { min, max } = state.range;
   if (state.phase === 'scanning') {
@@ -579,7 +597,11 @@ function renderStats(): void {
     ui.status.textContent = `Scanning · ${pct}%`;
     ui.stats.replaceChildren(
       stat('Measuring', `${at}px`, `${pct}% of the way to ${max}px`),
-      stat('Widths measured', String(state.measured), 'each change narrowed to the pixel'),
+      stat(
+        'Time',
+        duration(Date.now() - state.startedAt.getTime()),
+        `${state.measured} ${state.measured === 1 ? 'width' : 'widths'} measured so far`,
+      ),
       stat('Layouts so far', String(layouts), 'runs of widths that share a layout'),
       stat(
         'Something breaks at',
@@ -617,11 +639,7 @@ function renderStats(): void {
           ? 'all at media or container queries'
           : 'one layout at every width',
     ),
-    stat(
-      'Widths measured',
-      String(r.measurements),
-      `${min}–${max}px in ${(r.durationMs / 1000).toFixed(1)}s`,
-    ),
+    stat('Scan time', duration(r.durationMs), `${r.measurements} widths, ${min}–${max}px`),
     stat('Page', url.pathname + url.hash, url.host, 'page'),
   );
 }
