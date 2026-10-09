@@ -65,7 +65,15 @@ export async function evaluate<T>(
   }
 }
 
+/** The space the tab really has, so wider widths can be zoomed out to fit in it. */
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
 export interface TabPageOptions {
+  /** Zoom widths wider than this out to fit, so the whole layout stays in view. */
+  fit?: Viewport;
   /** Called with every width the page is set to. */
   onResize?: (width: number) => void;
   /** Checked before every resize; true stops the scan. */
@@ -78,21 +86,39 @@ export function tabPage(cdp: Cdp, options: TabPageOptions = {}): SweepPage {
     async setViewportSize({ width, height }) {
       if (options.cancelled?.()) throw new Cancelled();
       options.onResize?.(width);
-      await setWidth(cdp, width, height);
+      await setWidth(cdp, width, height, options.fit);
     },
     evaluate: ((fn: (arg: never) => unknown, arg?: unknown) =>
       evaluate(cdp, fn, arg)) as unknown as SweepPage['evaluate'],
   };
 }
 
-/** Lays the tab out at this width, the way Playwright sets a viewport (the screen matches it). */
-export async function setWidth(cdp: Cdp, width: number, height: number): Promise<void> {
+/** How far a width has to be zoomed out to fit the tab's own space. */
+export function fitScale(width: number, fit?: Viewport): number {
+  return fit && width > fit.width ? fit.width / width : 1;
+}
+
+/**
+ * Lays the tab out at this width, the way Playwright sets a viewport (the
+ * screen matches it). Wider than the tab, it is zoomed out to fit, like
+ * DevTools' device mode; that changes how it looks, not how it lays out.
+ * A height of 0 fills the tab's height.
+ */
+export async function setWidth(
+  cdp: Cdp,
+  width: number,
+  height: number,
+  fit?: Viewport,
+): Promise<void> {
+  const scale = fitScale(width, fit);
+  const h = height || (fit ? Math.round(fit.height / scale) : 0);
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width,
-    height,
+    height: h,
     deviceScaleFactor: 0,
     mobile: false,
     screenWidth: width,
-    screenHeight: height,
+    screenHeight: h,
+    ...(scale < 1 ? { scale } : {}),
   });
 }

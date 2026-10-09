@@ -1,3 +1,4 @@
+import type { AnalyzeResult } from '@breakhound/analyzers';
 import {
   buildBreakpoints,
   buildIssues,
@@ -34,6 +35,8 @@ export interface TabScanOptions {
    */
   reload?: boolean;
   onProgress?: (progress: { width: number; measured: number }) => void;
+  /** Every width measured for the sweep, with what was found there, as it happens. */
+  onMeasure?: (width: number, result: AnalyzeResult) => void;
   cancelled?: () => boolean;
 }
 
@@ -126,15 +129,21 @@ export async function scanTab(cdp: Cdp, options: TabScanOptions): Promise<RouteR
   const scripts = opts.reload ? await reloadTracked(cdp, opts.analyzerScript) : [];
   await evaluate(cdp, opts.analyzerScript);
 
-  const where = await evaluate<{ href: string; x: number; y: number; hasContent: boolean }>(
-    cdp,
-    () => ({
-      href: location.href,
-      x: window.scrollX,
-      y: window.scrollY,
-      hasContent: window.__breakhound?.hasContent() ?? false,
-    }),
-  );
+  const where = await evaluate<{
+    href: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    hasContent: boolean;
+  }>(cdp, () => ({
+    href: location.href,
+    x: window.scrollX,
+    y: window.scrollY,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    hasContent: window.__breakhound?.hasContent() ?? false,
+  }));
   const route = routeOf(where.href);
   const base = {
     url: where.href,
@@ -157,6 +166,7 @@ export async function scanTab(cdp: Cdp, options: TabScanOptions): Promise<RouteR
 
   let measured = 0;
   const page = tabPage(cdp, {
+    fit: { width: where.width, height: where.height },
     onResize: (width) => opts.onProgress?.({ width, measured: ++measured }),
     ...(opts.cancelled ? { cancelled: opts.cancelled } : {}),
   });
@@ -168,6 +178,9 @@ export async function scanTab(cdp: Cdp, options: TabScanOptions): Promise<RouteR
       height: opts.height,
       maxSettleMs: opts.maxSettleMs,
       analyze: {},
+      // Someone is watching the tab: grow it steadily instead of jumping around.
+      order: 'ascending',
+      ...(opts.onMeasure ? { onMeasure: opts.onMeasure } : {}),
     });
     await sweeper.run(coarseWidths(opts.minWidth, opts.maxWidth, opts.step));
     const widths = [...sweeper.results.keys()].sort((a, b) => a - b);

@@ -19,7 +19,8 @@ let browser: Browser;
 let scanner: Scanner;
 
 beforeAll(async () => {
-  browser = await chromium.launch();
+  // Narrower than the widest width scanned, so wide widths are zoomed out to fit, as in a docked DevTools.
+  browser = await chromium.launch({ args: ['--window-size=1000,700'] });
   scanner = new Scanner();
 });
 
@@ -80,6 +81,7 @@ describe('scanning the inspected tab', () => {
         (window as unknown as { mark: number }).mark = 1;
       });
       const before = await page.evaluate(() => window.innerWidth);
+      expect(before).toBeLessThan(SCAN.maxWidth);
       const widths: number[] = [];
       const result = await scanTab(cdp, {
         analyzerScript,
@@ -89,6 +91,9 @@ describe('scanning the inspected tab', () => {
       expect(result.issues.map((i) => i.detector)).toContain('page-overflow');
       expect(widths[0]).toBe(320);
       expect(widths.length).toBe(result.measurements + 1);
+      // Someone watching sees the page grow steadily: never more than one step back.
+      const back = widths.slice(1).map((w, i) => (widths[i] as number) - w);
+      expect(Math.max(...back)).toBeLessThanOrEqual(16);
       const after = await page.evaluate(() => ({
         width: window.innerWidth,
         mark: (window as unknown as { mark?: number }).mark,

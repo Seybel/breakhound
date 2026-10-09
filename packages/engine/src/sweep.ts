@@ -18,6 +18,15 @@ export interface SweepSettings {
   height: number;
   maxSettleMs: number;
   analyze: AnalyzeOptions;
+  /**
+   * `breadth` (default) bisects every change a little at a time, so running
+   * out of budget leaves all of them roughly located. `ascending` settles each
+   * change before moving on, so the page only ever grows, a few pixels at a
+   * time: what someone watching the tab (the DevTools panel) wants to see.
+   */
+  order?: 'breadth' | 'ascending';
+  /** Called with every width measured for the sweep, as it is measured. */
+  onMeasure?: (width: number, result: AnalyzeResult) => void;
 }
 
 /**
@@ -86,6 +95,7 @@ export class Sweeper {
     const result = await this.analyzeAt(width);
     this.results.set(width, result);
     this.keys.set(width, stateKey(result));
+    this.settings.onMeasure?.(width, result);
     return result;
   }
 
@@ -123,6 +133,7 @@ export class Sweeper {
 
   /** Coarse pass over the given widths, then bisect every interval whose state changed. */
   async run(coarse: number[]): Promise<void> {
+    if (this.settings.order === 'ascending') return this.runAscending(coarse);
     for (const w of coarse) await this.measure(w);
     let budget = Math.max(64, coarse.length * REFINE_BUDGET_PER_WIDTH);
     // Breadth first, so running out of budget leaves every change roughly located.
@@ -146,6 +157,33 @@ export class Sweeper {
     if (start !== undefined && coarse.length > 1) {
       const again = await this.analyzeAt(start);
       if (stateKey(again) !== this.key(start)) this.unstable = true;
+    }
+  }
+
+  /** The same measurements as the breadth-first run, taken from narrowest to widest. */
+  private async runAscending(coarse: number[]): Promise<void> {
+    let budget = Math.max(64, coarse.length * REFINE_BUDGET_PER_WIDTH);
+    const refine = async (a: number, b: number): Promise<void> => {
+      if (b - a <= 1 || this.key(a) === this.key(b)) return;
+      if (budget-- <= 0) {
+        // Keep sweeping; changes from here on are located to the coarse step only.
+        this.unstable = true;
+        return;
+      }
+      const mid = Math.floor((a + b) / 2);
+      await this.measure(mid);
+      await refine(a, mid);
+      await refine(mid, b);
+    };
+    for (let i = 0; i < coarse.length; i++) {
+      await this.measure(coarse[i] as number);
+      if (i > 0) await refine(coarse[i - 1] as number, coarse[i] as number);
+    }
+    // One step back, rather than all the way to the start, should find the same layout.
+    const back = coarse[coarse.length - 2];
+    if (back !== undefined) {
+      const again = await this.analyzeAt(back);
+      if (stateKey(again) !== this.key(back)) this.unstable = true;
     }
   }
 }
