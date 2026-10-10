@@ -37,6 +37,14 @@ more(); more();
 addEventListener('scroll', () => { if (scrollY + innerHeight > document.documentElement.scrollHeight - 400) more(); });
 </script></body></html>`,
   },
+  // Live content: a list that keeps growing while nobody touches the page.
+  '/live': {
+    body: `${HEAD}<body><main><ul id="feed"><li>First</li></ul></main>
+<script>
+let n = 1;
+setInterval(() => { const li = document.createElement('li'); li.textContent = 'Update ' + ++n; document.getElementById('feed').append(li); }, 50);
+</script></body></html>`,
+  },
   '/restless': {
     body: `${HEAD}<body><main><div id="grid" style="display:grid;gap:8px"><div>One</div><div>Two</div><div>Three</div></div></main>
 <script>
@@ -103,11 +111,17 @@ describe('pages that used to trip the scanner', () => {
     expect(Date.now() - started).toBeLessThan(30_000);
   });
 
-  it('gives up bisecting a layout that never holds still, and says so', async () => {
+  it('gives up bisecting a layout that never holds still', async () => {
     const result = await scanner.scanPage(`${base}/restless`, QUICK);
     expect(result.status).toBe('scanned');
-    expect(result.warnings.join(' ')).toMatch(/kept changing/);
     expect(result.measurements).toBeLessThan(400);
+  });
+
+  it('says so when the layout changes while nobody resizes it', async () => {
+    // Every width measured again later finds more items than the first time, so this can't pass by luck.
+    const result = await scanner.scanPage(`${base}/live`, QUICK);
+    expect(result.status).toBe('scanned');
+    expect(result.warnings.join(' ')).toMatch(/kept changing/);
   });
 
   it('treats overflow to the left of a right-to-left page as scrolling', async () => {

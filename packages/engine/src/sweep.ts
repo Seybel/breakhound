@@ -152,11 +152,20 @@ export class Sweeper {
       await this.measure(mid);
       queue.push([a, mid], [mid, b]);
     }
-    // Coming back to where we started should find the same layout.
-    const start = coarse[0];
-    if (start !== undefined && coarse.length > 1) {
-      const again = await this.analyzeAt(start);
-      if (stateKey(again) !== this.key(start)) this.unstable = true;
+    // Coming back to widths measured a while ago should find the same layouts. A few of them,
+    // since a carousel can be back on the same slide by chance.
+    if (coarse.length < 2) return;
+    const again = new Set([
+      coarse[0],
+      coarse[Math.floor(coarse.length / 2)],
+      coarse[coarse.length - 1],
+    ]);
+    for (const w of again) {
+      if (w === undefined) continue;
+      if (stateKey(await this.analyzeAt(w)) !== this.key(w)) {
+        this.unstable = true;
+        return;
+      }
     }
   }
 
