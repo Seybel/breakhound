@@ -56,24 +56,37 @@ afterAll(async () => {
   server?.close();
 });
 
-/** Opens a site page and the panel for it, the panel as a plain extension page. */
-async function open(file: string, query = ''): Promise<{ site: Page; panel: Page }> {
+type Chrome = {
+  debugger: { getTargets: () => Promise<{ tabId?: number; url: string }[]> };
+  windows: { create: (o: { url: string; width: number; height: number }) => Promise<unknown> };
+};
+
+/**
+ * Opens a page, and the panel for it in a window of its own. DevTools and the side panel sit
+ * beside the page, so the tab being scanned is in view. A panel opened as another tab of the
+ * same window would put the page in the background, where Chrome can stop drawing it.
+ */
+async function openAt(url: string, query = ''): Promise<{ site: Page; panel: Page }> {
   const site = await context.newPage();
-  await site.goto(`${origin}/${file}`);
-  const panel = await context.newPage();
-  await panel.goto(`chrome-extension://${extensionId}/panel.html`);
+  await site.goto(url);
   // The debugger API lists tabs with their URLs, which chrome.tabs only does with more permissions.
-  const tab = await panel.evaluate(async (url) => {
-    const targets = await (
-      globalThis as unknown as {
-        chrome: { debugger: { getTargets: () => Promise<{ tabId?: number; url: string }[]> } };
-      }
-    ).chrome.debugger.getTargets();
-    return targets.find((t) => t.url === url)?.tabId;
-  }, `${origin}/${file}`);
-  await panel.goto(`chrome-extension://${extensionId}/panel.html?tab=${tab}${query}`);
+  const tab = await worker.evaluate(async (url) => {
+    const { chrome } = globalThis as unknown as { chrome: Chrome };
+    return (await chrome.debugger.getTargets()).find((t) => t.url === url)?.tabId;
+  }, url);
+  const [panel] = await Promise.all([
+    context.waitForEvent('page'),
+    worker.evaluate(async (url) => {
+      const { chrome } = globalThis as unknown as { chrome: Chrome };
+      await chrome.windows.create({ url, width: 1000, height: 700 });
+    }, `chrome-extension://${extensionId}/panel.html?tab=${tab}${query}`),
+  ]);
+  await panel.waitForLoadState();
+  expect(await site.evaluate(() => document.visibilityState)).toBe('visible');
   return { site, panel };
 }
+
+const open = (file: string, query = '') => openAt(`${origin}/${file}`, query);
 
 /** Where on the timeline a width is, in the layout band (above the issue bars, so nothing else is clicked). */
 async function pointAt(panel: Page, width: number, range: { min: number; max: number }) {
@@ -83,11 +96,28 @@ async function pointAt(panel: Page, width: number, range: { min: number; max: nu
   return { x: zones.x + frac * zones.width, y: zones.y + zones.height / 2 };
 }
 
+/** Waits for the scan to end, and says what the panel shows if it doesn't, not just that time ran out. */
+async function finished(panel: Page): Promise<void> {
+  const done = await panel
+    .waitForSelector('body[data-phase="done"]', { timeout: 45_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (done) return;
+  const shown = await panel.evaluate(() => ({
+    phase: document.body.dataset.phase,
+    status: document.getElementById('status')?.textContent,
+    notice: document.getElementById('notice')?.hidden
+      ? null
+      : document.getElementById('notice-text')?.textContent,
+  }));
+  throw new Error(`The scan didn't finish: ${JSON.stringify(shown)}`);
+}
+
 async function scanned(panel: Page): Promise<void> {
   await panel.fill('#min', '320');
   await panel.fill('#max', '1440');
   await panel.click('#scan');
-  await panel.waitForSelector('body[data-phase="done"]', { timeout: 60_000 });
+  await finished(panel);
 }
 
 const innerWidth = (site: Page) => site.evaluate(() => window.innerWidth);
@@ -186,7 +216,7 @@ describe('the DevTools panel', () => {
 
     // The menu opens the panel in the side panel with ?scan, and it starts on its own.
     const { site, panel } = await open('bug-fixed-width.html', `&scan=${Date.now()}`);
-    await panel.waitForSelector('body[data-phase="done"]', { timeout: 60_000 });
+    await finished(panel);
     expect(await panel.locator('.issue-title').count()).toBeGreaterThan(0);
     await site.close();
     await panel.close();
@@ -242,19 +272,7 @@ describe('the DevTools panel', () => {
     await new Promise<void>((r) => siteServer.listen(0, '127.0.0.1', r));
     const siteOrigin = `http://127.0.0.1:${(siteServer.address() as AddressInfo).port}`;
     try {
-      const site = await context.newPage();
-      await site.goto(`${siteOrigin}/about`);
-      const panel = await context.newPage();
-      await panel.goto(`chrome-extension://${extensionId}/panel.html`);
-      const tab = await panel.evaluate(async (url) => {
-        const targets = await (
-          globalThis as unknown as {
-            chrome: { debugger: { getTargets: () => Promise<{ tabId?: number; url: string }[]> } };
-          }
-        ).chrome.debugger.getTargets();
-        return targets.find((t) => t.url === url)?.tabId;
-      }, `${siteOrigin}/about`);
-      await panel.goto(`chrome-extension://${extensionId}/panel.html?tab=${tab}`);
+      const { site, panel } = await openAt(`${siteOrigin}/about`);
       await panel.setViewportSize({ width: 1000, height: 700 });
       await panel.click('#mode-site');
       expect(await panel.isHidden('#reload-switch')).toBe(true);
@@ -318,7 +336,7 @@ describe('the DevTools panel', () => {
 
     await pick('Mobile');
     await panel.click('#scan');
-    await panel.waitForSelector('body[data-phase="done"]', { timeout: 60_000 });
+    await finished(panel);
     expect(await panel.textContent('#stats')).toContain('320–599px');
     await panel.reload();
     expect((await picked()).pressed).toEqual(['Mobile']);
