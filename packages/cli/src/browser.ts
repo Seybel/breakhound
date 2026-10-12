@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { styleText } from 'node:util';
 import { BROWSER_LABELS, BROWSER_TYPES, type BrowserName } from '@breakhound/engine';
 
@@ -32,10 +33,23 @@ export function ensureBrowsers(names: BrowserName[] = ['chromium']): void {
   installBrowsers(missing, false);
 }
 
+/**
+ * Playwright's own command line, which downloads browsers. Found through its package.json, the
+ * one file it always exports, since newer versions don't export the CLI itself.
+ */
+export function playwrightCli(): string {
+  const require = createRequire(import.meta.url);
+  const manifest = require.resolve('playwright/package.json');
+  const { bin } = JSON.parse(readFileSync(manifest, 'utf8')) as {
+    bin?: string | Record<string, string>;
+  };
+  const file = typeof bin === 'string' ? bin : (bin?.playwright ?? 'cli.js');
+  return join(dirname(manifest), file);
+}
+
 /** Runs the bundled Playwright's installer, optionally with the system libraries the browsers need (Linux, CI). */
 export function installBrowsers(names: BrowserName[], withDeps: boolean): void {
-  const require = createRequire(import.meta.url);
-  const cli = require.resolve('playwright/cli');
+  const cli = playwrightCli();
   const args = [cli, 'install', ...(withDeps ? ['--with-deps'] : []), ...names];
   const run = spawnSync(process.execPath, args, { stdio: ['ignore', 2, 2] });
   if (run.status !== 0) {

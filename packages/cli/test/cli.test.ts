@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,6 +6,7 @@ import { Scanner } from '@breakhound/engine';
 import { parsePattern } from '@breakhound/routes';
 import { describe, expect, it } from 'vitest';
 import { applyFilters, planRoutes } from '../src/app';
+import { playwrightCli } from '../src/browser';
 import { KNOWN_KEYS, loadConfig, validateConfig } from '../src/config';
 import { runInit, SCHEMA_URL } from '../src/init';
 import { resolveTargets } from '../src/scan';
@@ -57,6 +59,18 @@ describe('targets', () => {
 
   it('explains what to do when there is nothing to scan', () => {
     expect(() => resolveTargets([], {}, '/')).toThrow(/breakhound init/);
+  });
+});
+
+describe('browsers', () => {
+  it("finds Playwright's installer, which downloads browsers on first use", () => {
+    const cli = playwrightCli();
+    expect(existsSync(cli)).toBe(true);
+    // A dry run lists what it would download, so this downloads nothing.
+    const plan = execFileSync(process.execPath, [cli, 'install', '--dry-run', 'webkit'], {
+      encoding: 'utf8',
+    });
+    expect(plan).toMatch(/webkit/i);
   });
 });
 
