@@ -68,6 +68,7 @@ declare namespace chrome {
       documentUrlPatterns?: string[];
     }): void;
     function update(id: string, properties: { title?: string }): Promise<void>;
+    function removeAll(callback?: () => void): void;
     const onClicked: {
       addListener(callback: (info: { menuItemId: string | number }, tab?: tabs.Tab) => void): void;
     };

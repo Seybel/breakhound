@@ -27,12 +27,15 @@ function openPanel(tabId: number | undefined, scan: boolean): void {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: MENU_ID,
-    title: 'Scan with breakhound',
-    contexts: ['page', 'frame', 'selection', 'link', 'image', 'video', 'audio', 'editable'],
-    documentUrlPatterns: PAGES,
-  });
+  // Chrome can keep the item through an update or a reload, and creating it again fails.
+  chrome.contextMenus.removeAll(() =>
+    chrome.contextMenus.create({
+      id: MENU_ID,
+      title: 'Scan with breakhound',
+      contexts: ['page', 'frame', 'selection', 'link', 'image', 'video', 'audio', 'editable'],
+      documentUrlPatterns: PAGES,
+    }),
+  );
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
