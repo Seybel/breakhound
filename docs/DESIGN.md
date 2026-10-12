@@ -264,6 +264,7 @@ Each detector is a pure function `(document, context) → Finding[]`. It must na
 | `media-overflow` | Images wider than their container | Special case of content-overflow for `img`, `video`, `iframe`, `svg`, `canvas` | error |
 | `small-tap-target` | Buttons/links too small on touch widths (< 768px) | WCAG 2.2 target size: box < 24×24 and a 24px circle around it touches another target. Inline text links and labelled checkboxes are exempt. Grouped per parent | warning |
 | `tiny-text` | Unreadable text on small widths | Computed font size < 12px, grouped per parent | info |
+| `oversized-text` | Headings too big for a phone | Below 768px, text of 28px or more on 3+ lines averaging under 12 characters a line (a word or two), with at least two words; narrow columns breaking words are left to `squished-text`. The likely fix is a `clamp()` up to the current size | warning |
 | `edge-gutter` | Text pressed against a phone screen edge | The text's block container has < 4px between its content box and the screen edge (< 768px) | warning |
 | `clipped-text` | Text cut off by a fixed-size container | Painted text box extends past a non-scrolling clip ancestor, or is pushed entirely below one that still shows other text; blamed on the container; skips ellipsis, line-clamp, sliders, collapsed panels and clips already present at the widest width | warning |
 | `viewport-meta` | Missing/incorrect viewport tag | DOM check, once per page | error |

@@ -11,6 +11,7 @@ export type DetectorId =
   | 'distorted-media'
   | 'small-tap-target'
   | 'tiny-text'
+  | 'oversized-text'
   | 'edge-gutter'
   | 'viewport-meta'
   /** Opt-in: what a vision model noticed in screenshots. Never run in the page. */
@@ -27,6 +28,7 @@ export const DETECTOR_IDS: readonly DetectorId[] = [
   'distorted-media',
   'small-tap-target',
   'tiny-text',
+  'oversized-text',
   'edge-gutter',
   'viewport-meta',
 ];

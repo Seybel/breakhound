@@ -19,6 +19,7 @@ export const DETECTOR_LABELS: Record<DetectorId, string> = {
   'distorted-media': 'Distorted image',
   'small-tap-target': 'Small tap target',
   'tiny-text': 'Tiny text',
+  'oversized-text': 'Oversized text',
   'edge-gutter': 'No edge spacing',
   'viewport-meta': 'Viewport meta',
   vision: 'Looks off',

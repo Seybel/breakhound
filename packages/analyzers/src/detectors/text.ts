@@ -18,6 +18,11 @@ const CUT_TOLERANCE = 1;
 const MIN_GUTTER = 4;
 const MIN_TINY_FONT = 12;
 const MAX_TINY_FINDINGS = 8;
+/** Display text from this size up is checked for being too big for a phone. */
+const MIN_LARGE_FONT = 28;
+/** Fewer characters a line than this is a word or two: the text is too big for the screen. */
+const MIN_LARGE_CHARS_PER_LINE = 12;
+const MAX_LARGE_FINDINGS = 8;
 
 function scrollsOn(style: CSSStyleDeclaration, axis: 'x' | 'y'): boolean {
   const v = axis === 'x' ? style.overflowX : style.overflowY;
@@ -222,6 +227,46 @@ export function tinyText(snap: Snapshot): Finding[] {
       evidence: { fontSizePx: size, textElements: g.count },
       styles: pick(g.rec.style, ['font-size', 'line-height']),
       suggestion: 'Use at least 12px (16px for body text) on small screens.',
+    });
+  }
+  return findings;
+}
+
+/**
+ * Headings and other display text kept at their desktop size on a phone, so they wrap a word or
+ * two at a time and fill the screen. Squeezed columns are squished-text's; this is about the size.
+ */
+export function oversizedText(snap: Snapshot): Finding[] {
+  if (snap.viewportWidth > TOUCH_MAX_WIDTH) return [];
+  const findings: Finding[] = [];
+  for (const rec of snap.records) {
+    if (findings.length >= MAX_LARGE_FINDINGS) break;
+    if (!rec.textRect || rec.textLines < 3 || isVisuallyHidden(rec)) continue;
+    const size = fontSize(rec);
+    if (size < MIN_LARGE_FONT) continue;
+    const words = rec.text.split(' ').filter(Boolean).length;
+    // One long word is overflow or squished text, not a size problem.
+    if (words < 2) continue;
+    const chars = rec.text.replace(/\s/g, '').length;
+    const perLine = chars / rec.textLines;
+    if (perLine >= MIN_LARGE_CHARS_PER_LINE) continue;
+    // Words breaking apart in a narrow column is squished-text's to report.
+    if (rec.textLines > words && rec.rect.width < 10 * size) continue;
+    const share = rec.textRect.height / snap.viewportHeight;
+    const rem = Math.round((size / 16) * 100) / 100;
+    findings.push({
+      detector: 'oversized-text',
+      severity: 'warning',
+      title: `Text is too big for the screen (${px(size)}px, ${rec.textLines} lines of a word or two)`,
+      element: describe(rec.el),
+      evidence: {
+        fontSizePx: px(size),
+        lines: rec.textLines,
+        charsPerLine: Math.round(perLine * 10) / 10,
+        screenShare: Math.round(share * 100) / 100,
+      },
+      styles: pick(rec.style, ['font-size', 'line-height', 'letter-spacing']),
+      suggestion: `Scale it down on small screens, for example font-size: clamp(1.75rem, 4vw + 1rem, ${rem}rem), or a smaller size below 640px.`,
     });
   }
   return findings;

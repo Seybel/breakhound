@@ -98,6 +98,7 @@ Links that would log you out, delete something, or download a file are never fol
 | `distorted-media` | Images stretched or squashed out of proportion |
 | `small-tap-target` | Buttons and links under 24×24px that crowd each other on touch screens (WCAG 2.2) |
 | `tiny-text` | Text under 12px on phones |
+| `oversized-text` | Headings and display text left at their desktop size on phones, wrapping a word or two a line |
 | `edge-gutter` | Text pressed against the edge of a phone screen |
 | `viewport-meta` | A missing responsive viewport tag |
 

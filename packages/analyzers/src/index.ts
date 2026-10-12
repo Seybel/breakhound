@@ -2,7 +2,7 @@ import { contentOverflow, mediaOverflow } from './detectors/containment';
 import { distortedMedia, smallTapTargets, viewportMeta } from './detectors/elements';
 import { overlap } from './detectors/overlap';
 import { pageOverflow } from './detectors/page-overflow';
-import { clippedText, edgeGutter, squishedText, tinyText } from './detectors/text';
+import { clippedText, edgeGutter, oversizedText, squishedText, tinyText } from './detectors/text';
 import { wrapStats } from './detectors/wrap';
 import {
   closestComposed,
@@ -42,6 +42,7 @@ const DETECTORS: Record<
   'distorted-media': distortedMedia,
   'small-tap-target': smallTapTargets,
   'tiny-text': tinyText,
+  'oversized-text': oversizedText,
   'edge-gutter': edgeGutter,
   'viewport-meta': viewportMeta,
 };
