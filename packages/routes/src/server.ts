@@ -113,6 +113,28 @@ export function looksLikeProject(project: Project, page: Probe, configured = tru
   return /<html|<!doctype html/i.test(html) && (!other || other === project.framework.id);
 }
 
+/**
+ * Whether a page someone has open is this project's app: on this machine, on a port the project
+ * uses, and serving what the project's dev server serves.
+ */
+export async function servesProject(project: Project, url: string): Promise<boolean> {
+  let target: URL;
+  try {
+    target = new URL(url);
+  } catch {
+    return false;
+  }
+  if (!/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(target.hostname)) return false;
+  const port = Number(target.port) || (target.protocol === 'https:' ? 443 : 80);
+  if (!project.ports.includes(port) && !project.configuredPorts.includes(port)) return false;
+  const page = await probe(`${target.origin}/`);
+  return (
+    !!page &&
+    page.status < 500 &&
+    looksLikeProject(project, page, project.configuredPorts.includes(port))
+  );
+}
+
 /** Whether anything answers at this URL. */
 export async function isReachable(url: string, timeoutMs = 5000): Promise<boolean> {
   const page = await probe(url, timeoutMs);

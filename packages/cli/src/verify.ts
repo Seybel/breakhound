@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
+  createScanResult,
   FAILED_STATUSES,
   type Issue,
   type RouteResult,
@@ -156,6 +157,11 @@ export interface VerifyRequest {
   routes?: string[];
   app?: AppServer;
   onPage?: (route: RouteResult) => void;
+  /** Scans the pages somewhere else: the browser extension, for a baseline it sent. */
+  scanPages?: (
+    pages: { route: string; url: string }[],
+    widths: { minWidth: number; maxWidth: number },
+  ) => Promise<RouteResult[]>;
 }
 
 export interface VerifyOutcome extends VerifyResult {
@@ -169,7 +175,34 @@ export interface VerifyOutcome extends VerifyResult {
  */
 export async function runVerify(req: VerifyRequest): Promise<VerifyOutcome> {
   const baseline = readBaseline(req.cwd, req.config.outDir);
+  if (baseline.from === 'extension' && !req.scanPages) {
+    throw new Error(
+      'These issues were sent from the breakhound extension, so they are checked again in that browser. Run verify from your agent with the breakhound panel open, or scan again here to start over without it.',
+    );
+  }
   const pages = pagesToVerify(baseline, req.routes);
+  if (req.scanPages) {
+    const routes = await req.scanPages(
+      pages.map((r) => ({ route: r.route, url: r.url })),
+      {
+        minWidth: baseline.settings.minWidth,
+        maxWidth: baseline.settings.maxWidth,
+      },
+    );
+    const now = createScanResult(routes, {
+      version: req.version,
+      startedAt: new Date(),
+      minWidth: baseline.settings.minWidth,
+      maxWidth: baseline.settings.maxWidth,
+      step: baseline.settings.step,
+      baseUrl: baseline.project.baseUrl,
+      root: req.cwd,
+    });
+    // The browser scans with every check on; the project's own settings apply here.
+    const off = req.config.detectors ?? {};
+    for (const r of now.routes) r.issues = r.issues.filter((i) => off[i.detector] !== false);
+    return finishVerify(req, baseline, now);
+  }
   const { settings } = baseline;
   const { result } = await runScan({
     targets: [],
@@ -186,6 +219,15 @@ export async function runVerify(req: VerifyRequest): Promise<VerifyOutcome> {
     ...(req.onPage ? { onPage: req.onPage } : {}),
     write: false,
   });
+  return finishVerify(req, baseline, result);
+}
+
+/** Compares a fresh scan with the baseline, and saves what's left to fix. */
+async function finishVerify(
+  req: VerifyRequest,
+  baseline: ScanResult,
+  result: ScanResult,
+): Promise<VerifyOutcome> {
   const diff = compareScans(baseline, result);
   const current = mergeScans(baseline, result);
   const reports = await saveReports(current, req.config, req.cwd);

@@ -22,6 +22,7 @@ import {
 import { type WrittenReports, writeReports } from '@breakhound/report';
 import {
   Crawler,
+  detectProject,
   type Job,
   RouteQueue,
   readLinks,
@@ -511,10 +512,12 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
   // A scan becomes what verify compares with. Scanning some routes of the app
   // only replaces those routes; a whole-app or URL scan replaces everything.
   const baselineFile = join(outDir, BASELINE_FILE);
-  const partial = !pageMode && req.targets.length > 0 && existsSync(baselineFile);
-  const baseline = partial
-    ? mergeScans(JSON.parse(readFileSync(baselineFile, 'utf8')) as ScanResult, result)
-    : result;
+  const earlier =
+    !pageMode && req.targets.length > 0 && existsSync(baselineFile)
+      ? (JSON.parse(readFileSync(baselineFile, 'utf8')) as ScanResult)
+      : null;
+  // A scan sent from the browser is checked in the browser: a headless scan replaces it whole.
+  const baseline = earlier && !earlier.from ? mergeScans(earlier, result) : result;
   writeFileSync(baselineFile, `${JSON.stringify(baseline, null, 2)}\n`);
   touchSession(cwd, config.outDir ?? '.breakhound');
 
@@ -524,6 +527,44 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
     printFooter(reports, result, cwd);
   }
   return { result, reports, app: kept };
+}
+
+/**
+ * Takes a scan the developer made in the browser extension and sent to their agent: it becomes
+ * the last result and the baseline, as if the CLI had scanned, with the project's own settings
+ * applied (checks turned off or given another severity) and source files made relative to it.
+ */
+export async function saveExtensionScan(
+  sent: ScanResult,
+  config: BreakhoundConfig,
+  cwd: string,
+): Promise<ScanResult> {
+  const project = detectProject(cwd);
+  const off = config.detectors ?? {};
+  const routes = sent.routes.map((r) => ({
+    ...r,
+    issues: r.issues.filter((i) => off[i.detector] !== false),
+  }));
+  applySeverity(routes, config);
+  relativeSources(routes, project?.root ?? cwd, project?.basePath ?? '');
+  const framework = project?.framework;
+  const result = createScanResult(routes, {
+    version: sent.tool.version,
+    startedAt: new Date(sent.startedAt),
+    minWidth: sent.settings.minWidth,
+    maxWidth: sent.settings.maxWidth,
+    step: sent.settings.step,
+    baseUrl: sent.project.baseUrl,
+    framework: framework && framework.id !== 'unknown' ? framework.name : null,
+    root: cwd,
+    from: 'extension',
+  });
+  const outDir = resolve(cwd, config.outDir ?? '.breakhound');
+  clearScreenshots(join(outDir, 'screenshots'));
+  await saveReports(result, config, cwd);
+  writeFileSync(join(outDir, BASELINE_FILE), `${JSON.stringify(result, null, 2)}\n`);
+  touchSession(cwd, config.outDir ?? '.breakhound');
+  return result;
 }
 
 /** Writes result.json and every report for a result into the configured folder. */
@@ -565,6 +606,7 @@ export function mergeScans(earlier: ScanResult, now: ScanResult): ScanResult {
     baseUrl: now.project.baseUrl ?? earlier.project.baseUrl,
     root: now.project.root ?? earlier.project.root,
     browsers: now.settings.browsers,
+    ...(earlier.from ? { from: earlier.from } : {}),
   });
   return { ...merged, durationMs: now.durationMs };
 }

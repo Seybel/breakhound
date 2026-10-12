@@ -29,6 +29,7 @@ import type {
 } from './types';
 
 export { DETECTOR_IDS } from '@breakhound/analyzers/types';
+export { BRIDGE_PORTS } from './bridge';
 export { BROWSER_LABELS, mergeBrowserResults } from './browsers';
 export { createScanResult, type ResultMeta } from './result';
 export { captureIssues } from './screenshots';

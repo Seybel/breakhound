@@ -88,6 +88,15 @@ describe('an agent fixing issues over MCP', () => {
     expect(client.getInstructions()).toContain('verify');
   });
 
+  it('offers a fix prompt that starts from issues sent from the browser', async () => {
+    const { prompts } = await client.listPrompts();
+    expect(prompts.map((p) => p.name)).toEqual(['fix']);
+    const { messages } = await client.getPrompt({ name: 'fix' });
+    const text = (messages[0]?.content as { text: string }).text;
+    expect(text).toContain('list_issues');
+    expect(text).toContain('checkpoint');
+  });
+
   it('fixes, verifies, checkpoints, catches a regression and undoes one route', async () => {
     const scan = await call('scan');
     expect(scan).toMatch(/Scanned 3 of 3 routes/);

@@ -4,6 +4,7 @@
  * DevTools panel builds its scan from these, so it finds what the CLI finds.
  */
 export { DETECTOR_IDS } from '@breakhound/analyzers/types';
+export { BRIDGE_PORTS } from './bridge';
 export { buildBreakpoints, buildIssues, findingKey, issueId } from './issues';
 export { createScanResult, type ResultMeta } from './result';
 export { FREEZE_CSS, RESIZE_PROBE, type SweepPage, settleResize } from './settle';

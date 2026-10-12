@@ -10,6 +10,8 @@ export interface ResultMeta {
   baseUrl?: string | null;
   root?: string | null;
   browsers?: BrowserName[];
+  /** The scan was made in the browser extension, so verify goes through it too. */
+  from?: 'extension';
 }
 
 export function createScanResult(routes: RouteResult[], meta: ResultMeta): ScanResult {
@@ -42,5 +44,6 @@ export function createScanResult(routes: RouteResult[], meta: ResultMeta): ScanR
     },
     routes,
     summary: { routes: routes.length, issues, uniqueIssues: unique.size, bySeverity },
+    ...(meta.from ? { from: meta.from } : {}),
   };
 }

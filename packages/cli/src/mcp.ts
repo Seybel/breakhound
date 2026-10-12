@@ -6,11 +6,12 @@ import type { RouteResult, ScanResult, Severity } from '@breakhound/engine';
 import { formatRanges, groupIssues, renderIssue, sourceText } from '@breakhound/report';
 import { isReachable } from '@breakhound/routes';
 import { type AppServer, resolveServer } from './app';
+import { type Bridge, NoPanelError, startBridge } from './bridge';
 import { type BreakhoundConfig, loadConfig } from './config';
 import { guard, MemoryError, parseMemoryLimit } from './guard';
 import { readLastResult, runScan } from './scan';
 import { checkpoint, listCheckpoints, undo } from './session';
-import { formatVerify, runVerify, severitiesAtOrAbove, verifyPassed } from './verify';
+import { formatVerify, readBaseline, runVerify, severitiesAtOrAbove, verifyPassed } from './verify';
 
 /**
  * breakhound as an MCP server, over stdio. It speaks the small part of the
@@ -24,12 +25,21 @@ const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05
 const INSTRUCTIONS = `breakhound finds responsive layout bugs by resizing pages in a real browser, and tells you the exact widths where they happen.
 
 How to fix issues with it:
-1. scan (once) to find every route and its issues. It becomes the baseline.
+1. list_issues first: the developer may have scanned in the breakhound browser extension and sent the issues here, and then they are ready. Otherwise scan (once) to find every route and its issues. Either becomes the baseline.
 2. get_issue for the details of an issue: widths, element, source file, measurements, a likely fix and a screenshot.
 3. Edit the code. Fix the cause (styles, markup, component), don't hide it with overflow: hidden, and keep other widths as they were.
 4. verify the routes you touched. It compares with the baseline: fixed, still there, and new. New issues mean the change broke something, often at another width or on another page; fix those too.
 5. When verify is clean for a route, checkpoint it. That commits the fix on its own, so it can be undone later with undo.
-Before finishing, run verify with no routes to check every page.`;
+Before finishing, run verify with no routes to check every page.
+
+Issues sent from the extension are checked again in the developer's own browser: verify asks the open breakhound panel to scan the pages, so their login and browser carry over. If no panel is open, verify says so; ask the developer to open it rather than calling scan, which replaces their issues with a headless scan.`;
+
+/** Offered to clients as a ready-made prompt (a slash command in Claude Code). */
+const FIX_PROMPT = `Fix the responsive layout issues breakhound found in this project.
+
+Start with list_issues: if I sent them from the breakhound extension they are already there, so don't scan again. Only scan when there are none.
+Work through the errors first, then the warnings. For each one: get_issue for the details, fix the cause in the code (not overflow: hidden), verify the routes you touched, and checkpoint each route once verify is clean for it.
+Before you finish, verify with no routes to check every page, and tell me what you fixed and anything you couldn't.`;
 
 interface Json {
   [key: string]: unknown;
@@ -50,6 +60,8 @@ interface ToolResult {
 interface ToolContext {
   root: string;
   config: BreakhoundConfig;
+  /** Where the browser extension connects, when it could start. */
+  bridge: Bridge | null;
   progress(done: number, message: string): void;
 }
 
@@ -127,7 +139,7 @@ export function createTools(): Tool[] {
     {
       name: 'scan',
       description:
-        'Find the app (starting its dev server if needed), discover its routes and scan each one at every width from 320 to 1920px. Returns every issue with its id. The result is the baseline that verify compares with. Takes from seconds to a few minutes on large apps.',
+        'Find the app (starting its dev server if needed), discover its routes and scan each one at every width from 320 to 1920px in a headless browser. Returns every issue with its id. The result is the baseline that verify compares with, replacing any issues the developer sent from the browser extension, so check list_issues first. Takes from seconds to a few minutes on large apps.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -226,15 +238,40 @@ export function createTools(): Tool[] {
       },
       async run(args, ctx) {
         let done = 0;
-        const v = await runVerify({
-          cwd: ctx.root,
-          config: ctx.config,
-          version: VERSION,
-          quiet: true,
-          routes: strings(args.routes),
-          app: await server.get(ctx),
-          onPage: (r) => ctx.progress(++done, `Checked ${r.route}`),
-        });
+        const baseline = readBaseline(ctx.root, ctx.config.outDir);
+        const inBrowser = baseline.from === 'extension';
+        const bridge = ctx.bridge;
+        if (inBrowser && !bridge) {
+          return text(
+            "These issues were sent from the breakhound extension, but this server couldn't open the port the extension connects on. Call scan to check the app in a headless browser instead.",
+            true,
+          );
+        }
+        const origin = inBrowser ? new URL(baseline.project.baseUrl ?? '').origin : '';
+        let v: Awaited<ReturnType<typeof runVerify>>;
+        try {
+          v = await runVerify({
+            cwd: ctx.root,
+            config: ctx.config,
+            version: VERSION,
+            quiet: true,
+            routes: strings(args.routes),
+            ...(inBrowser && bridge
+              ? {
+                  scanPages: (pages, widths) => {
+                    ctx.progress(0, 'Checking in the breakhound panel in your browser');
+                    return bridge.scanInBrowser(pages, widths, origin, ctx.progress);
+                  },
+                }
+              : {
+                  app: await server.get(ctx),
+                  onPage: (r) => ctx.progress(++done, `Checked ${r.route}`),
+                }),
+          });
+        } catch (error) {
+          if (error instanceof NoPanelError) return text(error.message, true);
+          throw error;
+        }
         const severities = severitiesAtOrAbove('warning');
         return text(
           formatVerify(v, severities) +
@@ -372,6 +409,22 @@ export async function runMcpServer(
   }
 
   const tools = createTools();
+  let bridge: Bridge | null = null;
+  let bridging: Promise<void> | null = null;
+  /** Once the client is ready: the extension can find this project from then on. */
+  const openBridge = () => {
+    if (bridging || process.env.BREAKHOUND_NO_BRIDGE) return;
+    bridging = (async () => {
+      const dir = await projectRoot();
+      bridge = await startBridge({
+        root: dir,
+        version: VERSION,
+        loadConfig: async () => (await loadConfig(dir)).config,
+      }).catch(() => null);
+      if (!bridge)
+        console.error('breakhound: the browser extension has no free port to connect on.');
+    })();
+  };
   const pending = new Map<number, Pending>();
   let nextId = 1;
   let clientCanListRoots = false;
@@ -429,6 +482,7 @@ export async function runMcpServer(
         tool.run((params.arguments as Json) ?? {}, {
           root: dir,
           config,
+          bridge,
           progress(done, message) {
             if (token !== undefined)
               send({
@@ -460,7 +514,11 @@ export async function runMcpServer(
       else waiting.resolve(message.result);
       return;
     }
-    if (id === undefined) return; // Notifications (initialized, cancelled) need no answer.
+    if (id === undefined) {
+      // Notifications need no answer.
+      if (method === 'notifications/initialized') openBridge();
+      return;
+    }
     switch (method) {
       case 'initialize': {
         const asked = String(params.protocolVersion ?? '');
@@ -469,7 +527,7 @@ export async function runMcpServer(
           id,
           result: {
             protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
-            capabilities: { tools: { listChanged: false } },
+            capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } },
             serverInfo: { name: 'breakhound', version: VERSION },
             instructions: INSTRUCTIONS,
           },
@@ -488,6 +546,33 @@ export async function runMcpServer(
               description,
               inputSchema,
             })),
+          },
+        });
+        return;
+      case 'prompts/list':
+        send({
+          id,
+          result: {
+            prompts: [
+              {
+                name: 'fix',
+                description:
+                  'Fix the responsive issues breakhound found, verifying and checkpointing each one',
+              },
+            ],
+          },
+        });
+        return;
+      case 'prompts/get':
+        if (params.name !== 'fix') {
+          send({ id, error: { code: -32602, message: `Unknown prompt: ${String(params.name)}` } });
+          return;
+        }
+        send({
+          id,
+          result: {
+            description: 'Fix the responsive issues breakhound found',
+            messages: [{ role: 'user', content: { type: 'text', text: FIX_PROMPT } }],
           },
         });
         return;
@@ -513,6 +598,8 @@ export async function runMcpServer(
   });
   await new Promise<void>((done) => lines.once('close', done));
   // The client went away: finish what's running, then stop the dev server we started.
+  await bridging;
+  await (bridge as Bridge | null)?.close();
   await queue;
   await server.stop();
 }

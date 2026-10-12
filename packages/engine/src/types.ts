@@ -148,6 +148,11 @@ export interface ScanResult {
   durationMs: number;
   settings: { minWidth: number; maxWidth: number; step: number; browsers: BrowserName[] };
   routes: RouteResult[];
+  /**
+   * Set when the developer scanned in the browser extension and sent it to their agent: verify
+   * then checks again in that same browser, so logins and the browser's own setup carry over.
+   */
+  from?: 'extension';
   summary: {
     routes: number;
     issues: number;

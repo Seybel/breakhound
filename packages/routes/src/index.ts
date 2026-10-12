@@ -44,6 +44,7 @@ export {
   isReachable,
   looksLikeProject,
   type RunningServer,
+  servesProject,
   startServer,
 } from './server';
 export {
