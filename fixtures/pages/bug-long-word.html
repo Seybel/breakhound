@@ -11,7 +11,8 @@ article { padding: 16px; max-width: 720px; margin: 0 auto; }
 <body data-breakhound-ignore="edge-gutter">
 <article>
   <h1>Setup</h1>
-  <p data-bh-expect="page-overflow">Point your client at https://api.example.com/v2/organisations/acme-corporation/projects/responsive-audit/webhooks/subscriptions and restart it.</p>
+  <!-- Firefox breaks a URL after its slashes, so there it wraps instead of overflowing. -->
+  <p data-bh-expect="page-overflow!firefox">Point your client at https://api.example.com/v2/organisations/acme-corporation/projects/responsive-audit/webhooks/subscriptions and restart it.</p>
 </article>
 </body>
 </html>

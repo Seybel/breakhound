@@ -225,7 +225,9 @@ Findings that the closed page also has at that width are removed, so only what b
 
 ### 6.5 Other browsers
 
-`browsers` (or `--browsers chromium,webkit,firefox`) adds engines. The first one does everything a scan does: it finds the routes, follows links and reads routers. The others then scan the pages it could scan, at the same URLs, one browser after another, so only one engine is ever running. Results are merged per page by issue id: the first browser's breakpoints and details are kept, every issue lists `browsers`, and one missing from some of them ends with "(only in WebKit)". Screenshots from extra browsers go in a folder named after the browser. Missing browsers are downloaded on first use, like Chromium.
+`browsers` (or `--browsers chromium,webkit,firefox`) adds engines. The first one does everything a scan does: it finds the routes, follows links and reads routers. The others then scan the pages it could scan, at the same URLs, one browser after another, so only one engine is ever running. Results are merged per page by issue id: the first browser's breakpoints and details are kept, every issue lists `browsers`, and one missing from some of them ends with "(only in WebKit)". Screenshots from extra browsers go in a folder named after the browser. Missing browsers are downloaded on first use, like Chromium, through Playwright's own CLI, found via `playwright/package.json` (its only stable export; newer versions don't export the CLI file).
+
+The fixture corpus runs in every engine (`BREAKHOUND_TEST_BROWSER=webkit|firefox`, and in CI on one Node version). A marker can say an engine doesn't have the bug, `page-overflow!firefox`, because they really do differ: WebKit's form controls default to 11px (so unstyled controls are tiny text there only, and the likely fix says `font: inherit`), and Firefox breaks URLs after slashes, so a long URL that overflows in Chromium and WebKit wraps in Firefox. All three engines are at 100% precision and recall on the corpus.
 
 ### 6.6 Vision model (opt-in)
 
@@ -459,7 +461,7 @@ We build in phases but don't stop until v1.0 is launched.
 | **1 · CLI + reports (MVP)** ✅ | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
 | **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
 | **3 · Agent loop** ✅ | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
-| **4 · Depth** | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
+| **4 · Depth** ✅ | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
 | **5 · DevTools panel** ✅ | Chrome DevTools panel reusing `analyzers` for live single-page use; Send to agent, verified in the browser | Panel shows issues and breakpoint timeline for the inspected tab |
 | **6 · Launch (v1.0)** | Docs site, README with demo GIF, examples repo, contribution guide, issue templates, npm publish, Chrome Web Store listing (justify `debugger` and the 127.0.0.1 host permission; put the store's public key in the manifest and `EXTENSION_IDS` before the npm release), launch posts | Public release |
 

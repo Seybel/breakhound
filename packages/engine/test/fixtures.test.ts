@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { type Browser, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { type Issue, type PageResult, Scanner } from '../src/index';
+import { type BrowserName, type Issue, type PageResult, Scanner } from '../src/index';
 
 const PAGES = join(import.meta.dirname, '../../../fixtures/pages');
 const RANGE_TOLERANCE = 1;
 const SCAN = { minWidth: 320, maxWidth: 1440 };
+/** The engine the pages are scanned in; BREAKHOUND_TEST_BROWSER=webkit or firefox checks the others. */
+const BROWSER = (process.env.BREAKHOUND_TEST_BROWSER ?? 'chromium') as BrowserName;
 
 interface Expectation {
   detector: string;
@@ -28,7 +30,7 @@ let browser: Browser;
 const totals = { tp: 0, fp: 0, fn: 0 };
 
 beforeAll(async () => {
-  scanner = new Scanner();
+  scanner = new Scanner({ browser: BROWSER });
   browser = await chromium.launch();
 });
 
@@ -38,7 +40,7 @@ afterAll(async () => {
   const precision = totals.tp / Math.max(1, totals.tp + totals.fp);
   const recall = totals.tp / Math.max(1, totals.tp + totals.fn);
   console.log(
-    `fixture accuracy: precision ${(precision * 100).toFixed(1)}%, recall ${(recall * 100).toFixed(1)}% (tp ${totals.tp}, fp ${totals.fp}, fn ${totals.fn})`,
+    `fixture accuracy in ${BROWSER}: precision ${(precision * 100).toFixed(1)}%, recall ${(recall * 100).toFixed(1)}% (tp ${totals.tp}, fp ${totals.fp}, fn ${totals.fn})`,
   );
 });
 
@@ -47,7 +49,7 @@ async function score(url: string, result: PageResult): Promise<Scored> {
   const page = await browser.newPage();
   try {
     await page.goto(url);
-    const expectations = await page.evaluate(() => {
+    const expectations = await page.evaluate((browser) => {
       const out: {
         detector: string;
         range: { from: number; to: number } | null;
@@ -59,7 +61,10 @@ async function score(url: string, result: PageResult): Promise<Scored> {
         for (const token of (el.getAttribute('data-bh-expect') ?? '')
           .split(/\s+/)
           .filter(Boolean)) {
-          const [spec = '', state] = token.split(':');
+          // `!firefox` after a marker: that engine lays the page out so the bug isn't there.
+          const [marker = '', notIn = ''] = token.split('!');
+          if (notIn.split(',').includes(browser)) continue;
+          const [spec = '', state] = marker.split(':');
           const [detector = '', range] = spec.split('@');
           const [from, to] = (range ?? '').split('-').map(Number);
           out.push({
@@ -71,7 +76,7 @@ async function score(url: string, result: PageResult): Promise<Scored> {
         }
       });
       return out;
-    });
+    }, BROWSER);
 
     const matched = new Set<Expectation>();
     const falsePositives: Issue[] = [];
@@ -131,7 +136,7 @@ function describeIssues(issues: Issue[]): string {
 
 const files = readdirSync(PAGES).filter((f) => f.endsWith('.html'));
 
-describe('fixture corpus', () => {
+describe(`fixture corpus in ${BROWSER}`, () => {
   for (const file of files) {
     it(file, async () => {
       const url = pathToFileURL(join(PAGES, file)).href;

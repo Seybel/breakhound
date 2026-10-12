@@ -22,6 +22,13 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      # The fixture pages again in Safari's and Firefox's engines, once: they lay some pages out differently.
+      - name: Other browsers
+        if: matrix.node == 22
+        run: |
+          npx playwright install --with-deps webkit firefox
+          BREAKHOUND_TEST_BROWSER=webkit npx vitest run packages/engine/test/fixtures.test.ts packages/engine/test/engines.test.ts
+          BREAKHOUND_TEST_BROWSER=firefox npx vitest run packages/engine/test/fixtures.test.ts
       - run: npm run build
       - run: npm run build:extension
       - run: npm run smoke -w breakhound

@@ -193,6 +193,14 @@ export function squishedText(snap: Snapshot): Finding[] {
   return findings;
 }
 
+/** A form control still in the browser's own font: smaller than the text around it. */
+function browserDefault(rec: ElementRecord): boolean {
+  const control = rec.el.closest('button, input, select, textarea');
+  if (!control) return false;
+  const around = control.parentElement;
+  return !!around && fontSize(rec) < Number.parseFloat(getComputedStyle(around).fontSize);
+}
+
 /** Text below 12px on phone-sized screens, one finding per parent (a row of captions is one fix). */
 export function tinyText(snap: Snapshot): Finding[] {
   if (snap.viewportWidth > TOUCH_MAX_WIDTH) return [];
@@ -229,7 +237,9 @@ export function tinyText(snap: Snapshot): Finding[] {
       ...(grouped ? { related: describe(g.rec.el) } : {}),
       evidence: { fontSizePx: size, textElements: g.count },
       styles: pick(g.rec.style, ['font-size', 'line-height']),
-      suggestion: 'Use at least 12px (16px for body text) on small screens.',
+      suggestion: browserDefault(g.rec)
+        ? "Form controls don't take the page's font unless told to, and Safari's default is 11px. Add font: inherit to button, input, select and textarea."
+        : 'Use at least 12px (16px for body text) on small screens.',
     });
   }
   return findings;

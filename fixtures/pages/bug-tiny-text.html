@@ -13,6 +13,8 @@ main { padding: 16px; }
 <main>
   <p>Regular body copy.</p>
   <p class="legal" data-bh-expect="tiny-text@320-767">Prices include tax where applicable.</p>
+  <!-- No font of its own: 11px in Safari, about 13px in Chrome and Firefox. -->
+  <div class="actions"><button type="button" data-bh-expect="tiny-text@320-767!chromium,firefox">Add to basket</button></div>
 </main>
 </body>
 </html>
