@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvxiOw+W4XZjEdrsHeM639Ey7/T2ceF/aloeVfEQ+on6QKOTzJWJ1vd6TkRcFnJ4j+tDk5yZya+L3qh5/EelYADSdzqO/voOiY2afL7g3TmjeTzsoZMVTPLKGmfHuUAbpSZHjBIzJarnq6aC4QeCm9UalAMLbfE20ldorJ0f9axqjMsuxWohnDrjeTKayETgIBQ1ycLQ7Z9Vu/Zu+8Vx2NuFvETKWWqC9n7zUfq5iwy2mPY4TsshJm+SFaYCkKRFeWrP67KfLN8odOy8RGePJ4bu+gg7CewNH6YRhAudfKNhta+VkJP4v3LqmYwHAIK85B1RxSe7FoUkiQvMp3ZgfRwIDAQAB",
   "name": "breakhound",
   "version": "0.0.0",
   "description": "Find responsive layout bugs at the exact widths they break. Right-click any page to scan it.",
@@ -15,6 +16,7 @@
     }
   },
   "permissions": ["debugger", "contextMenus", "sidePanel"],
+  "host_permissions": ["http://127.0.0.1/*"],
   "minimum_chrome_version": "120",
   "icons": {
     "16": "icons/16.png",

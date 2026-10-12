@@ -30,11 +30,19 @@
     </label>
     <span class="grow"></span>
     <span id="status" class="status" role="status" aria-live="polite"></span>
-    <button id="copy-all" class="btn ghost" type="button" hidden></button>
+    <span class="actions">
+      <button id="agent" class="agent-chip" type="button" hidden></button>
+      <span class="send-wrap">
+        <button id="send" class="btn ghost" type="button" hidden title="Hands these issues to the coding agent working on this app (Claude Code, Cursor, Codex…) through breakhound's MCP server, and lets it check its fixes here"></button>
+        <div id="agent-menu" class="menu" role="menu" hidden></div>
+      </span>
+      <button id="copy-all" class="btn ghost" type="button" hidden></button>
+    </span>
   </header>
 
   <div id="notice" class="notice" hidden>
     <span id="notice-text"></span>
+    <button id="notice-action" class="btn ghost small" type="button" hidden></button>
     <button id="notice-close" class="icon-btn" type="button" aria-label="Dismiss"></button>
   </div>
 

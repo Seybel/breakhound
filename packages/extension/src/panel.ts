@@ -3,14 +3,26 @@ import {
   createScanResult,
   type Issue,
   type RouteResult,
+  type ScanResult,
   type Severity,
 } from '@breakhound/engine/core';
 import { DETECTOR_LABELS, formatRange, formatRanges } from '@breakhound/report/format';
 import { renderPrompt } from '@breakhound/report/markdown';
+import {
+  type AgentServer,
+  byProject,
+  type Check,
+  checkDone,
+  checkProgress,
+  findServers,
+  nextCheck,
+  sendScan,
+  serving,
+} from './agent';
 import { Cancelled, evaluate, fitScale, setWidth, type Viewport } from './cdp';
 import { loadPage, scanTab, TAB_DEFAULTS } from './scan';
 import { LEFTOVERS, TabSession } from './session';
-import { SITE_MAX_PAGES, scanSite } from './site';
+import { SITE_MAX_PAGES, scanPages, scanSite } from './site';
 
 /**
  * Inside DevTools the tab is the inspected one. In the side panel (opened from
@@ -45,6 +57,10 @@ const ui = {
   rulerPage: $('ruler-page'),
   status: $('status'),
   copyAll: $<HTMLButtonElement>('copy-all'),
+  send: $<HTMLButtonElement>('send'),
+  agent: $<HTMLButtonElement>('agent'),
+  agentMenu: $('agent-menu'),
+  noticeAction: $<HTMLButtonElement>('notice-action'),
   notice: $('notice'),
   noticeText: $('notice-text'),
   noticeClose: $<HTMLButtonElement>('notice-close'),
@@ -100,6 +116,8 @@ interface State {
   scanAt: number | null;
   /** Measuring is waiting for the tab to be in view again. */
   paused: boolean;
+  /** The scan running now checks a coding agent's fixes. */
+  checking: boolean;
   measured: number;
   selected: string | null;
   filter: Filter;
@@ -125,6 +143,7 @@ const state: State = {
   live: new Map(),
   scanAt: null,
   paused: false,
+  checking: false,
   measured: 0,
   selected: null,
   filter: 'all',
@@ -172,6 +191,7 @@ const ICONS = {
     '<path d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5M3 2.6v2.6h2.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
   close:
     '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  send: '<path d="M2.4 7.4l11.1-5-4.9 11.2-1.7-4.6z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.9 9l6.6-6.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
   sweep:
     '<path d="M2.5 3.5v9M13.5 3.5v9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5.5 8h5M8.8 6l1.9 2-1.9 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
 };
@@ -204,10 +224,19 @@ function button(
   return b;
 }
 
-function notify(message: string | null, kind: 'error' | 'note' = 'error'): void {
+let noticeAction: ((b: HTMLButtonElement) => void) | null = null;
+
+function notify(
+  message: string | null,
+  kind: 'error' | 'note' = 'error',
+  action?: { label: string; run: (b: HTMLButtonElement) => void },
+): void {
   ui.notice.hidden = !message;
   ui.notice.classList.toggle('error', kind === 'error');
   ui.noticeText.textContent = message ?? '';
+  noticeAction = action?.run ?? null;
+  ui.noticeAction.hidden = !action;
+  if (action) label(ui.noticeAction, 'copy', action.label);
 }
 
 // ---- settings, remembered per browser ----
@@ -375,11 +404,11 @@ async function copyWith(b: HTMLButtonElement, text: string): Promise<void> {
   }, 1400);
 }
 
-function prompt(fingerprints?: string[]): string {
+/** Every page of the last scan as one result, so a header breaking on five pages is one fix. */
+function scanResult(): ScanResult {
   const routes = state.pages.map((p) => p.route);
   const route = state.result ?? (routes[0] as RouteResult);
-  // Every page at once, so a shared header breaking on five pages is one fix, listed once.
-  const result = createScanResult(routes, {
+  return createScanResult(routes, {
     version: __VERSION__,
     startedAt: state.startedAt,
     minWidth: state.range.min,
@@ -387,9 +416,234 @@ function prompt(fingerprints?: string[]): string {
     step: TAB_DEFAULTS.step,
     baseUrl: new URL(route.url).origin,
   });
-  return renderPrompt(result, {
+}
+
+function prompt(fingerprints?: string[]): string {
+  return renderPrompt(scanResult(), {
     ...(fingerprints ? { fingerprints, severities: SEVERITIES } : {}),
   });
+}
+
+// ---- your coding agent ----
+
+const AGENTS_KEY = 'breakhound.agents';
+const SETUP_COMMAND = 'npx breakhound mcp install';
+
+const agent = {
+  /** The project's breakhound server the panel listens to, for checks of the agent's fixes. */
+  server: null as AgentServer | null,
+  online: false,
+  sending: false,
+  listening: null as AbortController | null,
+};
+
+/** The project each site was last sent to, so the panel finds its agent again next time. */
+function rememberedRoot(origin: string): string | null {
+  try {
+    const roots = JSON.parse(localStorage.getItem(AGENTS_KEY) ?? '{}') as Record<string, string>;
+    return roots[origin] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function remember(origin: string, root: string): void {
+  try {
+    const roots = JSON.parse(localStorage.getItem(AGENTS_KEY) ?? '{}') as Record<string, string>;
+    roots[origin] = root;
+    localStorage.setItem(AGENTS_KEY, JSON.stringify(roots));
+  } catch {
+    // Not remembered: the panel asks again next time.
+  }
+}
+
+/** The tab's address, without attaching: the debugger lists tabs with their URLs. */
+async function tabUrl(): Promise<string | null> {
+  try {
+    const targets = await chrome.debugger.getTargets();
+    return targets.find((t) => t.tabId === tabId)?.url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function originOf(url: string | null): string | null {
+  if (!url || !/^https?:/.test(url)) return null;
+  return new URL(url).origin;
+}
+
+/** The last two folders of a path, enough to tell projects apart. */
+function shortPath(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean);
+  return parts.length > 2 ? `…/${parts.slice(-2).join('/')}` : path;
+}
+
+function renderAgent(): void {
+  const server = agent.server;
+  ui.agent.hidden = !server;
+  if (!server) return;
+  ui.agent.replaceChildren(
+    h('span', { class: 'agent-dot', 'aria-hidden': 'true' }),
+    server.project,
+  );
+  ui.agent.classList.toggle('offline', !agent.online);
+  ui.agent.title = agent.online
+    ? `Your coding agent in ${server.root} is connected. It checks its fixes in this tab, so keep this panel open while it works. Click to change project.`
+    : `Lost touch with the agent in ${server.root}. breakhound keeps looking for it.`;
+}
+
+function hideMenu(): void {
+  ui.agentMenu.hidden = true;
+}
+
+/** Asks which project to send to, when the page's own one can't be told. */
+function pickProject(servers: AgentServer[], onPick: (server: AgentServer) => void): void {
+  ui.agentMenu.replaceChildren(
+    h('p', { class: 'menu-title' }, 'Which project is this page from?'),
+    ...servers.map((s) => {
+      const b = h(
+        'button',
+        { type: 'button', role: 'menuitem', title: s.root },
+        h('strong', {}, s.project),
+        h('span', { class: 'menu-path' }, shortPath(s.root)),
+      );
+      b.addEventListener('click', () => {
+        hideMenu();
+        onPick(s);
+      });
+      return b;
+    }),
+  );
+  ui.agentMenu.hidden = false;
+  (ui.agentMenu.querySelector('button') as HTMLButtonElement | null)?.focus();
+}
+
+/** Listens for the agent asking to check its fixes, for as long as the panel is open. */
+function listen(server: AgentServer): void {
+  agent.listening?.abort();
+  const stop = new AbortController();
+  Object.assign(agent, { listening: stop, server, online: true });
+  renderAgent();
+  void (async () => {
+    let current = server;
+    while (!stop.signal.aborted) {
+      const origin = originOf(await tabUrl());
+      try {
+        if (!origin) {
+          await pause(3000);
+          continue;
+        }
+        const check = await nextCheck(current, origin, stop.signal);
+        if (!agent.online) {
+          agent.online = true;
+          renderAgent();
+        }
+        if (check) await runCheck(current, check);
+      } catch {
+        if (stop.signal.aborted) return;
+        agent.online = false;
+        renderAgent();
+        await pause(4000);
+        // The agent may have restarted breakhound, on another port.
+        const again = (await findServers()).find((s) => s.root === server.root);
+        if (again) {
+          current = again;
+          Object.assign(agent, { server: again, online: true });
+          renderAgent();
+        }
+      }
+    }
+  })();
+}
+
+/** Scans the pages the agent asks for, and hands the results back to it. */
+async function runCheck(server: AgentServer, check: Check): Promise<void> {
+  // The developer's own scan finishes first.
+  while (state.phase === 'scanning') await pause(500);
+  notify(null);
+  const outcome = await scan({ check, server });
+  await checkDone(server, check.id, outcome).catch(() => {});
+  if ('routes' in outcome) {
+    const left = createScanResult(outcome.routes, {
+      version: __VERSION__,
+      startedAt: new Date(),
+      minWidth: check.widths.minWidth,
+      maxWidth: check.widths.maxWidth,
+      step: TAB_DEFAULTS.step,
+    }).summary.uniqueIssues;
+    const pages = outcome.routes.length === 1 ? 'the page' : `${outcome.routes.length} pages`;
+    notify(
+      `Checked your agent's fixes on ${pages}: ${left ? `${left} ${left === 1 ? 'issue' : 'issues'} still there` : 'nothing left to fix'}. Your agent has the details.`,
+      'note',
+    );
+  }
+}
+
+async function deliver(server: AgentServer, result: ScanResult): Promise<void> {
+  const sent = await sendScan(server, result);
+  remember(new URL(result.project.baseUrl ?? '').origin, server.root);
+  listen(server);
+  notify(
+    `Sent ${sent.issues} ${sent.issues === 1 ? 'issue' : 'issues'} to your agent in ${server.project}. Ask it to "fix the breakhound issues" (in Claude Code, /mcp__breakhound__fix). Keep this panel open: your agent checks its fixes here, in this tab.`,
+    'note',
+    { label: 'Copy request', run: (b) => void copyWith(b, 'Fix the breakhound issues') },
+  );
+}
+
+/** Sends the last scan to the coding agent working on this app, through breakhound's MCP server. */
+async function sendToAgent(): Promise<void> {
+  if (!state.pages.length) return;
+  const result = scanResult();
+  const origin = result.project.baseUrl ?? '';
+  agent.sending = true;
+  renderToolbar();
+  try {
+    const servers = byProject(await findServers());
+    if (!servers.length) {
+      notify(
+        `No coding agent is connected to breakhound yet. In your project, run ${SETUP_COMMAND} once, then restart your agent (Claude Code, Cursor, Codex…). Until then, Copy prompt works with any agent.`,
+        'note',
+        { label: 'Copy command', run: (b) => void copyWith(b, SETUP_COMMAND) },
+      );
+      return;
+    }
+    const remembered = rememberedRoot(origin);
+    let target = servers.find((s) => s.root === remembered) ?? null;
+    if (!target) {
+      const url = state.pages[0]?.route.url ?? origin;
+      const own = await serving(servers, url);
+      if (own.length === 1) target = own[0] ?? null;
+    }
+    if (target) {
+      await deliver(target, result);
+      return;
+    }
+    // More than one project, or none that's plainly this page's (a staging site, say): ask.
+    pickProject(servers, (server) => {
+      void deliver(server, result).catch((error: unknown) =>
+        notify(`Couldn't send to your agent: ${error instanceof Error ? error.message : error}`),
+      );
+    });
+  } catch (error) {
+    notify(`Couldn't send to your agent: ${error instanceof Error ? error.message : error}`);
+  } finally {
+    agent.sending = false;
+    renderToolbar();
+  }
+}
+
+/** When the panel opens: back in touch with the agent this site was sent to before. */
+async function reconnect(): Promise<void> {
+  const url = await tabUrl();
+  const origin = originOf(url);
+  if (!url || !origin) return;
+  const servers = byProject(await findServers());
+  if (!servers.length) return;
+  const remembered = rememberedRoot(origin);
+  const server =
+    servers.find((s) => s.root === remembered) ??
+    (await serving(servers, url).then((own) => (own.length === 1 ? own[0] : undefined)));
+  if (server) listen(server);
 }
 
 // ---- scanning ----
@@ -437,15 +691,24 @@ function firstWorthSeeing(pages: PageView[]): number {
   return best;
 }
 
-async function scan(): Promise<void> {
-  const range = readRange();
+/**
+ * Scans the tab, or every page of the site; or, for a coding agent checking its fixes, the pages
+ * it asks for at the widths they were first scanned at. Says how a check went, for the agent.
+ */
+async function scan(check?: {
+  check: Check;
+  server: AgentServer;
+}): Promise<{ routes: RouteResult[] } | { error: string }> {
+  const range = check
+    ? { min: check.check.widths.minWidth, max: check.check.widths.maxWidth }
+    : readRange();
   if (!range) {
     notify(
       'Pick widths between 200 and 3840px, with the widest at least 16px wider than the narrowest.',
     );
-    return;
+    return { error: 'No widths' };
   }
-  saveSettings();
+  if (!check) saveSettings();
   notify(null);
   await resetView();
   const previous = {
@@ -457,10 +720,12 @@ async function scan(): Promise<void> {
     startedAt: state.startedAt,
     from: state.from,
   };
-  const site = state.mode === 'site';
+  const site = !check && state.mode === 'site';
   const startedAt = new Date();
   const pages: PageView[] = [];
+  let failure = 'Stopped in the browser.';
   Object.assign(state, {
+    checking: !!check,
     phase: 'scanning',
     startedAt,
     stopping: false,
@@ -493,25 +758,38 @@ async function scan(): Promise<void> {
     },
     cancelled: () => state.stopping,
   };
+  const onPage = ({ index, planned, route }: { index: number; planned: number; route: string }) => {
+    state.scanning = { index, planned, route };
+    state.live = new Map();
+    state.scanAt = range.min;
+    state.measured = 0;
+    renderPages();
+    scheduleLive();
+  };
+  const onResult = (route: RouteResult) => {
+    pages.push({ route, live: state.live });
+    renderPages();
+  };
   let finished = false;
   try {
     await session.attach();
-    if (site) {
+    if (check) {
+      const { server, check: c } = check;
+      await scanPages(session, c.pages, {
+        ...common,
+        onPage: (p) => {
+          onPage(p);
+          checkProgress(server, c.id, p.index, `Checking ${p.route} in the browser`);
+        },
+        onResult,
+      });
+      finished = true;
+    } else if (site) {
       const done = await scanSite(session, {
         ...common,
         maxPages: SITE_MAX_PAGES,
-        onPage: ({ index, planned, route }) => {
-          state.scanning = { index, planned, route };
-          state.live = new Map();
-          state.scanAt = range.min;
-          state.measured = 0;
-          renderPages();
-          scheduleLive();
-        },
-        onResult: (route) => {
-          pages.push({ route, live: state.live });
-          renderPages();
-        },
+        onPage,
+        onResult,
       });
       state.from = done.from;
       finished = true;
@@ -530,6 +808,7 @@ async function scan(): Promise<void> {
       }
     } else {
       const message = error instanceof Error ? error.message : String(error);
+      failure = message;
       notify(
         /detached|target closed|No tab with given id/i.test(message)
           ? 'The scan stopped because the debugging bar was closed or the tab went away.'
@@ -554,8 +833,10 @@ async function scan(): Promise<void> {
     state.scanning = null;
     state.scanAt = null;
     state.paused = false;
+    state.checking = false;
     render();
   }
+  return finished ? { routes: pages.map((p) => p.route) } : { error: failure };
 }
 
 // ---- holding the tab at a width ----
@@ -788,6 +1069,9 @@ function renderToolbar(): void {
   ui.reloadSwitch.hidden = state.mode === 'site';
   ui.copyAll.hidden =
     scanning || !state.pages.some((p) => p.route.issues.some((i) => i.severity !== 'info'));
+  ui.send.hidden = ui.copyAll.hidden;
+  ui.send.disabled = agent.sending;
+  label(ui.send, 'send', agent.sending ? 'Sending' : 'Send to agent');
 }
 
 /** The pages of a whole-site scan, to pick which one the timeline and issues show. */
@@ -882,9 +1166,11 @@ function renderStats(): void {
     const page = state.scanning;
     ui.status.textContent = state.paused
       ? 'Paused: the tab is out of view'
-      : page
-        ? `Page ${page.index + 1} of about ${page.planned} · ${pct}%`
-        : `Sniffing · ${pct}%`;
+      : state.checking
+        ? `Checking your agent's fixes · ${page ? `page ${page.index + 1} of ${page.planned} · ` : ''}${pct}%`
+        : page
+          ? `Page ${page.index + 1} of about ${page.planned} · ${pct}%`
+          : `Sniffing · ${pct}%`;
     if (page) {
       const found = state.pages.reduce((n, p) => n + p.route.issues.length, 0);
       ui.stats.replaceChildren(
@@ -1575,6 +1861,38 @@ ui.stop.addEventListener('click', () => {
 ui.viewingReset.addEventListener('click', () => void resetView());
 ui.noticeClose.addEventListener('click', () => notify(null));
 ui.copyAll.addEventListener('click', () => void copyWith(ui.copyAll, prompt()));
+ui.send.addEventListener('click', () => void sendToAgent());
+ui.noticeAction.addEventListener('click', () => noticeAction?.(ui.noticeAction));
+ui.agent.addEventListener('click', () => {
+  void findServers().then((servers) => {
+    const projects = byProject(servers);
+    if (!projects.length) {
+      agent.online = false;
+      renderAgent();
+      return;
+    }
+    pickProject(projects, (server) => {
+      void tabUrl().then((url) => {
+        const origin = originOf(url);
+        if (origin) remember(origin, server.root);
+        listen(server);
+      });
+    });
+  });
+});
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideMenu();
+});
+addEventListener('click', (e) => {
+  const target = e.target as Node;
+  if (
+    !ui.agentMenu.hidden &&
+    !ui.agentMenu.contains(target) &&
+    !ui.send.contains(target) &&
+    !ui.agent.contains(target)
+  )
+    hideMenu();
+});
 for (const input of [ui.min, ui.max, ui.reload]) input.addEventListener('change', saveSettings);
 for (const [button, mode] of [
   [ui.modePage, 'page'],
@@ -1689,3 +2007,4 @@ renderPresets();
 state.wide = document.body.clientWidth - 24 >= WIDE_AT;
 render();
 if (scanOnOpen) void scan();
+void reconnect();

@@ -18,6 +18,8 @@ declare namespace chrome {
     const onDetach: {
       addListener(callback: (source: Debuggee, reason: string) => void): void;
     };
+    /** Lists tabs with their URLs without attaching, and without the tabs permission. */
+    function getTargets(): Promise<{ tabId?: number; url: string }[]>;
   }
 
   export { _debugger as debugger };

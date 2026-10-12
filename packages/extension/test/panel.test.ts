@@ -1,11 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type BrowserContext, chromium, type Page, type Worker } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { startBridge } from '../../cli/src/bridge';
+import { loadConfig } from '../../cli/src/config';
+import { runVerify } from '../../cli/src/verify';
 
 const here = import.meta.dirname;
 const PAGES = join(here, '../../../fixtures/pages');
@@ -393,6 +396,53 @@ describe('the DevTools panel', () => {
     expect((await picked()).pressed).toEqual(['Mobile']);
     await site.close();
     await panel.close();
+  });
+
+  it("sends the issues to the coding agent, and checks the agent's fixes in the tab", async () => {
+    // The project the agent works in, with breakhound mcp running in it.
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'made-up-shop' }));
+    writeFileSync(join(root, 'breakhound.config.json'), JSON.stringify({ baseUrl: origin }));
+    const bridge = await startBridge({
+      root,
+      version: '1.0.0',
+      loadConfig: async () => (await loadConfig(root)).config,
+    });
+    if (!bridge) throw new Error('No free port for the bridge');
+    try {
+      const { site, panel } = await open('bug-fixed-width.html');
+      await panel.setViewportSize({ width: 1000, height: 700 });
+      await scanned(panel);
+      await panel.click('#send');
+      await expect
+        .poll(() => panel.textContent('#notice-text'))
+        .toContain('to your agent in made-up-shop');
+      expect(await panel.isVisible('#agent')).toBe(true);
+      const sent = JSON.parse(readFileSync(join(root, '.breakhound/baseline.json'), 'utf8'));
+      expect(sent.from).toBe('extension');
+      expect(sent.routes[0].issues.length).toBeGreaterThan(0);
+
+      // The agent verifies without having fixed anything: the panel scans the page again here.
+      const { config } = await loadConfig(root);
+      const v = await runVerify({
+        cwd: root,
+        config,
+        version: '1.0.0',
+        quiet: true,
+        scanPages: (pages, widths) => bridge.scanInBrowser(pages, widths, origin),
+      });
+      // Same browser, same page: everything is still there, and nothing new.
+      expect(v.fixed).toEqual([]);
+      expect(v.regressions).toEqual([]);
+      expect(v.failing.length).toBe(sent.routes[0].issues.length);
+      await expect
+        .poll(() => panel.textContent('#notice-text'))
+        .toContain("Checked your agent's fixes");
+      await site.close();
+      await panel.close();
+    } finally {
+      await bridge.close();
+    }
   });
 
   it('says so when a page has nothing wrong', async () => {

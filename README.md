@@ -154,6 +154,8 @@ While it scans or shows a width, Chrome displays a bar saying breakhound started
 
 Switch to **Whole site** to scan every page, not just this one. breakhound finds the pages the way the CLI does: from the app's live router when it has one (Vue, React Router, Nuxt, Remix, TanStack), otherwise by following links from this page and the home page (never a logout, delete or file link, and a few pages per section, since blog posts share a layout), up to 25 pages. It loads each one in this tab, scans it, and comes back to where you were. Chrome stops drawing a tab that's out of view, so if you switch away while it runs, the scan pauses and carries on by itself when you come back. Your own login applies, so pages behind it are scanned too. Each page gets a chip with its issue count; an issue shared by several pages is counted once, and **Copy prompt** lists it once with every page it's on. Showing an issue from another page takes the tab there first.
 
+**Send to agent** hands the issues to the coding agent working on that app, so it can fix them and check each fix in your browser. See [From the browser](#from-the-browser) below.
+
 Routes only your project's files list (Next.js, SvelteKit and Astro route folders) need the CLI, as do menus opened, other browsers, screenshots and reports.
 
 To try it before it's in the Chrome Web Store, build it and load it unpacked:
@@ -187,7 +189,17 @@ It finds Claude Code, Cursor, VS Code, Windsurf and Codex, shows what it will ad
 
 `verify` is the point: agents often fix 812px and break 1280px, or fix one page and break another that shares a component. New issues show up there, at any width, on any page that was scanned.
 
-The dev server stays up between calls, so each verify only takes as long as the scan.
+The dev server stays up between calls, so each verify only takes as long as the scan. In Claude Code, `/mcp__breakhound__fix` asks for the whole loop in one go.
+
+### From the browser
+
+Scanned a page in the breakhound extension? Click **Send to agent** and the issues go to the agent working on that app, with nothing to copy and paste. Then ask it to "fix the breakhound issues".
+
+- It goes to the project, not to one agent: Claude Code and Cursor open on the same app both see it.
+- breakhound picks the project serving the page, the way the CLI recognises your dev server (or from `baseUrl` in your config). When it can't tell, for a staging site say, it asks which project.
+- When the agent verifies a fix, the panel scans those pages again **in your browser**: same login, same browser, so the comparison is exact. Keep the panel open while it works; a chip in the toolbar shows the agent is connected. If the panel is closed, verify says so, and the agent asks you to open it.
+
+It works through the MCP server, so it needs `npx breakhound mcp install` once (the panel shows the command if your agent isn't connected yet). `breakhound mcp` listens on 127.0.0.1 only, on a port from 47821, and answers only the breakhound extension. It only ever writes the scan you sent into `.breakhound/`; it never reads or sends your files.
 
 ### With a prompt
 

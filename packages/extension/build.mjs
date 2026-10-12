@@ -24,6 +24,9 @@ if (manifest.description.length > 132) {
     `The manifest description is ${manifest.description.length} characters; keep it to 132.`,
   );
 }
+// The key pins the extension's id, so an unpacked build has the id `breakhound mcp` accepts.
+// The Web Store signs uploads with its own key and refuses one in the manifest: --store leaves it out.
+if (process.argv.includes('--store')) delete manifest.key;
 writeFileSync(join(out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 await build({

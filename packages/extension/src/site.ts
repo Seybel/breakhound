@@ -38,6 +38,64 @@ export interface SiteScan {
   from: string;
 }
 
+/** A page that couldn't be scanned, unless scanning can't go on at all (stopped, or the tab is gone). */
+function failedPage(job: { url: string; route: string }, error: unknown): RouteResult {
+  if (error instanceof Cancelled) throw error;
+  const message = error instanceof Error ? error.message : String(error);
+  if (/detached|target closed|No tab with given id/i.test(message)) throw error;
+  return {
+    url: job.url,
+    finalUrl: job.url,
+    route: job.route,
+    status: 'error',
+    error: message,
+    pageErrors: [],
+    warnings: [],
+    breakpoints: { observed: [], declared: [], unexplained: [] },
+    issues: [],
+    measurements: 0,
+    durationMs: 0,
+  };
+}
+
+/**
+ * Scans the given pages of the site the tab is on, loading each one fresh, then goes back to the
+ * page it started on. How a coding agent's fixes are checked: the pages it was sent, again.
+ */
+export async function scanPages(
+  cdp: Cdp,
+  pages: { route: string; url: string }[],
+  options: SiteScanOptions,
+): Promise<RouteResult[]> {
+  const start = await evaluate<string>(cdp, () => location.href);
+  const routes: RouteResult[] = [];
+  const scripts = await addTracking(cdp, options.analyzerScript);
+  try {
+    for (const [index, job] of pages.entries()) {
+      if (options.cancelled?.()) throw new Cancelled();
+      options.onPage?.({ index, planned: pages.length, url: job.url, route: job.route });
+      let result: RouteResult;
+      try {
+        await loadPage(cdp, job.url);
+        result = await scanTab(cdp, {
+          ...options,
+          route: job.route,
+          onProgress: options.onProgress,
+          onMeasure: options.onMeasure,
+        } as TabScanOptions);
+      } catch (error) {
+        result = failedPage(job, error);
+      }
+      routes.push(result);
+      options.onResult?.(result);
+    }
+  } finally {
+    await removeTracking(cdp, scripts);
+    await loadPage(cdp, start).catch(() => {});
+  }
+  return routes;
+}
+
 /**
  * Scans the site the tab is on, one page at a time, the way `breakhound`
  * scans a whole app: routes from the live router when the app has one
@@ -93,23 +151,7 @@ export async function scanSite(cdp: Cdp, options: SiteScanOptions): Promise<Site
         options.onResult?.(result);
         queue.addLinks(await evaluate<string[]>(cdp, readLinks).catch(() => []));
       } catch (error) {
-        if (error instanceof Cancelled) throw error;
-        const message = error instanceof Error ? error.message : String(error);
-        // The tab or the debugger went away: nothing more can be scanned.
-        if (/detached|target closed|No tab with given id/i.test(message)) throw error;
-        const failed: RouteResult = {
-          url: job.url,
-          finalUrl: job.url,
-          route: job.route,
-          status: 'error',
-          error: message,
-          pageErrors: [],
-          warnings: [],
-          breakpoints: { observed: [], declared: [], unexplained: [] },
-          issues: [],
-          measurements: 0,
-          durationMs: 0,
-        };
+        const failed = failedPage(job, error);
         routes.push(failed);
         options.onResult?.(failed);
       }

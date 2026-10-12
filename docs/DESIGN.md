@@ -405,7 +405,16 @@ and continue until it reports no remaining issues and no new ones.
 | `checkpoint` | Commit current changes for a route as a breakhound fix commit |
 | `undo` | Revert breakhound fix commits for given routes |
 
-Setup is one command: `npx breakhound mcp install` detects Claude Code / Cursor / VS Code / Windsurf config and adds the server entry (showing the change and asking first).
+Setup is one command: `npx breakhound mcp install` detects Claude Code / Cursor / VS Code / Windsurf config and adds the server entry (showing the change and asking first). The server also offers a `fix` prompt (`/mcp__breakhound__fix` in Claude Code) that asks for the whole loop.
+
+### From the browser extension
+
+The panel's **Send to agent** hands a scan to the agent working on that app. Once the client has initialized, `breakhound mcp` also listens on the first free port of 47821–47830 on 127.0.0.1 (`BRIDGE_PORTS`). It answers only requests whose `Origin` is the breakhound extension (its id is pinned by a `key` in the manifest, and checked in tests against `EXTENSION_IDS`; `BREAKHOUND_EXTENSION_ID` lets a fork in) and whose `Host` is that address, so neither a web page nor a site rebinding its name to 127.0.0.1 gets through. A local process could fake both, but it could write the files itself anyway. It reads nothing from the project and returns nothing from it: it saves the scan it's sent (shape-checked, at most 32MB) into breakhound's folder, and hands out checks.
+
+- **Which project.** The panel asks every port. Servers in the same project root count once: Claude Code and Cursor open on one app share its `.breakhound/`, so it goes to the project, not to an agent. Each is asked whether it serves the page (`servesProject`: on this machine, on a port the project uses, and serving what its dev server serves, the same check that decides whether the CLI can reuse a running dev server), or whether its config's `baseUrl` is that site. One match is sent to; otherwise the panel asks which project, and remembers the answer for that site.
+- **Saving.** The scan becomes `result.json`, the reports and the baseline, with the project's config applied (checks turned off are dropped, severities overridden) and source files made relative, then the fix session starts as after a CLI scan. It is marked `from: "extension"`.
+- **Verifying in the browser.** A headless rescan of a scan made in the developer's Chrome would differ for reasons that aren't the agent's: pages behind a login, scrollbars, extensions on the page. So `verify` on an extension baseline asks the panel to scan the pages again: the panel long-polls `checks` with its tab's origin, takes a check meant for that site, scans the pages in the tab (reloaded, at the baseline's widths, progress passed on to the agent) and posts them back; the comparison and reports are the CLI's own. If no panel takes the check within 20 seconds, verify says so and the agent asks the developer to open it. `scan` replaces an extension baseline with a headless one, after which verify is headless again; the instructions tell agents to call `list_issues` first so they don't do that by accident.
+- **Store builds.** The Web Store signs with its own key and won't take one in the manifest, so `npm run build:extension:store` leaves it out. After the first upload, the store's public key goes into the manifest so local builds and the store share one id, and `EXTENSION_IDS` follows.
 
 ### Built-in fixer
 
@@ -451,8 +460,8 @@ We build in phases but don't stop until v1.0 is launched.
 | **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
 | **3 · Agent loop** ✅ | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
 | **4 · Depth** | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
-| **5 · DevTools panel** ✅ | Chrome DevTools panel reusing `analyzers` for live single-page use | Panel shows issues and breakpoint timeline for the inspected tab |
-| **6 · Launch (v1.0)** | Docs site, README with demo GIF, examples repo, contribution guide, issue templates, npm publish, Chrome Web Store listing, launch posts | Public release |
+| **5 · DevTools panel** ✅ | Chrome DevTools panel reusing `analyzers` for live single-page use; Send to agent, verified in the browser | Panel shows issues and breakpoint timeline for the inspected tab |
+| **6 · Launch (v1.0)** | Docs site, README with demo GIF, examples repo, contribution guide, issue templates, npm publish, Chrome Web Store listing (justify `debugger` and the 127.0.0.1 host permission; put the store's public key in the manifest and `EXTENSION_IDS` before the npm release), launch posts | Public release |
 
 ---
 

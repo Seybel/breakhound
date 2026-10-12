@@ -332,6 +332,103 @@ svg.icon {
   white-space: nowrap;
 }
 
+/* ---- your coding agent ---- */
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  height: 24px;
+  padding: 0 9px;
+  overflow: hidden;
+  font:
+    500 12px / 1 system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.agent-chip:hover {
+  color: var(--text);
+}
+.agent-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  background: #1f9d55;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(31 157 85 / 0.18);
+}
+.agent-chip.offline .agent-dot {
+  background: var(--text-3);
+  box-shadow: none;
+}
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.actions:not(:has(> :not([hidden]))) {
+  display: none;
+}
+.send-wrap {
+  position: relative;
+}
+.send-wrap:not(:has(> button:not([hidden]))) {
+  display: none;
+}
+.menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgb(16 20 30 / 0.16);
+}
+.menu-title {
+  margin: 2px 6px 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.menu button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 7px 8px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--surface);
+}
+.menu-path {
+  font: 12px var(--mono);
+  color: var(--text-3);
+}
+
 /* ---- notices ---- */
 
 .notice {
