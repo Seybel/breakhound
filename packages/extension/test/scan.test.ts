@@ -6,6 +6,7 @@ import { type Issue, Scanner } from '@breakhound/engine';
 import { type Browser, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Cdp } from '../src/cdp';
+import { setWidth } from '../src/cdp';
 import { routeOf, scanTab } from '../src/scan';
 
 const PAGES = join(import.meta.dirname, '../../../fixtures/pages');
@@ -181,6 +182,27 @@ describe('scanning the inspected tab', () => {
         }),
       ).rejects.toThrow('Stopped');
       expect(await page.evaluate(() => window.innerWidth)).not.toBe(320);
+    } finally {
+      await page.context().close();
+    }
+  });
+
+  it("lays the page out at a width without growing the tab's view past its own space", async () => {
+    // Here the window is the view, so it shows what a real browser hides: a view grown to the
+    // emulated size paints over whatever is beside it, DevTools included.
+    const { page, cdp } = await openTab(pathToFileURL(join(PAGES, 'bug-nav-wrap.html')).href);
+    const view = () => page.evaluate(() => [window.outerWidth, window.outerHeight]);
+    const inner = () => page.evaluate(() => [window.innerWidth, window.innerHeight]);
+    try {
+      const own = await view();
+      const fit = { width: 1000, height: 700 };
+      await setWidth(cdp, 1440, 0, fit);
+      // Zoomed out to fit: as much taller as it is wider, so the picture fills the tab.
+      expect(await inner()).toEqual([1440, 1008]);
+      expect(await view()).toEqual(own);
+      await setWidth(cdp, 400, 0, fit);
+      expect(await inner()).toEqual([400, 700]);
+      expect(await view()).toEqual(own);
     } finally {
       await page.context().close();
     }

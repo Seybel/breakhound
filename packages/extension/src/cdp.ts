@@ -140,7 +140,12 @@ export function fitScale(width: number, fit?: Viewport): number {
  * Lays the tab out at this width, the way Playwright sets a viewport (the
  * screen matches it). Wider than the tab, it is zoomed out to fit, like
  * DevTools' device mode; that changes how it looks, not how it lays out.
- * A height of 0 fills the tab's height.
+ * A height of 0 fills the tab's height, and keeps filling it as DevTools
+ * is dragged taller or shorter, unless the page is zoomed out to fit.
+ *
+ * The tab's view keeps its own size, as in device mode. Left to it, Chrome
+ * grows the view to the emulated size, and a view wider than the tab paints
+ * over whatever is beside it, DevTools included.
  */
 export async function setWidth(
   cdp: Cdp,
@@ -149,14 +154,16 @@ export async function setWidth(
   fit?: Viewport,
 ): Promise<void> {
   const scale = fitScale(width, fit);
-  const h = height || (fit ? Math.round(fit.height / scale) : 0);
+  // Zoomed out, the page is taller than the tab by as much as it is wider, so it still fills it.
+  const h = height || (fit && scale < 1 ? Math.round(fit.height / scale) : 0);
   await cdp.send('Emulation.setDeviceMetricsOverride', {
     width,
     height: h,
     deviceScaleFactor: 0,
     mobile: false,
     screenWidth: width,
-    screenHeight: h,
+    screenHeight: h || fit?.height || 0,
+    dontSetVisibleSize: true,
     ...(scale < 1 ? { scale } : {}),
   });
 }

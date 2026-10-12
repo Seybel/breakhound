@@ -9,7 +9,7 @@ import { DETECTOR_LABELS, formatRange, formatRanges } from '@breakhound/report/f
 import { renderPrompt } from '@breakhound/report/markdown';
 import { Cancelled, evaluate, fitScale, setWidth, type Viewport } from './cdp';
 import { loadPage, scanTab, TAB_DEFAULTS } from './scan';
-import { TabSession } from './session';
+import { LEFTOVERS, TabSession } from './session';
 import { SITE_MAX_PAGES, scanSite } from './site';
 
 /**
@@ -570,6 +570,8 @@ interface ViewJob {
 
 let pending: ViewJob | null = null;
 let pumping = false;
+/** Set when the tab's own size may have changed since it was measured. */
+let measureAgain = false;
 /** When breakhound last moved the tab to another page, so that isn't taken for the developer's doing. */
 let navigatedAt = 0;
 let navigating = false;
@@ -603,10 +605,16 @@ async function pump(): Promise<void> {
     while (pending) {
       const job: ViewJob = pending;
       pending = null;
-      if (!session.isAttached) {
-        await session.attach();
-        // Chrome's debugging bar takes some of the tab's height as it appears.
-        await pause(200);
+      if (!session.isAttached || measureAgain) {
+        if (session.isAttached) {
+          // Its own size only shows without the emulation, for the moment it takes to read it.
+          await session.send('Emulation.clearDeviceMetricsOverride');
+        } else {
+          await session.attach();
+          // Chrome's debugging bar takes some of the tab's height as it appears.
+          await pause(200);
+        }
+        measureAgain = false;
         state.natural = await evaluate<Viewport>(session, () => ({
           width: window.innerWidth,
           height: window.innerHeight,
@@ -1594,7 +1602,14 @@ session.onHidden = (hidden) => {
 };
 
 session.onDetach = () => {
-  // The developer closed the debugging bar, or the tab went away.
+  // The developer closed the debugging bar, or the tab went away. DevTools can still reach the
+  // page without the debugger, so outlines go at once there; elsewhere the page drops them itself.
+  if (inDevtools) {
+    chrome.devtools.inspectedWindow.eval(
+      `document.querySelectorAll(${JSON.stringify(LEFTOVERS)}).forEach((el) => el.remove())`,
+      () => {},
+    );
+  }
   state.stopping = state.phase === 'scanning';
   pending = null;
   state.viewing = null;
@@ -1643,6 +1658,18 @@ new ResizeObserver(() => {
     }
   });
 }).observe(document.body);
+
+// DevTools or the side panel being resized resizes the tab beside it too. Once it has stopped, the
+// tab is measured again so a zoomed-out width fits the space it has now.
+let refit = 0;
+addEventListener('resize', () => {
+  clearTimeout(refit);
+  refit = window.setTimeout(() => {
+    if (state.viewing === null || state.phase === 'scanning' || !session.isAttached) return;
+    measureAgain = true;
+    view(state.viewing);
+  }, 300);
+});
 
 // Anything that still slips through is shown here rather than left in the extension's error log.
 addEventListener('unhandledrejection', (e) => {

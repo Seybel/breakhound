@@ -306,6 +306,57 @@ describe('the DevTools panel', () => {
     }
   });
 
+  it('fits the page to the tab as DevTools is resized, and its outlines go when the debugging bar is closed', async () => {
+    const { site, panel } = await open('bug-fixed-width.html');
+    await panel.setViewportSize({ width: 1000, height: 700 });
+    await scanned(panel);
+    const own = await site.evaluate(() => [window.outerWidth, window.outerHeight]);
+
+    await panel.locator('.issue-head').first().click();
+    await expect.poll(() => site.locator('[data-breakhound-overlay]').count()).toBeGreaterThan(0);
+    // The widest width is wider than the tab, so it's zoomed out to fit.
+    await panel.focus('#timeline');
+    await panel.keyboard.press('End');
+    await expect.poll(() => innerWidth(site)).toBe(1440);
+
+    // Dragging DevTools makes the tab smaller. A zoomed-out width is fitted to the space it has now…
+    const zoom = async () =>
+      (await panel.textContent('#viewing-text'))?.match(/zoomed to (\d+)%/)?.[1];
+    const before = await zoom();
+    expect(before).toBeDefined();
+    const cdp = await context.newCDPSession(site);
+    const { windowId } = await cdp.send('Browser.getWindowForTarget');
+    const [w, h] = own as [number, number];
+    await cdp.send('Browser.setWindowBounds', {
+      windowId,
+      bounds: { width: w - 200, height: h - 200 },
+    });
+    await panel.setViewportSize({ width: 900, height: 700 });
+    await expect.poll(zoom).not.toBe(before);
+    // …and a width that fits fills the tab's height, as it changes.
+    await panel.focus('#timeline');
+    await panel.keyboard.press('Home');
+    await expect.poll(() => innerWidth(site)).toBe(320);
+    const short = await site.evaluate(() => window.innerHeight);
+    await cdp.send('Browser.setWindowBounds', { windowId, bounds: { width: w, height: h } });
+    await expect.poll(() => site.evaluate(() => window.innerHeight)).toBeGreaterThan(short);
+
+    // Cancel on the bar ends the session without a word to the panel; the page cleans up anyway.
+    await panel.evaluate(async () => {
+      const tabId = Number(new URLSearchParams(location.search).get('tab'));
+      await (
+        globalThis as unknown as {
+          chrome: { debugger: { detach: (t: { tabId: number }) => Promise<void> } };
+        }
+      ).chrome.debugger.detach({ tabId });
+    });
+    await expect
+      .poll(() => site.locator('[data-breakhound-overlay]').count(), { timeout: 10_000 })
+      .toBe(0);
+    await site.close();
+    await panel.close();
+  });
+
   it('fills in the widths from Mobile, Tablet and Desktop, and picking neighbours checks both', async () => {
     const { site, panel } = await open('bug-fixed-width.html');
     const pick = (name: string) => panel.click(`#presets button:text-is("${name}")`);
