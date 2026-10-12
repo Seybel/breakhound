@@ -229,6 +229,32 @@ export function isVisuallyHidden(rec: ElementRecord): boolean {
   return false;
 }
 
+/** Below this opacity, counting every ancestor's, text is a backdrop rather than something to read. */
+const ORNAMENT_OPACITY = 0.3;
+
+/**
+ * Text that's there to be looked at, not read: hidden from screen readers, or so faint it's a
+ * backdrop. Big background words bleeding off an edge are a design choice, not a bug.
+ */
+export function isOrnament(rec: ElementRecord): boolean {
+  if (rec.el.closest('[aria-hidden="true"]')) return true;
+  let opacity = 1;
+  for (let p: ElementRecord | null = rec; p; p = p.parent) {
+    opacity *= Number.parseFloat(p.style.opacity) || 0;
+    if (opacity < ORNAMENT_OPACITY) return true;
+  }
+  return false;
+}
+
+/** Scripts that wrap between any two characters, so lines outnumbering spaces is normal there. */
+const BREAKS_ANYWHERE =
+  /[\u0e00-\u0eff\u1000-\u109f\u1780-\u17ff\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/g;
+
+export function breaksAnywhere(text: string): boolean {
+  const chars = text.replace(/\s/g, '').length;
+  return chars > 0 && (text.match(BREAKS_ANYWHERE)?.length ?? 0) * 2 >= chars;
+}
+
 /** Line pieces kept per element; past this, the union box stands in for the rest. */
 const MAX_FRAGMENTS = 64;
 

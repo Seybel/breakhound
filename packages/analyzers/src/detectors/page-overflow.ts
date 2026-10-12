@@ -1,5 +1,6 @@
 import {
   type ElementRecord,
+  isOrnament,
   isVisuallyHidden,
   paintedLeft,
   paintedRight,
@@ -121,6 +122,8 @@ export function pageOverflow(snap: Snapshot): Finding[] {
       (edge.kind === 'root' ? snap.rootScrollsX : edge.kind === 'wrapper' && edge.scrolls);
     // Decorative shapes bleeding off an edge are intentional unless they cause a scrollbar.
     if (!scrolls && rec.outOfFlow && isDecorative(rec.el)) continue;
+    // So is ornamental text (a faint backdrop word), cut off by its wrapper on purpose.
+    if (!scrolls && isOrnament(rec)) continue;
     const textOnly = rec.rect.right <= vw + TOLERANCE && rec.rect.left >= -TOLERANCE;
 
     let title: string;

@@ -2,21 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Display text that scales</title>
+<title>Big text that is meant to be big</title>
 <style>
 * { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
-main { padding: 16px; }
-h1 { font-size: clamp(28px, 5vw + 12px, 64px); line-height: 1.1; margin: 0 0 16px; }
+main { padding: 16px; position: relative; overflow: hidden; }
+.scaled { font-size: clamp(28px, 5vw + 12px, 64px); line-height: 1.1; margin: 0 0 16px; }
 h2 { font-size: 30px; line-height: 1.2; }
 .stat { font-size: 72px; font-weight: 700; line-height: 1; }
+.stacked { font-size: 56px; line-height: 1; }
+.narrow { font-size: 48px; line-height: 1.05; max-width: 6ch; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cards h3 { font-size: 30px; line-height: 1.1; margin: 0; }
+.watermark { font-size: 120px; font-weight: 900; opacity: 0.06; margin: 0; }
+.backdrop { position: absolute; top: 0; left: 0; font-size: 96px; opacity: 0.08; pointer-events: none; }
+.vertical { writing-mode: vertical-rl; font-size: 40px; height: 360px; }
+.cjk { font-size: 40px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Ship pages that work everywhere</h1>
+  <h1 class="scaled">Ship pages that work everywhere</h1>
   <h2>A section heading long enough to wrap onto a few lines on a phone</h2>
   <p class="stat">98%</p>
-  <p>Big numbers and headings that scale with the screen are fine.</p>
+  <h2 class="stacked">Ship.<br>Scan.<br>Fix.</h2>
+  <h2 class="narrow">Made to stack on purpose</h2>
+  <div class="cards">
+    <article><h3>Fast and quiet builds</h3><p>Two columns at every width.</p></article>
+    <article><h3>Pixel exact ranges</h3><p>The column sets the measure.</p></article>
+  </div>
+  <p class="watermark" aria-hidden="true">Big Bold Words</p>
+  <p class="backdrop">Behind the scenes</p>
+  <p class="vertical">縦書きの見出し テキスト</p>
+  <p class="cjk">すべての幅でページを確認します</p>
+  <p>Big numbers, scaled headings, deliberate stacking and decoration are all fine.</p>
 </main>
 </body>
 </html>

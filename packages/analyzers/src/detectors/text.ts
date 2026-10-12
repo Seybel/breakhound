@@ -1,9 +1,11 @@
 import {
+  breaksAnywhere,
   contentBox,
   type ElementRecord,
   fontSize,
   intersectBox,
   isInline,
+  isOrnament,
   isVisuallyHidden,
   px,
   type Snapshot,
@@ -87,7 +89,7 @@ export function clippedText(snap: Snapshot): Finding[] {
 
   for (const rec of snap.records) {
     const raw = rec.rawTextRect;
-    if (!raw || rec.outOfFlow === 'fixed' || isVisuallyHidden(rec)) continue;
+    if (!raw || rec.outOfFlow === 'fixed' || isVisuallyHidden(rec) || isOrnament(rec)) continue;
     const visible = intersectBox(raw, rec.innerClip);
     let axis: 'x' | 'y' | null;
     let clipper: ElementRecord | null;
@@ -171,7 +173,8 @@ export function squishedText(snap: Snapshot): Finding[] {
     const words = rec.text.split(' ').filter(Boolean).length;
     const perLine = chars / rec.textLines;
     // One word per line is ordinary wrapping; more lines than words means words are breaking apart.
-    if (rec.textLines <= words && perLine >= 3) continue;
+    // Chinese, Japanese, Korean and Thai wrap between any characters, so only a tiny column counts.
+    if ((rec.textLines <= words || breaksAnywhere(rec.text)) && perLine >= 3) continue;
     findings.push({
       detector: 'squished-text',
       severity: 'warning',
@@ -198,7 +201,7 @@ export function tinyText(snap: Snapshot): Finding[] {
     { rec: ElementRecord; size: number; count: number }
   >();
   for (const rec of snap.records) {
-    if (!rec.textRect || rec.text.length < 3 || isVisuallyHidden(rec)) continue;
+    if (!rec.textRect || rec.text.length < 3 || isVisuallyHidden(rec) || isOrnament(rec)) continue;
     const size = fontSize(rec);
     if (size >= MIN_TINY_FONT) continue;
     const g = byParent.get(rec.parent);
@@ -232,27 +235,53 @@ export function tinyText(snap: Snapshot): Finding[] {
   return findings;
 }
 
+/** Lines the author asked for: one per <br>, or per newline where white-space keeps them. */
+function forcedLines(el: Element, style: CSSStyleDeclaration): number {
+  let lines = 1;
+  const keepsNewlines = /^(pre|pre-wrap|pre-line|break-spaces)$/.test(style.whiteSpace);
+  for (const node of el.childNodes) {
+    if (node.nodeName === 'BR') lines++;
+    else if (keepsNewlines && node.nodeType === Node.TEXT_NODE) {
+      lines += (node.textContent?.trim().match(/\n/g) ?? []).length;
+    }
+  }
+  return lines;
+}
+
 /**
  * Headings and other display text kept at their desktop size on a phone, so they wrap a word or
- * two at a time and fill the screen. Squeezed columns are squished-text's; this is about the size.
+ * two at a time and fill the screen. It has to be the size and the screen at fault, so it stays
+ * quiet whenever the stacking could be on purpose: line breaks written into the text, a heading
+ * kept narrower than the space it has, text in a narrow column (the column is the problem there),
+ * decorative text hidden from screen readers or laid over the page, and vertical text.
  */
 export function oversizedText(snap: Snapshot): Finding[] {
-  if (snap.viewportWidth > TOUCH_MAX_WIDTH) return [];
+  const vw = snap.viewportWidth;
+  if (vw > TOUCH_MAX_WIDTH) return [];
   const findings: Finding[] = [];
   for (const rec of snap.records) {
     if (findings.length >= MAX_LARGE_FINDINGS) break;
     if (!rec.textRect || rec.textLines < 3 || isVisuallyHidden(rec)) continue;
     const size = fontSize(rec);
     if (size < MIN_LARGE_FONT) continue;
+    // One long word is overflow or squished text; CJK and Thai have no spaces to count words by.
     const words = rec.text.split(' ').filter(Boolean).length;
-    // One long word is overflow or squished text, not a size problem.
     if (words < 2) continue;
     const chars = rec.text.replace(/\s/g, '').length;
     const perLine = chars / rec.textLines;
     if (perLine >= MIN_LARGE_CHARS_PER_LINE) continue;
     // Words breaking apart in a narrow column is squished-text's to report.
     if (rec.textLines > words && rec.rect.width < 10 * size) continue;
-    const share = rec.textRect.height / snap.viewportHeight;
+    if (rec.style.writingMode && !rec.style.writingMode.startsWith('horizontal')) continue;
+    if (rec.outOfFlow || isOrnament(rec)) continue;
+    // Size has to add at least two lines to the ones the author wrote in.
+    if (rec.textLines - forcedLines(rec.el, rec.style) < 2) continue;
+    // The text's block has to fill the space it's given, and that space most of the screen.
+    let block: ElementRecord = rec;
+    while (!isBlock(block) && block.parent) block = block.parent;
+    const room = block.parent ? contentBox(block.parent).width : vw;
+    if (block.rect.width < room * 0.9 || block.rect.width < vw * 0.6) continue;
+
     const rem = Math.round((size / 16) * 100) / 100;
     findings.push({
       detector: 'oversized-text',
@@ -263,7 +292,7 @@ export function oversizedText(snap: Snapshot): Finding[] {
         fontSizePx: px(size),
         lines: rec.textLines,
         charsPerLine: Math.round(perLine * 10) / 10,
-        screenShare: Math.round(share * 100) / 100,
+        screenShare: Math.round((rec.textRect.height / snap.viewportHeight) * 100) / 100,
       },
       styles: pick(rec.style, ['font-size', 'line-height', 'letter-spacing']),
       suggestion: `Scale it down on small screens, for example font-size: clamp(1.75rem, 4vw + 1rem, ${rem}rem), or a smaller size below 640px.`,
@@ -291,6 +320,7 @@ export function edgeGutter(snap: Snapshot): Finding[] {
   for (const rec of snap.records) {
     const t = rec.textRect;
     if (!t || rec.outOfFlow === 'fixed' || isVisuallyHidden(rec) || rec.text.length < 2) continue;
+    if (isOrnament(rec)) continue;
     // Overflowing text is page-overflow's job; text in scrollers and sliders is meant to move.
     if (t.left < -0.5 || t.right > vw + 0.5) continue;
     let moves = false;
