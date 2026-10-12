@@ -92,7 +92,7 @@ describe('an agent fixing issues over MCP', () => {
     const { prompts } = await client.listPrompts();
     expect(prompts.map((p) => p.name)).toEqual(['fix']);
     const { messages } = await client.getPrompt({ name: 'fix' });
-    const text = (messages[0]?.content as { text: string }).text;
+    const text = (messages[0]?.content as { text?: string } | undefined)?.text ?? '';
     expect(text).toContain('list_issues');
     expect(text).toContain('checkpoint');
   });
