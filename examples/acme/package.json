@@ -1,0 +1,9 @@
+{
+  "name": "acme-example",
+  "private": true,
+  "description": "A small site with responsive bugs planted in it, to try breakhound on.",
+  "type": "module",
+  "scripts": {
+    "dev": "node serve.mjs"
+  }
+}

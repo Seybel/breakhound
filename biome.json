@@ -5,7 +5,7 @@
       "**",
       "!**/dist",
       "!**/node_modules",
-      "!.breakhound",
+      "!**/.breakhound",
       "!.private",
       "!coverage",
       "!fixtures"

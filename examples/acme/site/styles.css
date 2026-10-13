@@ -1,0 +1,214 @@
+/* Acme: a made-up product site with a few responsive bugs left in on purpose. */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #1c1b22;
+  background: #faf9fc;
+}
+a {
+  color: inherit;
+}
+.wrap {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Header */
+.site-header {
+  background: #1c1b22;
+  color: #fff;
+}
+.site-header .wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 64px;
+}
+.logo {
+  width: 180px;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 20px;
+  text-decoration: none;
+}
+.logo span {
+  color: #a78bfa;
+}
+.nav {
+  flex: 1;
+  min-width: 0;
+}
+/* Bug: six fixed-width links, and the menu button only takes over below 768px. */
+.menu {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.menu li {
+  width: 112px;
+  flex-shrink: 0;
+  text-align: center;
+}
+.menu a {
+  display: block;
+  padding: 20px 8px;
+  text-decoration: none;
+  opacity: 0.85;
+}
+.menu a:hover {
+  opacity: 1;
+}
+.menu-button {
+  display: none;
+  margin-left: auto;
+  padding: 10px 14px;
+  border: 1px solid #ffffff40;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+@media (max-width: 767px) {
+  .nav {
+    display: none;
+  }
+  .menu-button {
+    display: block;
+  }
+}
+
+/* Hero */
+.hero {
+  padding: 72px 0 56px;
+  background: linear-gradient(180deg, #ede9fe, #faf9fc);
+}
+/* Bug: the desktop size, at every width. */
+.hero h1 {
+  font-size: 64px;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 20px;
+  max-width: 14ch;
+}
+.hero p {
+  font-size: 20px;
+  color: #4b4a57;
+  max-width: 40ch;
+  margin: 0 0 28px;
+}
+.button {
+  display: inline-block;
+  padding: 14px 22px;
+  border-radius: 10px;
+  background: #6d28d9;
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* Features: this part is fine. */
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  padding: 56px 0;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e7e5ee;
+  border-radius: 14px;
+  padding: 24px;
+}
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.card p {
+  margin: 0;
+  color: #4b4a57;
+}
+
+/* Pricing */
+.page-title {
+  padding: 56px 0 8px;
+}
+.page-title h1 {
+  font-size: clamp(32px, 6vw, 48px);
+  margin: 0 0 8px;
+}
+.plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  padding: 24px 0;
+}
+.plan .price {
+  font-size: 36px;
+  font-weight: 700;
+  margin: 8px 0;
+}
+/* Bug: a comparison table that never gets narrower than 640px. */
+.compare {
+  width: 640px;
+  border-collapse: collapse;
+  margin: 24px 0 64px;
+  background: #fff;
+}
+.compare th,
+.compare td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e7e5ee;
+  text-align: left;
+}
+
+/* About */
+.story {
+  display: grid;
+  grid-template-columns: 30% 1fr;
+  gap: 0;
+  padding: 48px 0 64px;
+}
+/* Bug: a fixed-size photo in a column that's narrower than it on tablets. */
+.story .photo {
+  width: 280px;
+  height: 200px;
+  border-radius: 14px;
+  display: block;
+}
+.story .text {
+  padding-left: 24px;
+}
+.story .text p {
+  margin-top: 0;
+}
+@media (max-width: 639px) {
+  .story {
+    grid-template-columns: 1fr;
+  }
+  .story .photo {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 7 / 5;
+  }
+  .story .text {
+    padding-left: 0;
+    padding-top: 20px;
+  }
+}
+
+.site-footer {
+  border-top: 1px solid #e7e5ee;
+  padding: 28px 0;
+  color: #6b6a77;
+  font-size: 14px;
+}
