@@ -12,6 +12,9 @@ main { padding: 16px; max-width: 760px; margin: 0 auto; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chips button { font: inherit; padding: 4px 10px; border-radius: 12px; border: 1px solid #aaa; background: #fff; }
 h1 { font-size: clamp(24px, 6vw, 48px); line-height: 1.1; }
+.options { display: block; overflow-x: auto; border-collapse: collapse; }
+.options td { min-width: 136px; padding: 8px 16px; border: 1px solid #ddd; vertical-align: top; }
+.options code { font-size: 14px; padding: 3px 6px; border-radius: 4px; background: #eee; }
 </style>
 </head>
 <body>
@@ -21,6 +24,11 @@ h1 { font-size: clamp(24px, 6vw, 48px); line-height: 1.1; }
   <p class="wrap-anywhere">https://example.com/another/very/long/path/that/is/allowed/to/break/anywhere/in/the/middle</p>
   <p class="clamp">A long description that is clamped to two lines. It keeps going and going so that it definitely needs more than two lines on a narrow phone screen and gets cut with an ellipsis.</p>
   <div class="chips"><button type="button">Design</button><button type="button">Engineering</button><button type="button">Product</button><button type="button">Marketing</button><button type="button">Sales</button><button type="button">Support</button></div>
+  <!-- A narrow cell that's mostly inline code: its words share the lines with the cell's own text. -->
+  <table class="options">
+    <tr><td><code>failOn</code></td><td>Exit 1 at <code>error</code>, <code>warning</code>, <code>info</code> or <code>none</code></td></tr>
+    <tr><td><code>vision</code></td><td><code>true</code> to add a vision model's opinion, or <code>{ model, provider, widths }</code></td></tr>
+  </table>
 </main>
 </body>
 </html>

@@ -161,20 +161,36 @@ export function clippedText(snap: Snapshot): Finding[] {
 }
 
 /** Text crushed into a column so narrow that words break mid-word. */
+/**
+ * The text on an element's lines: its own, plus that of inline children like code and links,
+ * which sit on the same lines. Only its own when a child is a block, which has lines of its own.
+ */
+function lineText(rec: ElementRecord): string {
+  for (const child of rec.el.children) {
+    const display = getComputedStyle(child).display;
+    if (display !== 'none' && !display.startsWith('inline')) return rec.text;
+  }
+  // innerText, so a <br> separates words as it does on screen.
+  const el = rec.el as HTMLElement;
+  return (el.innerText ?? el.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
 export function squishedText(snap: Snapshot): Finding[] {
   const findings: Finding[] = [];
   for (const rec of snap.records) {
     if (!rec.textRect || rec.textLines < 3 || isVisuallyHidden(rec) || isInline(rec.style))
       continue;
-    const chars = rec.text.replace(/\s/g, '').length;
+    // The words in inline children (code, links, bold) share the lines, so they count too.
+    const text = lineText(rec);
+    const chars = text.replace(/\s/g, '').length;
     if (chars < 8) continue;
     // Only genuinely narrow columns; a full-width URL breaking anywhere is doing its job.
     if (rec.rect.width >= 10 * fontSize(rec)) continue;
-    const words = rec.text.split(' ').filter(Boolean).length;
+    const words = text.split(' ').filter(Boolean).length;
     const perLine = chars / rec.textLines;
     // One word per line is ordinary wrapping; more lines than words means words are breaking apart.
     // Chinese, Japanese, Korean and Thai wrap between any characters, so only a tiny column counts.
-    if ((rec.textLines <= words || breaksAnywhere(rec.text)) && perLine >= 3) continue;
+    if ((rec.textLines <= words || breaksAnywhere(text)) && perLine >= 3) continue;
     findings.push({
       detector: 'squished-text',
       severity: 'warning',
