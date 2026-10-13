@@ -78,6 +78,9 @@
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "node build.mjs",
     "prepack": "npm run build && cp ../../README.md ../../LICENSE .",
