@@ -24,7 +24,10 @@
     "format": "biome check --write .",
     "build": "npm run build -w @seybel/breakhound",
     "build:extension": "npm run build:analyzers && npm run build -w @breakhound/extension",
-    "build:extension:store": "npm run build:analyzers && npm run build -w @breakhound/extension -- --store"
+    "build:extension:store": "npm run build:analyzers && npm run build -w @breakhound/extension -- --store",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
@@ -35,6 +38,7 @@
     "tsup": "^8.5.1",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
+    "vitepress": "^1.6.4",
     "vitest": "^5.0.2"
   }
 }

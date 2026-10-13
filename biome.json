@@ -6,6 +6,7 @@
       "!**/dist",
       "!**/node_modules",
       "!**/.breakhound",
+      "!**/.vitepress/cache",
       "!.private",
       "!coverage",
       "!fixtures"

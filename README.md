@@ -1,6 +1,6 @@
 # breakhound
 
-[![npm](https://img.shields.io/npm/v/@seybel/breakhound)](https://www.npmjs.com/package/@seybel/breakhound) [![CI](https://github.com/Seybel/breakhound/actions/workflows/ci.yml/badge.svg)](https://github.com/Seybel/breakhound/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Seybel/breakhound/blob/main/LICENSE)
+[![npm](https://img.shields.io/npm/v/@seybel/breakhound)](https://www.npmjs.com/package/@seybel/breakhound) [![CI](https://github.com/Seybel/breakhound/actions/workflows/ci.yml/badge.svg)](https://github.com/Seybel/breakhound/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Seybel/breakhound/blob/main/LICENSE) [![Docs](https://img.shields.io/badge/docs-seybel.github.io%2Fbreakhound-6d28d9)](https://seybel.github.io/breakhound/)
 
 Find where your layout breaks across every viewport width, then hand the fix to your coding agent.
 

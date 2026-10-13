@@ -12,3 +12,7 @@ CLAUDE.local.md
 # Copied into the published package at pack time
 packages/cli/README.md
 packages/cli/LICENSE
+
+# Docs site build
+docs/.vitepress/cache/
+docs/.vitepress/dist/
