@@ -24,7 +24,7 @@ It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, 
 
 Chromium finds most layout bugs, but Safari and Firefox lay some things out differently (flex gaps, `dvh` units, form controls, font metrics). `--browsers chromium,webkit,firefox` checks the pages again in WebKit (Safari's engine) and Firefox once Chromium is done, one browser at a time so memory stays flat. An issue that shows up in only some of them says so: `(only in WebKit)`. Each extra browser is a one-time download of about 80 to 90 MB, done on first use or ahead of time with `npx @seybel/breakhound install webkit firefox`.
 
-Two differences you'll meet early: Safari gives buttons, inputs and selects an 11px font unless you set one (Chrome and Firefox use about 13px), so unstyled controls show up as tiny text only in WebKit, with `font: inherit` as the fix; and Firefox breaks long URLs at their slashes, so a URL that pushes the page wide in Chrome and Safari can wrap fine in Firefox.
+Two differences you'll meet early: Safari gives buttons, inputs and selects an 11px font unless you set one (Chrome and Firefox use about 13px), so unstyled controls show up as tiny text only in WebKit, with `font: inherit` as the fix (that's WebKit on a Mac: Playwright's WebKit on Linux, as in most CI, draws them like Chrome); and Firefox breaks long URLs at their slashes, so a URL that pushes the page wide in Chrome and Safari can wrap fine in Firefox.
 
 ## Menus, dialogs and expandable sections
 

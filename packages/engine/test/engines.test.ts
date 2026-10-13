@@ -13,14 +13,25 @@ describe.skipIf(!hasWebkit)('in WebKit', () => {
   const scanner = new Scanner({ browser: 'webkit' });
   afterAll(() => scanner.close());
 
-  it("names Safari's 11px form controls as the cause of their tiny text", async () => {
-    const url = pathToFileURL(join(PAGES, 'bug-tiny-text.html')).href;
-    const result = await scanner.scanPage(url, { minWidth: 320, maxWidth: 800 });
-    const button = result.issues.find((i) => i.element.selector.includes('button'));
-    expect(button?.evidence.fontSizePx).toBe(11);
-    expect(button?.suggestion).toContain('font: inherit');
-    // Text the page itself made small gets the usual advice.
-    const legal = result.issues.find((i) => i.element.selector.includes('legal'));
+  const scan = () =>
+    scanner.scanPage(pathToFileURL(join(PAGES, 'bug-tiny-text.html')).href, {
+      minWidth: 320,
+      maxWidth: 800,
+    });
+
+  // The 11px is Safari's: WebKit on macOS. Playwright's WebKit on Linux is another port,
+  // which draws form controls at about 13px like Chrome.
+  it.skipIf(process.platform !== 'darwin')(
+    "names Safari's 11px form controls as the cause of their tiny text",
+    async () => {
+      const button = (await scan()).issues.find((i) => i.element.selector.includes('button'));
+      expect(button?.evidence.fontSizePx).toBe(11);
+      expect(button?.suggestion).toContain('font: inherit');
+    },
+  );
+
+  it('gives text the page itself made small the usual advice', async () => {
+    const legal = (await scan()).issues.find((i) => i.element.selector.includes('legal'));
     expect(legal?.suggestion).toContain('at least 12px');
   });
 });

@@ -49,34 +49,39 @@ async function score(url: string, result: PageResult): Promise<Scored> {
   const page = await browser.newPage();
   try {
     await page.goto(url);
-    const expectations = await page.evaluate((browser) => {
-      const out: {
-        detector: string;
-        range: { from: number; to: number } | null;
-        selector: string;
-        open: boolean;
-      }[] = [];
-      document.querySelectorAll('[data-bh-expect]').forEach((el, i) => {
-        el.setAttribute('data-bh-test-id', String(i));
-        for (const token of (el.getAttribute('data-bh-expect') ?? '')
-          .split(/\s+/)
-          .filter(Boolean)) {
-          // `!firefox` after a marker: that engine lays the page out so the bug isn't there.
-          const [marker = '', notIn = ''] = token.split('!');
-          if (notIn.split(',').includes(browser)) continue;
-          const [spec = '', state] = marker.split(':');
-          const [detector = '', range] = spec.split('@');
-          const [from, to] = (range ?? '').split('-').map(Number);
-          out.push({
-            detector,
-            range: range ? { from: from ?? 0, to: to ?? 0 } : null,
-            selector: `[data-bh-test-id="${i}"]`,
-            open: state === 'open',
-          });
-        }
-      });
-      return out;
-    }, BROWSER);
+    const expectations = await page.evaluate(
+      ({ browser, platform }) => {
+        const out: {
+          detector: string;
+          range: { from: number; to: number } | null;
+          selector: string;
+          open: boolean;
+        }[] = [];
+        document.querySelectorAll('[data-bh-expect]').forEach((el, i) => {
+          el.setAttribute('data-bh-test-id', String(i));
+          for (const token of (el.getAttribute('data-bh-expect') ?? '')
+            .split(/\s+/)
+            .filter(Boolean)) {
+            // `!firefox` after a marker: that engine lays the page out so the bug isn't there.
+            // `!webkit/linux`: only on that platform, where the engine is a different port.
+            const [marker = '', notIn = ''] = token.split('!');
+            const excluded = notIn.split(',');
+            if (excluded.includes(browser) || excluded.includes(`${browser}/${platform}`)) continue;
+            const [spec = '', state] = marker.split(':');
+            const [detector = '', range] = spec.split('@');
+            const [from, to] = (range ?? '').split('-').map(Number);
+            out.push({
+              detector,
+              range: range ? { from: from ?? 0, to: to ?? 0 } : null,
+              selector: `[data-bh-test-id="${i}"]`,
+              open: state === 'open',
+            });
+          }
+        });
+        return out;
+      },
+      { browser: BROWSER, platform: process.platform },
+    );
 
     const matched = new Set<Expectation>();
     const falsePositives: Issue[] = [];
