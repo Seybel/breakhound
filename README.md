@@ -1,10 +1,10 @@
 # breakhound
 
-[![npm](https://img.shields.io/npm/v/@seybel/breakhound)](https://www.npmjs.com/package/@seybel/breakhound) [![CI](https://github.com/Seybel/breakhound/actions/workflows/ci.yml/badge.svg)](https://github.com/Seybel/breakhound/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@seybel/breakhound)](https://www.npmjs.com/package/@seybel/breakhound) [![CI](https://github.com/Seybel/breakhound/actions/workflows/ci.yml/badge.svg)](https://github.com/Seybel/breakhound/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Seybel/breakhound/blob/main/LICENSE)
 
 Find where your layout breaks across every viewport width, then hand the fix to your coding agent.
 
-![breakhound scanning a small site in Chrome: every page from 320 to 1920px, then each issue shown at the width where it is worst](docs/demo.gif)
+![breakhound scanning a small site in Chrome: every page from 320 to 1920px, then each issue shown at the width where it is worst](https://raw.githubusercontent.com/Seybel/breakhound/main/docs/demo.gif)
 
 Instead of dragging the browser or clicking through device presets, run one command in your project. breakhound finds your framework and dev server (and starts it if needed), discovers every route, sweeps each page from 320px to 1920px in a real browser, finds the exact pixel where things go wrong, and tells you why:
 
@@ -389,7 +389,7 @@ npm run dev -- http://localhost:3000
 
 `fixtures/pages` is the accuracy benchmark: pages with planted bugs (marked with `data-bh-expect`) and pages full of tricky-but-fine patterns that must stay clean. Every detector change has to keep it at 100%.
 
-Found a false positive, or a bug breakhound missed? That's the most useful thing to report: see [CONTRIBUTING.md](CONTRIBUTING.md). How it all works is in [docs/DESIGN.md](docs/DESIGN.md).
+Found a false positive, or a bug breakhound missed? That's the most useful thing to report: see [CONTRIBUTING.md](https://github.com/Seybel/breakhound/blob/main/CONTRIBUTING.md). How it all works is in [docs/DESIGN.md](https://github.com/Seybel/breakhound/blob/main/docs/DESIGN.md).
 
 ## License
 
