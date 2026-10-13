@@ -398,7 +398,7 @@ const JS = String.raw`
   if (login.length) {
     $('failed').append(el('div', { class: 'callout' },
       el('h2', { text: plural(login.length, 'page') + ' need' + (login.length === 1 ? 's' : '') + ' a login' }),
-      el('p', {}, 'Run ', el('code', { text: 'breakhound login' }), ' once to sign in, then scan again.'), listing(login)));
+      el('p', {}, 'Run ', el('code', { text: 'npx @seybel/breakhound login' }), ' once to sign in, then scan again.'), listing(login)));
   }
   const skipped = D.routes.filter((r) => r.status === 'skipped' || r.status === 'redirect');
   if (skipped.length) {

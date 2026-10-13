@@ -16,7 +16,7 @@ import { formatVerify, readBaseline, runVerify, severitiesAtOrAbove, verifyPasse
 /**
  * breakhound as an MCP server, over stdio. It speaks the small part of the
  * protocol tools need (initialize, tools/list, tools/call, ping, progress)
- * directly, so `npx breakhound` stays quick to install. The dev server it
+ * directly, so `npx @seybel/breakhound` stays quick to install. The dev server it
  * finds or starts stays up between calls, so verify runs don't wait for it.
  */
 
@@ -119,7 +119,7 @@ function scanSummary(result: ScanResult): string {
     lines.push('', 'Not scanned:', ...other.map(pageLine));
     if (other.some((r) => r.status === 'login')) {
       lines.push(
-        'Pages behind a login need a saved session: ask the user to run `npx breakhound login` once.',
+        'Pages behind a login need a saved session: ask the user to run `npx @seybel/breakhound login` once.',
       );
     }
   }

@@ -12,7 +12,7 @@ Checking responsiveness today is manual: open responsive mode, click through dev
 
 ## 2. Goals
 
-1. **Zero-config.** `npx breakhound` in a project root works for React, Vue and any JS frontend: it finds the dev server, discovers every route and scans them all.
+1. **Zero-config.** `npx @seybel/breakhound` in a project root works for React, Vue and any JS frontend: it finds the dev server, discovers every route and scans them all.
 2. **Find the exact pixel.** Report issues as width ranges (`812–1023px`), not device names.
 3. **Objective, low-noise detection.** Rules, not guesses. A false positive costs more trust than a missed issue.
 4. **Reports people and agents can use.** Summary and detailed reports, Markdown / HTML / PDF / JSON, and a copy-paste prompt tuned for coding agents.
@@ -30,14 +30,14 @@ Checking responsiveness today is manual: open responsive mode, click through dev
 ## 3. User experience
 
 ```bash
-npx breakhound                 # detect, discover, scan everything, write reports
-npx breakhound /pricing        # scan one route
-npx breakhound --url https://staging.example.com
-npx breakhound login           # open a browser, log in once, save the session locally
-npx breakhound report          # reopen the last report
-npx breakhound prompt          # print the agent prompt for the last scan (pipe to clipboard)
-npx breakhound mcp             # start the MCP server (normally launched by the agent)
-npx breakhound undo [routes…]  # revert breakhound fix commits
+npx @seybel/breakhound                 # detect, discover, scan everything, write reports
+npx @seybel/breakhound /pricing        # scan one route
+npx @seybel/breakhound --url https://staging.example.com
+npx @seybel/breakhound login           # open a browser, log in once, save the session locally
+npx @seybel/breakhound report          # reopen the last report
+npx @seybel/breakhound prompt          # print the agent prompt for the last scan (pipe to clipboard)
+npx @seybel/breakhound mcp             # start the MCP server (normally launched by the agent)
+npx @seybel/breakhound undo [routes…]  # revert breakhound fix commits
 ```
 
 Example run:
@@ -56,7 +56,7 @@ Example run:
      320–413px     tap target 32×32px                          .share-btn
 
   3 issues across 2 routes · report: .breakhound/report/index.html
-  Fix with your agent:  npx breakhound prompt | pbcopy
+  Fix with your agent:  npx @seybel/breakhound prompt | pbcopy
 ```
 
 Exit code is non-zero when issues at or above `--fail-on` severity exist (1), or when a page could not be checked at all (2), so the same command works in CI.
@@ -65,7 +65,7 @@ Exit code is non-zero when issues at or above `--fail-on` severity exist (1), or
 
 ## 4. Architecture
 
-TypeScript monorepo (npm workspaces). Users install one package, `breakhound`; the rest are internal packages bundled into it (published separately only if there's demand).
+TypeScript monorepo (npm workspaces). Users install one package, `@seybel/breakhound` (its command is `breakhound`); the rest are internal packages bundled into it (published separately only if there's demand).
 
 ```
 packages/
@@ -112,7 +112,7 @@ routes ──► engine ──(injects)──► analyzers (in page)
 | Tests | Vitest + Playwright against `fixtures/` | Fast unit tests, real layout in integration tests |
 | Lint/format | Biome | One fast tool |
 | CLI framework | Node's built-in `util.parseArgs` and `util.styleText` | Zero dependencies |
-| MCP | Own stdio server (JSON-RPC lines), tested with `@modelcontextprotocol/sdk`'s client | Works with Claude Code, Cursor, Copilot, Codex, Windsurf; the SDK would add ~15 runtime packages (Express, Hono...) to every `npx breakhound` |
+| MCP | Own stdio server (JSON-RPC lines), tested with `@modelcontextprotocol/sdk`'s client | Works with Claude Code, Cursor, Copilot, Codex, Windsurf; the SDK would add ~15 runtime packages (Express, Hono...) to every `npx @seybel/breakhound` |
 | Releases | Changesets + GitHub Actions | Versioning and changelogs |
 | Node | ≥ 20 | Current LTS range |
 
@@ -374,7 +374,7 @@ Tuned for agents, not people: short, structured, specific, one issue per block, 
 
 ```md
 Fix these responsive layout issues. Do not change behaviour at other widths.
-After fixing, run `npx breakhound verify` (or call the breakhound `verify` MCP tool)
+After fixing, run `npx @seybel/breakhound verify` (or call the breakhound `verify` MCP tool)
 and continue until it reports no remaining issues and no new ones.
 
 ## /pricing
@@ -407,7 +407,7 @@ and continue until it reports no remaining issues and no new ones.
 | `checkpoint` | Commit current changes for a route as a breakhound fix commit |
 | `undo` | Revert breakhound fix commits for given routes |
 
-Setup is one command: `npx breakhound mcp install` detects Claude Code / Cursor / VS Code / Windsurf config and adds the server entry (showing the change and asking first). The server also offers a `fix` prompt (`/mcp__breakhound__fix` in Claude Code) that asks for the whole loop.
+Setup is one command: `npx @seybel/breakhound mcp install` detects Claude Code / Cursor / VS Code / Windsurf config and adds the server entry (showing the change and asking first). The server also offers a `fix` prompt (`/mcp__breakhound__fix` in Claude Code) that asks for the whole loop.
 
 ### From the browser extension
 
@@ -459,7 +459,7 @@ We build in phases but don't stop until v1.0 is launched.
 |---|---|---|
 | **0 · Foundation + spike** ✅ | Monorepo, CI, fixture corpus (~30 labelled bugs), analyzers for `page-overflow`, `content-overflow`, `overlap`, `unexpected-wrap`, `media-overflow`; sweep + bisect on one URL; JSON output | Meets the precision/recall bar on fixtures; manual review of Projects A/B/C shows ≥ 90% precision. **If not, revise detectors before continuing.** |
 | **1 · CLI + reports (MVP)** ✅ | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
-| **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx breakhound` with zero config discovers and scans every route of A, B and C |
+| **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx @seybel/breakhound` with zero config discovers and scans every route of A, B and C |
 | **3 · Agent loop** ✅ | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
 | **4 · Depth** ✅ | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
 | **5 · DevTools panel** ✅ | Chrome DevTools panel reusing `analyzers` for live single-page use; Send to agent, verified in the browser | Panel shows issues and breakpoint timeline for the inspected tab |
@@ -493,4 +493,4 @@ We build in phases but don't stop until v1.0 is launched.
 ## 14. Open items
 
 - Whether to publish internal packages separately: decide at launch.
-- Repo lives at `github.com/Seybel/breakhound`; the unscoped npm package `breakhound` is published from the `seybel` npm account. An org can be created later (GitHub redirects transferred repos).
+- Repo lives at `github.com/Seybel/breakhound`; the npm package is `@seybel/breakhound`, published from the `seybel` npm account. The unscoped `breakhound` on npm belongs to an unrelated tool, so every command we print and every agent config we write names the scoped package; `mcp install` replaces an entry that names the unscoped one. An org can be created later (GitHub redirects transferred repos).

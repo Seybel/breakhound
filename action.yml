@@ -58,7 +58,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       env:
         BREAKHOUND_VERSION: ${{ inputs.version }}
-      run: npx --yes "breakhound@$BREAKHOUND_VERSION" install --with-deps
+      run: npx --yes "@seybel/breakhound@$BREAKHOUND_VERSION" install --with-deps
 
     - name: Scan
       shell: bash
@@ -76,7 +76,7 @@ runs:
         # Split on spaces only: no globbing, no shell evaluation of the inputs.
         read -r -a routes <<< "$INPUT_ROUTES"
         read -r -a extra <<< "$INPUT_ARGS"
-        npx --yes "breakhound@$BREAKHOUND_VERSION" "${routes[@]}" "${args[@]}" "${extra[@]}"
+        npx --yes "@seybel/breakhound@$BREAKHOUND_VERSION" "${routes[@]}" "${args[@]}" "${extra[@]}"
 
     - name: Upload report
       if: always() && inputs.upload-report == 'true'

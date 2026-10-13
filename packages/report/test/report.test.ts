@@ -99,13 +99,13 @@ describe('grouping', () => {
 
 describe('agent prompt', () => {
   it('lists each unique issue once with widths, element, fix and other pages', () => {
-    const prompt = renderPrompt(scan, { verifyCommand: 'npx breakhound' });
+    const prompt = renderPrompt(scan, { verifyCommand: 'npx @seybel/breakhound' });
     expect(prompt.match(/Page scrolls horizontally/g)).toHaveLength(1);
     expect(prompt).toContain('320–357px (worst at 320px)');
     expect(prompt).toContain('`header nav`');
     expect(prompt).toContain('min-width: 358px stops it from shrinking.');
     expect(prompt).toContain('**Also on:** /pricing');
-    expect(prompt).toContain('run `npx breakhound`');
+    expect(prompt).toContain('run `npx @seybel/breakhound`');
   });
 
   it('leaves out info issues by default and can target single issues', () => {
@@ -135,7 +135,7 @@ describe('summary', () => {
     );
     expect(md).toContain('Scanned 1 page from');
     expect(md).not.toContain('could not be checked');
-    expect(md).toContain('## Pages that need a login\n\nRun `breakhound login` once');
+    expect(md).toContain('## Pages that need a login\n\nRun `npx @seybel/breakhound login` once');
     expect(md).toContain('- /account: Needs a login: it redirected to /login');
     expect(md).toContain('## Routes left out\n\nGive dynamic routes a real URL with `samples`');
     expect(md).toContain('- /users/[id]: No page links to it.');

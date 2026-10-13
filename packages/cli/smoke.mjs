@@ -15,7 +15,7 @@ for (const [entry, exported] of [
   ['./next', 'withBreakhound'],
   ['./webpack', 'BreakhoundPlugin'],
 ]) {
-  const name = entry === '.' ? 'breakhound' : `breakhound/${entry.slice(2)}`;
+  const name = entry === '.' ? pkg.name : `${pkg.name}/${entry.slice(2)}`;
   const esm = await import(name);
   const cjs = require(name);
   assert.equal(typeof esm[exported], 'function', `${name} (ESM) is missing ${exported}`);
@@ -28,7 +28,7 @@ assert.ok(existsSync(pkg.exports['./schema.json']), 'schema.json is missing');
 assert.ok(existsSync('dist/inject.js'), 'the page script is missing');
 
 // Next's dev config points Turbopack at the CommonJS loader; run it on some JSX.
-const { withBreakhound } = require('breakhound/next');
+const { withBreakhound } = require('@seybel/breakhound/next');
 const config = await withBreakhound({})('phase-development-server', { defaultConfig: {} });
 const [loader] = config.turbopack.rules['*.jsx'].loaders;
 assert.ok(existsSync(loader), `loader ${loader} doesn't exist`);

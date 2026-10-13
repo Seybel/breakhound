@@ -233,7 +233,7 @@ function explain(usage: Usage, reason: string): string {
     usage.devServer > usage.browser
       ? [
           'Most of it was the dev server. Start it yourself in another terminal and run breakhound again, so it only runs the browser,',
-          'or scan fewer routes at a time (e.g. npx breakhound /pricing).',
+          'or scan fewer routes at a time (e.g. npx @seybel/breakhound /pricing).',
         ]
       : ['Use fewer browser tabs at once (--concurrency 1), or scan fewer routes at a time.'];
   return [

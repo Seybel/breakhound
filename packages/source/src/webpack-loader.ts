@@ -7,7 +7,7 @@ interface LoaderContext {
   callback(error: Error | null, code?: string, map?: unknown): void;
 }
 
-/** Webpack and Turbopack loader behind breakhound/webpack and breakhound/next. */
+/** Webpack and Turbopack loader behind @seybel/breakhound/webpack and @seybel/breakhound/next. */
 export default function loader(this: LoaderContext, source: string, map?: unknown): void {
   const root = this.getOptions?.()?.root ?? this.rootContext ?? process.cwd();
   const result = addSourceAttributes(source, this.resourcePath, root);

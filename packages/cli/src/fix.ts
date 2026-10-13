@@ -385,7 +385,7 @@ async function fix(req: FixRequest): Promise<FixAttempt[]> {
       quiet,
       styleText(
         'dim',
-        'Each fix is its own commit. Take one back with breakhound undo <route>, or all with breakhound undo --session.',
+        'Each fix is its own commit. Take one back with npx @seybel/breakhound undo <route>, or all with npx @seybel/breakhound undo --session.',
       ),
     );
   }

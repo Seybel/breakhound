@@ -94,7 +94,7 @@ describe('config', () => {
     const dir = tempDir();
     writeFileSync(
       join(dir, 'breakhound.config.ts'),
-      "import { defineConfig } from 'breakhound';\nexport default defineConfig({ baseUrl: 'http://localhost:5173' });\n",
+      "import { defineConfig } from '@seybel/breakhound';\nexport default defineConfig({ baseUrl: 'http://localhost:5173' });\n",
     );
     const { config } = await loadConfig(dir);
     expect(config.baseUrl).toBe('http://localhost:5173');

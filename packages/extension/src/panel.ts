@@ -427,7 +427,7 @@ function prompt(fingerprints?: string[]): string {
 // ---- your coding agent ----
 
 const AGENTS_KEY = 'breakhound.agents';
-const SETUP_COMMAND = 'npx breakhound mcp install';
+const SETUP_COMMAND = 'npx @seybel/breakhound mcp install';
 
 const agent = {
   /** The project's breakhound server the panel listens to, for checks of the agent's fixes. */

@@ -23,10 +23,19 @@ export interface Client {
 }
 
 const SERVER_NAME = 'breakhound';
+const PACKAGE = '@seybel/breakhound';
+
+/**
+ * An entry that starts the unscoped `breakhound` package from npm, which is someone else's
+ * tool: written by an early build of this one, it's replaced rather than left in place.
+ */
+function startsOtherPackage(args: unknown): boolean {
+  return Array.isArray(args) && args.includes('breakhound') && !args.includes(PACKAGE);
+}
 
 /** npx uses the project's own breakhound when it's installed, the latest otherwise. */
 export function serverCommand(platform = process.platform): { command: string; args: string[] } {
-  const args = ['-y', 'breakhound', 'mcp'];
+  const args = ['-y', PACKAGE, 'mcp'];
   // Windows can't start npx (a .cmd file) directly.
   return platform === 'win32'
     ? { command: 'cmd', args: ['/c', 'npx', ...args] }
@@ -55,7 +64,8 @@ function jsonClient(
           );
         }
       }
-      if (data[key]?.[SERVER_NAME]) return null;
+      const existing = data[key]?.[SERVER_NAME] as { args?: unknown } | undefined;
+      if (existing && !startsOtherPackage(existing.args)) return null;
       data[key] = { ...data[key], [SERVER_NAME]: entry };
       return `${JSON.stringify(data, null, 2)}\n`;
     },
@@ -68,9 +78,15 @@ function codexClient(file: string): Client {
     name: 'Codex',
     file,
     update(current) {
-      if (current && /^\[mcp_servers\.breakhound\]/m.test(current)) return null;
       const { command, args } = serverCommand();
       const block = `[mcp_servers.${SERVER_NAME}]\ncommand = ${JSON.stringify(command)}\nargs = ${JSON.stringify(args).replaceAll(',', ', ')}\n`;
+      // The table runs to the next table header or the end of the file.
+      const table = /^\[mcp_servers\.breakhound\]\n(?:(?!\[)[^\n]*\n?)*/m;
+      const found = current?.match(table)?.[0];
+      if (found) {
+        if (found.includes(PACKAGE) || !/["']breakhound["']/.test(found)) return null;
+        return (current as string).replace(table, `${block}${found.endsWith('\n\n') ? '\n' : ''}`);
+      }
       const before = current ?? '';
       return `${before}${before && !before.endsWith('\n') ? '\n' : ''}${before ? '\n' : ''}${block}`;
     },

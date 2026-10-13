@@ -25,7 +25,7 @@ export interface LoadedConfig {
 }
 
 /**
- * `import { defineConfig } from 'breakhound'` has to work even when breakhound
+ * `import { defineConfig } from '@seybel/breakhound'` has to work even when breakhound
  * runs through npx and isn't installed in the project, so the import is
  * pointed at this running copy.
  */
@@ -34,7 +34,7 @@ function selfModule(): string {
     const path = fileURLToPath(new URL(candidate, import.meta.url));
     if (existsSync(path)) return path;
   }
-  return 'breakhound';
+  return '@seybel/breakhound';
 }
 
 export async function loadConfig(cwd: string, explicit?: string): Promise<LoadedConfig> {
@@ -55,7 +55,7 @@ export async function loadConfig(cwd: string, explicit?: string): Promise<Loaded
     const { createJiti } = await import('jiti');
     const jiti = createJiti(import.meta.url, {
       moduleCache: false,
-      alias: { breakhound: selfModule() },
+      alias: { '@seybel/breakhound': selfModule() },
     });
     const mod = await jiti.import<{ default?: BreakhoundConfig } | BreakhoundConfig>(file);
     config = mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod;

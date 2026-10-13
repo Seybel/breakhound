@@ -26,11 +26,11 @@ breakhound 1.0.0 · 14 pages · 320–1920px
               → Collapse this row into a menu below this width, tighten its spacing, or
                 let it scroll sideways.
 
-  ○ 1 page needs a login. Run breakhound login once to sign in, then scan again.
+  ○ 1 page needs a login. Run npx @seybel/breakhound login once to sign in, then scan again.
 
-  Report  .breakhound/report.html
-  Fix it  breakhound prompt --copy  then paste into your coding agent
-      or  breakhound mcp install  so your agent can scan, verify and undo by itself
+  Report  .breakhound/report.html  (npx @seybel/breakhound report to open it)
+  Fix it  npx @seybel/breakhound prompt --copy  then paste into your coding agent
+      or  npx @seybel/breakhound mcp install  so your agent can scan, verify and undo by itself
 ```
 
 > **Status:** pre-release. See [docs/DESIGN.md](docs/DESIGN.md) for what's next.
@@ -40,17 +40,19 @@ breakhound 1.0.0 · 14 pages · 320–1920px
 In your project folder:
 
 ```bash
-npx breakhound
+npx @seybel/breakhound
 ```
 
-That's it: no config. If your dev server is already running it's used, otherwise breakhound starts it with your `dev` script and stops it when done. Chromium is downloaded automatically the first time (about 150 MB).
+That's it: no config. To keep it in your project instead, `npm i -D @seybel/breakhound`; the command it installs is `breakhound`. (The unscoped `breakhound` on npm is a different tool.)
+
+If your dev server is already running it's used, otherwise breakhound starts it with your `dev` script and stops it when done. Chromium is downloaded automatically the first time (about 150 MB).
 
 Other ways to run it:
 
 ```bash
-npx breakhound /pricing /blog          # only these routes
-npx breakhound http://localhost:3000   # just this one page
-npx breakhound --url https://staging.example.com   # every route, on another server
+npx @seybel/breakhound /pricing /blog          # only these routes
+npx @seybel/breakhound http://localhost:3000   # just this one page
+npx @seybel/breakhound --url https://staging.example.com   # every route, on another server
 ```
 
 ## Finding routes
@@ -77,7 +79,7 @@ samples: { '/products/[id]': '/products/42' }
 **Pages behind a login** are spotted (they redirect to a sign-in page) and listed instead of scanning the login page over and over. Sign in once:
 
 ```bash
-npx breakhound login
+npx @seybel/breakhound login
 ```
 
 A browser window opens; log in as you normally would, then press Enter. The session is saved to `.breakhound/auth.json`, which is never committed (see below), and used by later scans. breakhound never sees your password.
@@ -108,7 +110,7 @@ It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, 
 
 ### Safari and Firefox
 
-Chromium finds most layout bugs, but Safari and Firefox lay some things out differently (flex gaps, `dvh` units, form controls, font metrics). `--browsers chromium,webkit,firefox` checks the pages again in WebKit (Safari's engine) and Firefox once Chromium is done, one browser at a time so memory stays flat. An issue that shows up in only some of them says so: `(only in WebKit)`. Each extra browser is a one-time download of about 80 to 90 MB, done on first use or ahead of time with `npx breakhound install webkit firefox`.
+Chromium finds most layout bugs, but Safari and Firefox lay some things out differently (flex gaps, `dvh` units, form controls, font metrics). `--browsers chromium,webkit,firefox` checks the pages again in WebKit (Safari's engine) and Firefox once Chromium is done, one browser at a time so memory stays flat. An issue that shows up in only some of them says so: `(only in WebKit)`. Each extra browser is a one-time download of about 80 to 90 MB, done on first use or ahead of time with `npx @seybel/breakhound install webkit firefox`.
 
 Two differences you'll meet early: Safari gives buttons, inputs and selects an 11px font unless you set one (Chrome and Firefox use about 13px), so unstyled controls show up as tiny text only in WebKit, with `font: inherit` as the fix; and Firefox breaks long URLs at their slashes, so a URL that pushes the page wide in Chrome and Safari can wrap fine in Firefox.
 
@@ -175,7 +177,7 @@ breakhound doesn't edit your code: your own agent does, and breakhound checks it
 ### Over MCP (recommended)
 
 ```bash
-npx breakhound mcp install
+npx @seybel/breakhound mcp install
 ```
 
 It finds Claude Code, Cursor, VS Code, Windsurf and Codex, shows what it will add to their MCP settings, and asks first. Then ask your agent to fix the responsive issues. It can:
@@ -201,23 +203,23 @@ Scanned a page in the breakhound extension? Click **Send to agent** and the issu
 - breakhound picks the project serving the page, the way the CLI recognises your dev server (or from `baseUrl` in your config). When it can't tell, for a staging site say, it asks which project.
 - When the agent verifies a fix, the panel scans those pages again **in your browser**: same login, same browser, so the comparison is exact. Keep the panel open while it works; a chip in the toolbar shows the agent is connected. If the panel is closed, verify says so, and the agent asks you to open it.
 
-It works through the MCP server, so it needs `npx breakhound mcp install` once (the panel shows the command if your agent isn't connected yet). `breakhound mcp` listens on 127.0.0.1 only, on a port from 47821, and answers only the breakhound extension. It only ever writes the scan you sent into `.breakhound/`; it never reads or sends your files.
+It works through the MCP server, so it needs `npx @seybel/breakhound mcp install` once (the panel shows the command if your agent isn't connected yet). `breakhound mcp` listens on 127.0.0.1 only, on a port from 47821, and answers only the breakhound extension. It only ever writes the scan you sent into `.breakhound/`; it never reads or sends your files.
 
 ### With a prompt
 
 ```bash
-npx breakhound prompt --copy
+npx @seybel/breakhound prompt --copy
 ```
 
-Paste it into any agent. It lists each unique issue once with the widths, the element, the evidence and the likely fix, and tells the agent to run `npx breakhound verify` until nothing is left.
+Paste it into any agent. It lists each unique issue once with the widths, the element, the evidence and the likely fix, and tells the agent to run `npx @seybel/breakhound verify` until nothing is left.
 
 ### With your own model
 
 No agent at hand? `breakhound fix` works through the last scan's issues itself, using your own API key or a model running on your machine:
 
 ```bash
-ANTHROPIC_API_KEY=... npx breakhound fix          # or OPENAI_API_KEY=... with --model <name>
-npx breakhound fix --provider ollama --model qwen2.5-coder   # free and local, with Ollama
+ANTHROPIC_API_KEY=... npx @seybel/breakhound fix          # or OPENAI_API_KEY=... with --model <name>
+npx @seybel/breakhound fix --provider ollama --model qwen2.5-coder   # free and local, with Ollama
 ```
 
 For each issue it shows the model the issue and the files most likely behind it (where the element is written, then the files that mention its classes), applies the edits it suggests, and checks the pages again. A fix that clears the issue without breaking anything else, at any width, becomes its own commit, which `breakhound undo` can take back. One that doesn't is put back, and the model gets one more try with the reason. Files with uncommitted changes are never touched. It needs a git repository, and only the code around each issue is sent to the model you chose.
@@ -227,11 +229,11 @@ For each issue it shows the model the issue and the files most likely behind it 
 The same loop works from the command line:
 
 ```bash
-npx breakhound verify /pricing      # compare with the last full scan
-npx breakhound checkpoint /pricing -m "Let the pricing table shrink"
-npx breakhound undo /pricing        # revert just that fix
-npx breakhound undo --session       # revert every fix since the scan
-npx breakhound undo                 # list the fixes you can undo
+npx @seybel/breakhound verify /pricing      # compare with the last full scan
+npx @seybel/breakhound checkpoint /pricing -m "Let the pricing table shrink"
+npx @seybel/breakhound undo /pricing        # revert just that fix
+npx @seybel/breakhound undo --session       # revert every fix since the scan
+npx @seybel/breakhound undo                 # list the fixes you can undo
 ```
 
 Checkpoints are ordinary commits with a `Breakhound-Route:` trailer, and undo makes a new commit that reverts them: history is never rewritten. breakhound never commits changes you had before the scan (it stops and says so), and undo refuses to run over uncommitted work.
@@ -242,19 +244,19 @@ In development, breakhound reads where elements come from out of React's and Vue
 
 ```ts
 // vite.config.ts (React, Vue, Svelte, Preact, Solid; Nuxt: under `vite.plugins`)
-import breakhound from 'breakhound/vite';
+import breakhound from '@seybel/breakhound/vite';
 export default defineConfig({ plugins: [breakhound(), react()] });
 ```
 
 ```js
 // next.config.mjs (Turbopack and webpack)
-import { withBreakhound } from 'breakhound/next';
+import { withBreakhound } from '@seybel/breakhound/next';
 export default withBreakhound({ /* your config */ });
 ```
 
 ```js
 // webpack.config.js
-const { BreakhoundPlugin } = require('breakhound/webpack');
+const { BreakhoundPlugin } = require('@seybel/breakhound/webpack');
 module.exports = { plugins: [new BreakhoundPlugin()] };
 ```
 
@@ -262,10 +264,10 @@ Each HTML element gets a `data-bh-src="src/components/Nav.tsx:42:7"` attribute o
 
 ## Configuration
 
-Optional. `npx breakhound init` creates one. If breakhound is in your dev dependencies you get `breakhound.config.ts` (or `.mjs` without TypeScript), fully typed:
+Optional. `npx @seybel/breakhound init` creates one. If breakhound is in your dev dependencies you get `breakhound.config.ts` (or `.mjs` without TypeScript), fully typed:
 
 ```ts
-import { defineConfig } from 'breakhound';
+import { defineConfig } from '@seybel/breakhound';
 
 export default defineConfig({
   exclude: ['/admin/**'],                       // or include: ['/blog/**']
@@ -281,7 +283,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 
 ```json
 {
-  "$schema": "https://cdn.jsdelivr.net/npm/breakhound/dist/schema.json",
+  "$schema": "https://cdn.jsdelivr.net/npm/@seybel/breakhound/dist/schema.json",
   "exclude": ["/admin/**"]
 }
 ```
@@ -314,6 +316,8 @@ You can also mark elements in your markup:
 ```
 
 ## CLI
+
+Run these with `npx @seybel/breakhound`, or as `breakhound` once it's installed in your project (in npm scripts, for example).
 
 ```
 breakhound                     Find your app and scan every route
@@ -366,7 +370,7 @@ On GitHub Actions, after installing your dependencies:
 
 It starts your dev server (or scans `url`), turns each issue into an annotation, adds the summary to the job page, and uploads the report as an artifact.
 
-Anywhere else, `npx breakhound install --with-deps && npx breakhound` does the same job; `CI=true` keeps it from opening windows or asking questions.
+Anywhere else, `npx @seybel/breakhound install --with-deps && npx @seybel/breakhound` does the same job; `CI=true` keeps it from opening windows or asking questions.
 
 ## Development
 

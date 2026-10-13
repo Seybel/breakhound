@@ -131,12 +131,12 @@ export async function launch(headless = true, name: BrowserName = 'chromium'): P
     const message = error instanceof Error ? error.message : String(error);
     if (/missing dependencies|install-deps|shared libraries/i.test(message)) {
       throw new Error(
-        `${BROWSER_LABELS[name]} is installed but this system is missing libraries it needs. Run: npx breakhound install --with-deps ${name}`,
+        `${BROWSER_LABELS[name]} is installed but this system is missing libraries it needs. Run: npx @seybel/breakhound install --with-deps ${name}`,
       );
     }
     if (/Executable doesn't exist|browserType\.launch/i.test(message) && name !== 'chromium') {
       throw new Error(
-        `${BROWSER_LABELS[name]} isn't installed. Run: npx breakhound install ${name}`,
+        `${BROWSER_LABELS[name]} isn't installed. Run: npx @seybel/breakhound install ${name}`,
       );
     }
     throw error;

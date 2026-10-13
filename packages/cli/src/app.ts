@@ -75,7 +75,7 @@ export async function resolveServer(
   }
   if (!project) {
     throw new Error(
-      'No package.json here, so there is no app to find. Run breakhound in your project folder, or pass a URL: npx breakhound http://localhost:3000',
+      'No package.json here, so there is no app to find. Run breakhound in your project folder, or pass a URL: npx @seybel/breakhound http://localhost:3000',
     );
   }
   if (config.server?.port) {

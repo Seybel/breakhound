@@ -103,15 +103,15 @@ export function printFooter(
   };
   console.log('');
   console.log(
-    `  ${styleText('dim', 'Report')}  ${rel(paths.html)}  ${styleText('dim', '(breakhound report to open it)')}`,
+    `  ${styleText('dim', 'Report')}  ${rel(paths.html)}  ${styleText('dim', '(npx @seybel/breakhound report to open it)')}`,
   );
   // The prompt leaves info-level issues out unless asked, so only offer it when it has something.
   if (result.summary.bySeverity.error + result.summary.bySeverity.warning > 0) {
     console.log(
-      `  ${styleText('dim', 'Fix it')}  breakhound prompt --copy  ${styleText('dim', 'then paste into your coding agent')}`,
+      `  ${styleText('dim', 'Fix it')}  npx @seybel/breakhound prompt --copy  ${styleText('dim', 'then paste into your coding agent')}`,
     );
     console.log(
-      `  ${styleText('dim', '    or')}  breakhound mcp install  ${styleText('dim', 'so your agent can scan, verify and undo by itself')}`,
+      `  ${styleText('dim', '    or')}  npx @seybel/breakhound mcp install  ${styleText('dim', 'so your agent can scan, verify and undo by itself')}`,
     );
   }
   console.log(styleText('dim', `  Done in ${seconds(result.durationMs)}`));
@@ -148,8 +148,8 @@ export function printNotes(result: ScanResult, hasSavedLogin: boolean): void {
   console.log('');
   if (login) {
     const how = hasSavedLogin
-      ? 'Your saved login may have expired: run breakhound login again, then scan.'
-      : 'Run breakhound login once to sign in, then scan again.';
+      ? 'Your saved login may have expired: run npx @seybel/breakhound login again, then scan.'
+      : 'Run npx @seybel/breakhound login once to sign in, then scan again.';
     console.log(
       `  ${styleText('yellow', '○')} ${plural2(login, 'page needs', 'pages need')} a login. ${how}`,
     );

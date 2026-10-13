@@ -30,6 +30,30 @@ describe('mcp install', () => {
     expect(readFileSync(join(home, '.codex/config.toml'), 'utf8')).toBe(toml);
   });
 
+  it("replaces an entry that would start the unscoped breakhound package, someone else's", () => {
+    const project = temp('proj');
+    const clients = allClients(project, temp('home'));
+    const claude = clients.find((c) => c.id === 'claude');
+    const old = JSON.stringify({
+      mcpServers: { breakhound: { command: 'npx', args: ['-y', 'breakhound', 'mcp'] } },
+    });
+    expect(JSON.parse(claude?.update(old) ?? '{}').mcpServers.breakhound).toEqual(serverCommand());
+    // One the developer pointed somewhere of their own is theirs.
+    const own = JSON.stringify({
+      mcpServers: { breakhound: { command: 'node', args: ['bh.js'] } },
+    });
+    expect(claude?.update(own)).toBeNull();
+
+    const codex = clients.find((c) => c.id === 'codex');
+    const toml =
+      '[mcp_servers.breakhound]\ncommand = "npx"\nargs = ["-y", "breakhound", "mcp"]\n\n[mcp_servers.other]\ncommand = "other"\n';
+    const next = codex?.update(toml) ?? '';
+    expect(next).toContain('"@seybel/breakhound"');
+    expect(next).not.toContain('"breakhound"');
+    expect(next).toContain('[mcp_servers.other]\ncommand = "other"');
+    expect(codex?.update(next)).toBeNull();
+  });
+
   it('leaves a config with comments alone and says what to add', () => {
     const project = temp('proj');
     const vscode = allClients(project).find((c) => c.id === 'vscode');
@@ -39,7 +63,7 @@ describe('mcp install', () => {
   it('starts npx through cmd on Windows', () => {
     expect(serverCommand('win32')).toEqual({
       command: 'cmd',
-      args: ['/c', 'npx', '-y', 'breakhound', 'mcp'],
+      args: ['/c', 'npx', '-y', '@seybel/breakhound', 'mcp'],
     });
   });
 });

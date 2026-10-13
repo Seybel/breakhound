@@ -55,7 +55,7 @@ export function installBrowsers(names: BrowserName[], withDeps: boolean): void {
   if (run.status !== 0) {
     const list = names.join(' ');
     throw new Error(
-      `Could not install ${names.map((n) => BROWSER_LABELS[n]).join(' and ')}. Try running: npx breakhound install${withDeps ? ' --with-deps' : ''} ${list}`,
+      `Could not install ${names.map((n) => BROWSER_LABELS[n]).join(' and ')}. Try running: npx @seybel/breakhound install${withDeps ? ' --with-deps' : ''} ${list}`,
     );
   }
 }

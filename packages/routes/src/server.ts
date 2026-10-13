@@ -224,7 +224,7 @@ export async function startServer(
     (project.devScript ? `${project.packageManager} run ${project.devScript.name}` : null);
   if (!command) {
     throw new Error(
-      'No dev server is running and there is no "dev" script to start one. Start your app, then pass its URL: npx breakhound http://localhost:3000',
+      'No dev server is running and there is no "dev" script to start one. Start your app, then pass its URL: npx @seybel/breakhound http://localhost:3000',
     );
   }
   const timeoutMs = options.timeoutMs ?? 120_000;

@@ -5,7 +5,7 @@ import { styleText } from 'node:util';
 const TEMPLATE = (
   baseUrl: string,
   typed: boolean,
-) => `${typed ? "import { defineConfig } from 'breakhound';\n\nexport default defineConfig({" : "/** @type {import('breakhound').BreakhoundConfig} */\nexport default {"}
+) => `${typed ? "import { defineConfig } from '@seybel/breakhound';\n\nexport default defineConfig({" : "/** @type {import('@seybel/breakhound').BreakhoundConfig} */\nexport default {"}
   // breakhound finds your dev server, or starts it, by itself. Set this to
   // scan somewhere else, like a staging site.
   // baseUrl: '${baseUrl}',
@@ -28,7 +28,7 @@ const TEMPLATE = (
 `;
 
 /** Where editors fetch the schema from, so a JSON config gets completion without installing anything. */
-export const SCHEMA_URL = 'https://cdn.jsdelivr.net/npm/breakhound/dist/schema.json';
+export const SCHEMA_URL = 'https://cdn.jsdelivr.net/npm/@seybel/breakhound/dist/schema.json';
 
 const JSON_TEMPLATE = `${JSON.stringify(
   {
@@ -100,5 +100,5 @@ export function runInit(cwd: string): void {
     );
   }
 
-  console.log(`\nNow run ${styleText('bold', 'npx breakhound')}.`);
+  console.log(`\nNow run ${styleText('bold', 'npx @seybel/breakhound')}.`);
 }

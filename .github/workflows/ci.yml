@@ -31,4 +31,4 @@ jobs:
           BREAKHOUND_TEST_BROWSER=firefox npx vitest run packages/engine/test/fixtures.test.ts
       - run: npm run build
       - run: npm run build:extension
-      - run: npm run smoke -w breakhound
+      - run: npm run smoke -w @seybel/breakhound

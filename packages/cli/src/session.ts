@@ -322,7 +322,7 @@ export function undo(cwd: string, req: UndoRequest): UndoResult {
     const wanted = req.routes ?? [];
     if (!wanted.length)
       throw new Error(
-        'Say which routes to undo, e.g. breakhound undo /pricing, or pass --session.',
+        'Say which routes to undo, e.g. npx @seybel/breakhound undo /pricing, or pass --session.',
       );
     picked = all.filter((c) =>
       c.routes.some((r) => wanted.some((w) => w === r || globMatches(w, r))),

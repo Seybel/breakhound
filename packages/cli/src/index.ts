@@ -29,6 +29,7 @@ const VERSION = readVersion();
 
 const HELP = `breakhound ${VERSION}
 Find where your layout breaks across every viewport width.
+Run it with npx @seybel/breakhound, or as breakhound once it's installed in your project.
 
 Usage
   breakhound                     Find your app and scan every route
@@ -243,7 +244,10 @@ async function main(argv: string[]): Promise<number> {
         );
       if (list.length)
         console.log(
-          styleText('dim', '\nbreakhound undo <route> undoes one; --session undoes them all.'),
+          styleText(
+            'dim',
+            '\nnpx @seybel/breakhound undo <route> undoes one; --session undoes them all.',
+          ),
         );
       return 0;
     }
@@ -305,7 +309,7 @@ async function main(argv: string[]): Promise<number> {
     const { result } = readLastResult(cwd, outDir);
     const prompt = renderPrompt(result, {
       severities: values.all ? ['error', 'warning', 'info'] : ['error', 'warning'],
-      verifyCommand: 'npx breakhound verify',
+      verifyCommand: 'npx @seybel/breakhound verify',
     });
     if (values.copy) {
       if (copyToClipboard(prompt)) {

@@ -138,7 +138,7 @@ function clearScreenshots(dir: string): void {
 export function resolveTargets(targets: string[], config: BreakhoundConfig, cwd: string): Target[] {
   if (!targets.length) {
     throw new Error(
-      'Nothing to scan. Pass a URL (breakhound http://localhost:3000) or run breakhound init to set up a config.',
+      'Nothing to scan. Pass a URL (npx @seybel/breakhound http://localhost:3000) or run npx @seybel/breakhound init to set up a config.',
     );
   }
   const seen = new Set<string>();
@@ -577,7 +577,7 @@ export function saveReports(
   return writeReports(result, outDir, {
     screenshotDir: join(outDir, 'screenshots'),
     pdf: config.pdf ?? false,
-    verifyCommand: 'npx breakhound verify',
+    verifyCommand: 'npx @seybel/breakhound verify',
   });
 }
 

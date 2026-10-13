@@ -82,7 +82,7 @@ export function renderSummary(result: ScanResult): string {
     [
       'Pages that need a login',
       result.routes.filter((r) => r.status === 'login'),
-      'Run `breakhound login` once to sign in, then scan again.',
+      'Run `npx @seybel/breakhound login` once to sign in, then scan again.',
     ],
     [
       'Routes left out',
@@ -218,7 +218,7 @@ export function renderPrompt(result: ScanResult, options: PromptOptions = {}): s
   if (options.verifyCommand) {
     lines.push(
       `- When you are done, run \`${options.verifyCommand}\` and keep going until it reports no remaining issues and no new ones. It compares with the scan these issues came from, so it also catches anything the fix broke at other widths or on other pages.`,
-      '- Once a page verifies clean, run `npx breakhound checkpoint <route> -m "<what you changed>"` to commit that fix on its own, so it can be undone later with `npx breakhound undo <route>`.',
+      '- Once a page verifies clean, run `npx @seybel/breakhound checkpoint <route> -m "<what you changed>"` to commit that fix on its own, so it can be undone later with `npx @seybel/breakhound undo <route>`.',
     );
   }
   lines.push('');
