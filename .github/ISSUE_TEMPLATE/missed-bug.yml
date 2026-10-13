@@ -1,0 +1,42 @@
+name: Missed bug
+description: A layout is broken at some width and breakhound didn't say so
+labels: [missed bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't post anything private from your app; a small page that shows the same thing is ideal.
+  - type: textarea
+    id: broken
+    attributes:
+      label: What's broken
+      description: What goes wrong, and at which widths. A screenshot helps.
+    validations:
+      required: true
+  - type: textarea
+    id: page
+    attributes:
+      label: A page that shows it
+      description: A minimal HTML page, a CodePen, or a public URL.
+      render: html
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you ran it
+      options:
+        - CLI
+        - Chrome extension
+        - MCP server (coding agent)
+        - GitHub Action
+    validations:
+      required: true
+  - type: input
+    id: browsers
+    attributes:
+      label: Browser
+      description: Where you see it broken, e.g. Safari on iPhone, Chrome on Android.
+  - type: input
+    id: version
+    attributes:
+      label: breakhound version
+      description: "`npx @seybel/breakhound --version`, or the version on chrome://extensions"

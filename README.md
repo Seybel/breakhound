@@ -1,5 +1,7 @@
 # breakhound
 
+[![npm](https://img.shields.io/npm/v/@seybel/breakhound)](https://www.npmjs.com/package/@seybel/breakhound) [![CI](https://github.com/Seybel/breakhound/actions/workflows/ci.yml/badge.svg)](https://github.com/Seybel/breakhound/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 Find where your layout breaks across every viewport width, then hand the fix to your coding agent.
 
 Instead of dragging the browser or clicking through device presets, run one command in your project. breakhound finds your framework and dev server (and starts it if needed), discovers every route, sweeps each page from 320px to 1920px in a real browser, finds the exact pixel where things go wrong, and tells you why:
@@ -32,8 +34,6 @@ breakhound 1.0.0 · 14 pages · 320–1920px
   Fix it  npx @seybel/breakhound prompt --copy  then paste into your coding agent
       or  npx @seybel/breakhound mcp install  so your agent can scan, verify and undo by itself
 ```
-
-> **Status:** pre-release. See [docs/DESIGN.md](docs/DESIGN.md) for what's next.
 
 ## Quick start
 
@@ -386,6 +386,8 @@ npm run dev -- http://localhost:3000
 ```
 
 `fixtures/pages` is the accuracy benchmark: pages with planted bugs (marked with `data-bh-expect`) and pages full of tricky-but-fine patterns that must stay clean. Every detector change has to keep it at 100%.
+
+Found a false positive, or a bug breakhound missed? That's the most useful thing to report: see [CONTRIBUTING.md](CONTRIBUTING.md). How it all works is in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## License
 

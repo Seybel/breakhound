@@ -1,0 +1,52 @@
+name: False positive
+description: breakhound flagged something that isn't broken
+labels: [false positive]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks: these are the most useful reports. Please don't post anything private from your app; a small page that shows the same thing is ideal.
+  - type: input
+    id: check
+    attributes:
+      label: Which check
+      description: The check's name from the report, e.g. overlap, clipped-text, page-overflow.
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What breakhound said
+      description: The issue as it appears in `.breakhound/summary.md` or the panel, with its widths.
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's fine
+      description: What the page is doing on purpose. A screenshot at the width it names helps.
+    validations:
+      required: true
+  - type: textarea
+    id: page
+    attributes:
+      label: A page that shows it
+      description: A minimal HTML page, a CodePen, or a public URL.
+      render: html
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you ran it
+      options:
+        - CLI
+        - Chrome extension
+        - MCP server (coding agent)
+        - GitHub Action
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: breakhound version
+      description: "`npx @seybel/breakhound --version`, or the version on chrome://extensions"

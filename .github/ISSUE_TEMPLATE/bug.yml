@@ -1,0 +1,26 @@
+name: Something else went wrong
+description: A crash, an error, a route it didn't find, a dev server it couldn't start
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what you got. Paste the output as text.
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Framework
+      description: e.g. Next.js 16 App Router, Nuxt 3, Vite with React Router
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Your OS and `node --version`
+  - type: input
+    id: version
+    attributes:
+      label: breakhound version
+      description: "`npx @seybel/breakhound --version`, or the version on chrome://extensions"
