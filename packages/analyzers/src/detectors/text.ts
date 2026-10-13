@@ -334,13 +334,15 @@ export function edgeGutter(snap: Snapshot): Finding[] {
     // Overflowing text is page-overflow's job; text in scrollers and sliders is meant to move.
     if (t.left < -0.5 || t.right > vw + 0.5) continue;
     let moves = false;
-    for (let p = rec.parent; p; p = p.parent) {
+    // Text in something wider than the screen is off the edge because of that: page-overflow's.
+    let overflows = rec.rect.right > vw + 0.5 || rec.rect.left < -0.5;
+    for (let p = rec.parent; p && !moves && !overflows; p = p.parent) {
       if (scrollsOn(p.style, 'x') || (p.style.transform && p.style.transform !== 'none')) {
         moves = true;
-        break;
       }
+      if (p.rect.right > vw + 0.5 || p.rect.left < -0.5) overflows = true;
     }
-    if (moves) continue;
+    if (moves || overflows) continue;
 
     // Judge the padding of the block the text sits in, not where each line happens to end.
     let container: ElementRecord = rec;

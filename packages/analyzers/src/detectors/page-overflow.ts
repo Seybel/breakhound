@@ -173,13 +173,32 @@ export function pageOverflow(snap: Snapshot): Finding[] {
   return findings;
 }
 
+/** The longest word of some text, without the punctuation around it. */
+function longestWord(text: string): string {
+  let longest = '';
+  for (const raw of text.split(/\s+/)) {
+    const word = raw.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (word.length > longest.length) longest = word;
+  }
+  return longest;
+}
+
 /** Names the computed style most likely to stop an element from shrinking. */
 export function shrinkSuggestion(rec: ElementRecord, textOnly: boolean): string {
   const s = rec.style;
   if (textOnly) {
-    return s.whiteSpace === 'nowrap' || s.whiteSpace === 'pre'
-      ? `white-space: ${s.whiteSpace} keeps this text on one line. Allow it to wrap on small screens.`
-      : 'Long unbreakable text (a URL, email or code). Add overflow-wrap: anywhere to its container.';
+    if (s.whiteSpace === 'nowrap' || s.whiteSpace === 'pre') {
+      return `white-space: ${s.whiteSpace} keeps this text on one line. Allow it to wrap on small screens.`;
+    }
+    const word = longestWord(rec.text);
+    // An ordinary word that doesn't fit: the text is too big, or the word too long, for here.
+    if (word && /^[\p{L}\p{M}'’-]+$/u.test(word)) {
+      const size = Number.parseFloat(s.fontSize);
+      return size >= 24
+        ? `The word "${word}" is wider than the screen at ${Math.round(size)}px. Scale the text down on small screens, for example font-size: clamp(1.75rem, 4vw + 1rem, ${Math.round((size / 16) * 100) / 100}rem).`
+        : `The word "${word}" is too long to fit here. Add hyphens: auto (with a lang attribute on the page) or overflow-wrap: break-word.`;
+    }
+    return 'Long unbreakable text (a URL, email or code). Add overflow-wrap: anywhere to its container.';
   }
   const minWidth = Number.parseFloat(s.minWidth);
   if (minWidth > 0) {

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A table wider than a phone</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 0 16px; }
+.compare { width: 640px; border-collapse: collapse; }
+.compare th, .compare td { padding: 12px 16px; text-align: left; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Compare plans</h1>
+  <!-- Its cells cross the screen edge because the table does: one bug, not one per cell. -->
+  <table class="compare" data-bh-expect="page-overflow@320-655">
+    <thead><tr><th>Feature</th><th>Starter</th><th>Team</th><th>Company</th></tr></thead>
+    <tbody>
+      <tr><td>Calendars</td><td>Unlimited</td><td>Unlimited</td><td>Unlimited</td></tr>
+      <tr><td>Room booking</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>Single sign-on</td><td>No</td><td>No</td><td>Yes</td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>
