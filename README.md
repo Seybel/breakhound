@@ -4,6 +4,8 @@
 
 Find where your layout breaks across every viewport width, then hand the fix to your coding agent.
 
+![breakhound scanning a small site in Chrome: every page from 320 to 1920px, then each issue shown at the width where it is worst](docs/demo.gif)
+
 Instead of dragging the browser or clicking through device presets, run one command in your project. breakhound finds your framework and dev server (and starts it if needed), discovers every route, sweeps each page from 320px to 1920px in a real browser, finds the exact pixel where things go wrong, and tells you why:
 
 ```
