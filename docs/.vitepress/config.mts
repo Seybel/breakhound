@@ -62,6 +62,8 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting started', link: '/guide/getting-started' },
+          { text: 'Your first scan', link: '/guide/first-scan' },
+          { text: 'Recipes', link: '/guide/recipes' },
           { text: 'What it checks', link: '/guide/checks' },
           { text: 'Chrome extension', link: '/guide/extension' },
           { text: 'Fix it with your coding agent', link: '/guide/agents' },
