@@ -1,14 +1,35 @@
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { defineConfig } from 'vitepress';
+
+const SITE = 'https://seybel.github.io/breakhound';
+const DESCRIPTION =
+  'Find the exact width where your layout breaks, on every page of your app, then hand the fix to your coding agent.';
 
 export default defineConfig({
   title: 'breakhound',
-  description:
-    'Find the exact width where your layout breaks, on every page of your app, then hand the fix to your coding agent.',
+  description: DESCRIPTION,
   // Served from GitHub Pages at seybel.github.io/breakhound.
   base: '/breakhound/',
   // The design notes are for contributors, and stay on GitHub.
   srcExclude: ['DESIGN.md'],
   cleanUrls: true,
+  // Each page's Markdown next to its HTML (for Copy page and the AI links), and llms.txt to list them.
+  buildEnd(site) {
+    const pages: string[] = [];
+    // Guide, then reference, in path order.
+    for (const page of [...site.pages].sort()) {
+      const to = join(site.outDir, page);
+      mkdirSync(dirname(to), { recursive: true });
+      copyFileSync(join(site.srcDir, page), to);
+      const title = readFileSync(join(site.srcDir, page), 'utf8').match(/^# (.+)$/m)?.[1];
+      if (title) pages.push(`- [${title}](${SITE}/${page})`);
+    }
+    writeFileSync(
+      join(site.outDir, 'llms.txt'),
+      `# breakhound\n\n> ${DESCRIPTION}\n\n## Docs\n\n${pages.join('\n')}\n`,
+    );
+  },
   lastUpdated: true,
   head: [
     ['link', { rel: 'icon', href: '/breakhound/icon.png' }],
