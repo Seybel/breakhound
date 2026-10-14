@@ -19,7 +19,7 @@ In your own project, run only the last line from the project folder. The first r
 Starting the app with npm run dev...
 ✔ App started at http://localhost:4173
 • No route list found for this app, so breakhound follows links from / (up to 50 pages)
-breakhound 1.0.2 · following links · 320–1920px
+breakhound 1.0.3 · following links · 320–1920px
 
   ✖ /             3 issues · layout changes at 500, 760, 768, 908  5.4s
   ✖ /about        2 issues · layout changes at 640, 768, 908  5.2s
@@ -92,7 +92,7 @@ npx @seybel/breakhound verify /pricing
 ```
 
 ```
-breakhound 1.0.2 · 1 page · 320–1920px
+breakhound 1.0.3 · 1 page · 320–1920px
 
   ✖ /pricing      1 issue · layout changes at 500, 740, 768, 908  4.6s
 
