@@ -8,11 +8,11 @@ import type { BreakhoundConfig } from './config';
 import { saveExtensionScan } from './scan';
 
 /**
- * The breakhound extension's id, the same for every unpacked build (its manifest has the key)
- * and checked by a test against it. A fork or another build can be let in with
- * BREAKHOUND_EXTENSION_ID, comma separated.
+ * The breakhound extension's id in the Chrome Web Store. Unpacked builds have it too, since the
+ * manifest carries the store's public key, and a test checks the two match. A fork or another
+ * build can be let in with BREAKHOUND_EXTENSION_ID, comma separated.
  */
-export const EXTENSION_IDS = ['fehgaccbonbjmmmikcipedfpcdnojbfc'];
+export const EXTENSION_IDS = ['ddnmhnjmcokbfabeileblceehjhefkpc'];
 
 /** A panel asks for work this long at a time, and asks again. */
 const POLL_MS = 25_000;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- **Send to agent** works with the extension from the Chrome Web Store.
+- The extension no longer reports text as squeezed when a narrow cell is mostly inline code or links.
+- Cleaner package build, with no warnings.
+
 ## 1.0.0
 
 First public release.
