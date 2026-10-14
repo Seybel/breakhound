@@ -3,6 +3,8 @@
 ## 1.0.4
 
 - Tabs are scanned too. Each tab that isn't selected (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI) is opened in turn, so a layout that breaks only on the second tab is found, as `with the "Quizzes" tab open`.
+- Tabs scrolled out of sight in a tab bar that scrolls sideways are opened too.
+- Menus whose button changes its class when opened, like Bootstrap's `navbar-toggler collapsed`, are scanned open again. They were skipped before.
 
 ## 1.0.3
 

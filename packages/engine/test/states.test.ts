@@ -111,9 +111,10 @@ describe('scanning a page with tabs', () => {
 
   it('opens each tab that is not selected, and finds what breaks only in it', async () => {
     const result = await scanner.scanPage(url, { minWidth: 320, maxWidth: 800 });
-    expect(result.states?.map((s) => [s.kind, s.label, s.trigger])).toEqual([
-      ['tab', 'Schedule', '#t2'],
-      ['tab', 'Settings', '#t3'],
+    // Its classes change once selected, so its selector no longer matches it then.
+    expect(result.states?.map((s) => [s.kind, s.label])).toEqual([
+      ['tab', 'Schedule'],
+      ['tab', 'Settings'],
     ]);
     expect(result.issues.map((i) => i.title)).toEqual([
       'Page scrolls horizontally (160px wider than the viewport), with the "Schedule" tab open',

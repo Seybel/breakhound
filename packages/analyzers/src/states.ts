@@ -127,11 +127,24 @@ function safeToClick(el: Element): boolean {
   return !href || href.startsWith('#') || /^javascript:/i.test(href);
 }
 
-/** Painted, inside the screen's width, and not hidden from people. */
-export function isShown(el: Element): boolean {
+/** The row that scrolls sideways around `el`, like a tab bar wider than a phone. */
+function sidewaysScroller(el: Element): Element | null {
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const { overflowX } = getComputedStyle(p);
+    if ((overflowX === 'auto' || overflowX === 'scroll') && p.scrollWidth > p.clientWidth) return p;
+  }
+  return null;
+}
+
+/**
+ * Painted, inside the screen's width, and not hidden from people. With `scrolls`, also
+ * when scrolled out of sight in a row that scrolls sideways, since clicking scrolls to it.
+ */
+export function isShown(el: Element, scrolls = false): boolean {
   const r = el.getBoundingClientRect();
   if (r.width < 1 || r.height < 1) return false;
-  if (r.right <= 0 || r.left >= window.innerWidth) return false;
+  if ((r.right <= 0 || r.left >= window.innerWidth) && !(scrolls && sidewaysScroller(el)))
+    return false;
   const check = (el as Element & { checkVisibility?: (o: object) => boolean }).checkVisibility;
   if (check && !check.call(el, { opacityProperty: true, visibilityProperty: true })) return false;
   if (!check && getComputedStyle(el).visibility === 'hidden') return false;
@@ -184,7 +197,7 @@ export function findToggles(rules: IgnoreRule[] = []): Toggle[] {
     if (out.length >= MAX_TOGGLES) break;
     if (el.closest(DEV_OVERLAYS)) continue;
     const kind = kindOf(el);
-    if (!kind || !safeToClick(el) || !isShown(el) || ignored(el, rules)) continue;
+    if (!kind || !safeToClick(el) || !isShown(el, kind === 'tab') || ignored(el, rules)) continue;
     // Two buttons for the same panel (an icon and a label) open the same thing.
     const panel = targetOf(el, 'aria-controls') ?? targetOf(el, 'popovertarget');
     if (panel) {
@@ -204,15 +217,30 @@ export function findToggles(rules: IgnoreRule[] = []): Toggle[] {
   return out;
 }
 
+const toggles = new Map<string, Element>();
+
+/**
+ * The element a toggle's selector found first in this page load, before it was pressed.
+ * Its classes can change once pressed (a selected tab, Bootstrap's `collapsed`), and the
+ * selector would then miss it, or find another tab.
+ */
+function toggleOf(selector: string): Element | null {
+  const known = toggles.get(selector);
+  if (known?.isConnected) return known;
+  const el = resolveSelector(selector);
+  if (el) toggles.set(selector, el);
+  return el;
+}
+
 /**
  * Whether the toggle is on screen, and whether what it controls is open, when
  * the page says so (aria-expanded, details, popovers, dialogs). `open` is null
  * when only looking can tell.
  */
 export function toggleState(selector: string): { shown: boolean; open: boolean | null } {
-  const el = resolveSelector(selector);
+  const el = toggleOf(selector);
   if (!el) return { shown: false, open: null };
-  const shown = isShown(el);
+  const shown = isShown(el, el.getAttribute('role') === 'tab');
   if (el.matches('details > summary')) {
     return { shown, open: (el.parentElement as HTMLDetailsElement).open };
   }
@@ -234,7 +262,7 @@ export function toggleState(selector: string): { shown: boolean; open: boolean |
 
 /** Opens or closes a <details> directly; nothing to click. */
 export function setDetails(selector: string, open: boolean): void {
-  const details = resolveSelector(selector)?.parentElement;
+  const details = toggleOf(selector)?.parentElement;
   if (details instanceof HTMLDetailsElement) details.open = open;
 }
 
@@ -243,11 +271,18 @@ export function setDetails(selector: string, open: boolean): void {
  * scrolled into view, provided nothing else sits on top of it there.
  */
 export function clickPoint(selector: string): { x: number; y: number } | null {
-  const el = resolveSelector(selector);
+  const el = toggleOf(selector);
   if (!el) return null;
   let r = el.getBoundingClientRect();
   if (r.top < 0 || r.bottom > window.innerHeight) {
     el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    r = el.getBoundingClientRect();
+  }
+  // Scrolls only its own row, never the page sideways.
+  const row = r.left < 0 || r.right > window.innerWidth ? sidewaysScroller(el) : null;
+  if (row) {
+    const box = row.getBoundingClientRect();
+    row.scrollLeft += r.left + r.width / 2 - (box.left + box.width / 2);
     r = el.getBoundingClientRect();
   }
   const x = Math.min(window.innerWidth - 1, Math.max(0, r.left + r.width / 2));
@@ -280,7 +315,7 @@ export function newlyShown(toggle: string): string | null {
   const seen = before;
   before = null;
   if (!seen) return null;
-  const trigger = resolveSelector(toggle);
+  const trigger = toggleOf(toggle);
   let best: { el: Element; area: number } | null = null;
   for (const el of document.body.querySelectorAll('*')) {
     if (seen.has(el) || (trigger && (trigger === el || trigger.contains(el)))) continue;

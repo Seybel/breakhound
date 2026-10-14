@@ -6,8 +6,9 @@
 <style>
 * { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
 main { padding: 16px; }
-[role="tablist"] { display: flex; gap: 4px; border-bottom: 1px solid #ccc; }
-[role="tab"] { padding: 10px 14px; font: inherit; background: none; border: 0; }
+/* Scrolls sideways, so on small screens the other tabs start out of sight. */
+[role="tablist"] { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid #ccc; }
+[role="tab"] { flex: none; min-width: 480px; padding: 10px 14px; font: inherit; background: none; border: 0; }
 [role="tab"][aria-selected="true"] { border-bottom: 2px solid #333; }
 [role="tabpanel"] { padding: 16px 0; }
 .schedule { width: 464px; }
@@ -17,15 +18,15 @@ main { padding: 16px; }
 <main>
   <h1>Course</h1>
   <div role="tablist" aria-label="Course">
-    <button type="button" role="tab" id="t1" aria-selected="true" aria-controls="p1">Overview</button>
-    <button type="button" role="tab" id="t2" aria-selected="false" aria-controls="p2" tabindex="-1">Schedule</button>
-    <button type="button" role="tab" id="t3" aria-selected="false" aria-controls="p3" tabindex="-1">Settings</button>
+    <button type="button" role="tab" class="tab tab-current" aria-selected="true" aria-controls="p1">Overview</button>
+    <button type="button" role="tab" class="tab tab-idle" aria-selected="false" aria-controls="p2" tabindex="-1">Schedule</button>
+    <button type="button" role="tab" class="tab tab-idle" aria-selected="false" aria-controls="p3" tabindex="-1">Settings</button>
   </div>
-  <div role="tabpanel" id="p1" aria-labelledby="t1"><p>Eight weeks, one session a week.</p></div>
-  <div role="tabpanel" id="p2" aria-labelledby="t2" hidden>
+  <div role="tabpanel" id="p1"><p>Eight weeks, one session a week.</p></div>
+  <div role="tabpanel" id="p2" hidden>
     <div class="schedule" data-bh-expect="page-overflow@320-479:open">Week one starts on Monday at 10:00</div>
   </div>
-  <div role="tabpanel" id="p3" aria-labelledby="t3" hidden><p>Nothing to change yet.</p></div>
+  <div role="tabpanel" id="p3" hidden><p>Nothing to change yet.</p></div>
 </main>
 <script>
 const tabs = [...document.querySelectorAll('[role="tab"]')];
@@ -35,6 +36,8 @@ for (const tab of tabs) {
       const on = t === tab;
       t.setAttribute('aria-selected', String(on));
       t.tabIndex = on ? 0 : -1;
+      // Like most tab components, the selected tab looks different by its classes.
+      t.className = on ? 'tab tab-current' : 'tab tab-idle';
       document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
     }
   });
