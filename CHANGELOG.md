@@ -13,7 +13,7 @@ First public release.
 - Opens menus, dialogs and accordions and checks them too.
 - Safari's and Firefox's engines with `--browsers chromium,webkit,firefox`.
 - Pages behind a login with `breakhound login`, which saves a session locally.
-- Never freezes your machine: it watches the memory of everything it started and stops it in time.
+- Watches the memory of the dev server and browser it started, and stops them before your system runs short.
 
 **Fixing**
 

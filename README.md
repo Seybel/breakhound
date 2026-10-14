@@ -45,7 +45,7 @@ In your project folder:
 npx @seybel/breakhound
 ```
 
-That's it: no config. To keep it in your project instead, `npm i -D @seybel/breakhound`; the command it installs is `breakhound`. (The unscoped `breakhound` on npm is a different tool.)
+That's it: no config. To keep it in your project instead, `npm i -D @seybel/breakhound`; the command it installs is `breakhound`.
 
 If your dev server is already running it's used, otherwise breakhound starts it with your `dev` script and stops it when done. Chromium is downloaded automatically the first time (about 150 MB).
 
@@ -145,9 +145,9 @@ Every run writes to `.breakhound/`:
 
 The folder is for you, not your repo, so it keeps itself out of git: breakhound puts a `.gitignore` inside it that ignores everything there, the way tool caches like `.pytest_cache` do. Nothing to add to your own `.gitignore`, and breakhound never edits it. To commit a report anyway, edit or delete that inner `.gitignore`; breakhound only writes it when it's missing.
 
-## In Chrome DevTools
+## Chrome extension
 
-The breakhound extension runs the same checks on the tab you have open, with nothing to install in your project. The quickest way in is to right-click the page and choose **Scan with breakhound**: the breakhound panel opens in Chrome's side panel and starts right away. Clicking the breakhound icon in the toolbar opens it ready to scan, and the same panel is a **breakhound** tab in DevTools. The page grows steadily from 320px to 1920px (or the widths you set) while the timeline fills in live: each run of widths that share a layout, every width where the layout changes, and where something breaks. Then you get:
+The breakhound extension runs the same checks on the tab you have open, with nothing to install in your project. Get it from the [Chrome Web Store](https://chromewebstore.google.com/search/breakhound); it works on any page Chrome can open, from localhost to production. The quickest way in is to right-click the page and choose **Scan with breakhound**: the breakhound panel opens in Chrome's side panel and starts right away. Clicking the breakhound icon in the toolbar opens it ready to scan, and the same panel is a **breakhound** tab in DevTools. The page grows steadily from 320px to 1920px (or the widths you set) while the timeline fills in live: each run of widths that share a layout, every width where the layout changes, and where something breaks. Then you get:
 
 - the issues, each with its exact width ranges, the element, the numbers and the likely fix
 - the timeline: the layout bands, the media query widths, the changes no media or container query explains, and a bar for each issue across the widths it covers
@@ -158,19 +158,12 @@ Drag across the timeline to resize the page live, click anywhere on it to jump t
 
 While it scans or shows a width, Chrome displays a bar saying breakhound started debugging this browser: that is how an extension resizes a tab. The bar goes away afterwards, and the tab goes back to its own width and scroll position. **Reload first** reloads the page before scanning, so breakhound can wait for the page's own resize handlers exactly, as the CLI does. Leave it off to scan the page as you have it.
 
-Switch to **Whole site** to scan every page, not just this one. breakhound finds the pages the way the CLI does: from the app's live router when it has one (Vue, React Router, Nuxt, Remix, TanStack), otherwise by following links from this page and the home page (never a logout, delete or file link, and a few pages per section, since blog posts share a layout), up to 25 pages. It loads each one in this tab, scans it, and comes back to where you were. Chrome stops drawing a tab that's out of view, so if you switch away while it runs, the scan pauses and carries on by itself when you come back. Your own login applies, so pages behind it are scanned too. Each page gets a chip with its issue count; an issue shared by several pages is counted once, and **Copy prompt** lists it once with every page it's on. Showing an issue from another page takes the tab there first.
+**Whole site** scans every page of the site, starting from the one you're on. breakhound finds the pages the way the CLI does: from the app's live router when it has one (Vue, React Router, Nuxt, Remix, TanStack), otherwise by following links from the page you're on and the home page (never a logout, delete or file link, and a few pages per section, since blog posts share a layout), up to 25 pages. It loads each one in the same tab, scans it, and comes back to where you were. Chrome stops drawing a tab that's out of view, so if you switch away while it runs, the scan pauses and carries on by itself when you come back. Your own login applies, so pages behind it are scanned too. Each page gets a chip with its issue count; an issue shared by several pages is counted once, and **Copy prompt** lists it once with every page it's on. Showing an issue from another page takes the tab there first.
 
 **Send to agent** hands the issues to the coding agent working on that app, so it can fix them and check each fix in your browser. See [From the browser](#from-the-browser) below.
 
 Routes only your project's files list (Next.js, SvelteKit and Astro route folders) need the CLI, as do menus opened, other browsers, screenshots and reports.
 
-To try it before it's in the Chrome Web Store, build it and load it unpacked:
-
-```bash
-npm install && npm run build:extension
-```
-
-Then open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked** and pick `packages/extension/dist`.
 
 ## Fix it with your coding agent
 
@@ -355,7 +348,7 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 -q, --quiet             Only print errors
 ```
 
-A scan never gets to freeze your computer. While it runs, breakhound watches the memory of the dev server it started (and everything that server runs) and of its browser, along with how much memory your system has left. If they grow past `memoryLimit`, or the system runs out of memory, it shuts them down at once and tells you what used the memory and what to try. It only ever stops processes it started itself.
+While it runs, breakhound watches the memory of the dev server it started (and everything that server runs) and of its browser, along with how much memory your system has left. If they grow past `memoryLimit`, or the system runs out of memory, it shuts them down at once and tells you what used the memory and what to try. It only ever stops processes it started itself.
 
 Exit codes: `0` clean, `1` issues at or above `--fail-on`, `2` a page couldn't be checked (it failed to load, answered with an HTTP error, or rendered nothing). Pages behind a login and dynamic routes without a URL are reported but don't fail the run.
 

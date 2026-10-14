@@ -21,7 +21,7 @@ features:
     details: "One command scans every route of your Next.js, Nuxt, SvelteKit, Astro, Remix, Vite, Vue or Angular app: npx @seybel/breakhound"
     link: /guide/getting-started
   - title: In Chrome
-    details: Right-click any page and choose Scan with breakhound. A timeline of every width, and each issue shown where it's worst.
+    details: Right-click any page and choose Scan with breakhound, or open its tab in Chrome DevTools. A timeline of every width, and each issue shown where it's worst.
     link: /guide/extension
   - title: With your coding agent
     details: Claude Code, Cursor, VS Code, Windsurf or Codex fix the issues, verify each fix at every width, and undo it if it's wrong.

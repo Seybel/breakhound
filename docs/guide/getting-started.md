@@ -10,7 +10,7 @@ In your project folder:
 npx @seybel/breakhound
 ```
 
-That's it: no config. To keep it in your project instead, `npm i -D @seybel/breakhound`; the command it installs is `breakhound`. (The unscoped `breakhound` on npm is a different tool.)
+That's it: no config. To keep it in your project instead, `npm i -D @seybel/breakhound`; the command it installs is `breakhound`.
 
 If your dev server is already running it's used, otherwise breakhound starts it with your `dev` script and stops it when done. Chromium is downloaded automatically the first time (about 150 MB).
 
