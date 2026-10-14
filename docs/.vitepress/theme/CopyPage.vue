@@ -45,7 +45,7 @@ function onPointer(event: PointerEvent): void {
 
 function onKey(event: KeyboardEvent): void {
   if (!open.value) return;
-  const items = [...(menu.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+  const items = Array.from(menu.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
   const at = items.indexOf(document.activeElement as HTMLElement);
   if (event.key === 'Escape') {
     open.value = false;
