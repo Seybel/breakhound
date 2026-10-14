@@ -58,8 +58,3 @@ npx @seybel/breakhound login
 A browser window opens; log in as you normally would, then press Enter. The session is saved to `.breakhound/auth.json`, which is never committed (see [Reports](/guide/checks#reports)), and used by later scans. breakhound never sees your password.
 
 Links that would log you out, delete something, or download a file are never followed.
-
-## Next
-
-- [Your first scan](/guide/first-scan): a whole session, from reading the results to fixing, checking and undoing.
-- [Recipes](/guide/recipes): only mobile widths, staging sites, pages behind a login, CI, and more.

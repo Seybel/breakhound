@@ -1,4 +1,5 @@
 import type { ScanResult } from '@breakhound/engine';
+import { MARK_PNG, WORDMARK_PNG } from './brand';
 import { DETECTOR_LABELS, groupIssues, openInstruction, routeLabel } from './format';
 import { renderPrompt } from './markdown';
 
@@ -95,7 +96,7 @@ export function renderHtml(result: ScanResult, options: HtmlOptions = {}): strin
 <body>
 <header class="top">
   <div class="wrap top-inner">
-    <div class="brand"><span class="mark" aria-hidden="true"></span><span>breakhound</span></div>
+    <div class="brand" role="img" aria-label="breakhound"><span class="mark"></span><span class="word"></span></div>
     <div class="top-actions">
       <button type="button" class="btn primary" id="copy-all">Copy fix prompt</button>
     </div>
@@ -167,8 +168,10 @@ code, .mono { font-family: var(--mono); font-size: 13px; }
 
 .top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
 .top-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 56px; }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 650; letter-spacing: -.01em; }
-.mark { width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, var(--accent) 0 55%, var(--error) 55%); }
+.brand { display: flex; align-items: center; gap: 7px; color: var(--text); }
+.brand .mark, .brand .word { display: inline-block; background: currentColor; mask-position: center; mask-size: contain; mask-repeat: no-repeat; }
+.brand .mark { width: 27px; height: 20px; mask-image: url("${MARK_PNG}"); }
+.brand .word { width: 95px; height: 18px; mask-image: url("${WORDMARK_PNG}"); }
 .btn { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
 .btn:hover { border-color: var(--tick); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }

@@ -141,9 +141,3 @@ npx @seybel/breakhound undo /pricing
 ```
 
 Undo adds a new commit that reverses the fix; your history is never rewritten. `undo --session` takes back every fix since the scan.
-
-## Next
-
-- [Recipes](/guide/recipes): only mobile widths, staging sites, pages behind a login, CI, and more.
-- [What it checks](/guide/checks): every check and what it means.
-- [Chrome extension](/guide/extension): the same scan on any tab, with a timeline you can drag.
