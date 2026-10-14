@@ -17,8 +17,8 @@ if (have[0] < need[0] || (have[0] === need[0] && have[1] < need[1])) {
   process.exit(1);
 }
 
-var path = require('path');
-var url = require('url');
+var path = require('node:path');
+var url = require('node:url');
 // The CLI is an ES module. Wrapped in a function so old Nodes never parse import().
 new Function('file', 'return import(file)')(
   url.pathToFileURL(path.join(__dirname, '..', 'dist', 'cli.js')).href,

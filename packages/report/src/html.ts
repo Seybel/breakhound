@@ -138,7 +138,7 @@ export function renderHtml(result: ScanResult, options: HtmlOptions = {}): strin
 `;
 }
 
-const CSS = String.raw`
+const CSS = `
 :root {
   --bg: #f7f7f8; --surface: #ffffff; --surface-2: #f1f1f4; --border: #e3e3e8; --text: #16161d;
   --muted: #62626f; --accent: #6d28d9; --accent-ink: #ffffff;
