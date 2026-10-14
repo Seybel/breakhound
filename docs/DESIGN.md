@@ -2,7 +2,7 @@
 
 > Sniffs out where your layout breaks, then hands the fix to your coding agent.
 
-Status: **Approved** · License: MIT
+License: MIT
 
 ---
 
@@ -16,7 +16,7 @@ Checking responsiveness today is manual: open responsive mode, click through dev
 2. **Find the exact pixel.** Report issues as width ranges (`812–1023px`), not device names.
 3. **Objective, low-noise detection.** Rules, not guesses. A false positive costs more trust than a missed issue.
 4. **Reports people and agents can use.** Summary and detailed reports, Markdown / HTML / PDF / JSON, and a copy-paste prompt tuned for coding agents.
-5. **$0 fixing.** The developer's own agent does the fixing through MCP; breakhound verifies the result and can undo it per page.
+5. **Your agent does the fixing.** The developer's own coding agent edits the code through MCP; breakhound verifies the result and can undo it per page.
 6. **Free to run.** No hosted service, no model, no account.
 
 ### Non-goals (v1)
@@ -113,7 +113,6 @@ routes ──► engine ──(injects)──► analyzers (in page)
 | Lint/format | Biome | One fast tool |
 | CLI framework | Node's built-in `util.parseArgs` and `util.styleText` | Zero dependencies |
 | MCP | Own stdio server (JSON-RPC lines), tested with `@modelcontextprotocol/sdk`'s client | Works with Claude Code, Cursor, Copilot, Codex, Windsurf; the SDK would add ~15 runtime packages (Express, Hono...) to every `npx @seybel/breakhound` |
-| Releases | Changesets + GitHub Actions | Versioning and changelogs |
 | Node | ≥ 20 | Current LTS range |
 
 Browser download: `breakhound` uses Playwright's Chromium. On first run, if no browser is installed, we run the install automatically with a clear message (about 150 MB, one time).
@@ -283,10 +282,10 @@ Ornamental text (inside `aria-hidden="true"`, or under 30% opacity counting ever
 
 **Merging:** overflow reported by several detectors on the same element (page, media and content overflow) becomes one issue with joined ranges. When an overflowing element keeps the same width everywhere it overflows, the issue records `fixedWidthPx` and says so in the suggestion.
 
-**Detection quality bar (measured against the fixture corpus and Projects A/B/C):**
+**Detection quality bar (the fixture corpus, in Chromium, WebKit and Firefox):**
 
-- Precision ≥ 90% (at most 1 in 10 reported issues is not a real problem)
-- Recall ≥ 80% on labelled fixture bugs
+- Every planted bug is found, at the widths it's marked with
+- Nothing is reported on the pages of tricky-but-fine patterns
 - Every finding is reproducible at the reported width
 
 ---
@@ -387,13 +386,13 @@ and continue until it reports no remaining issues and no new ones.
 
 ---
 
-## 10. Fixing (all $0 to the project)
+## 10. Fixing
 
-| Tier | How | Phase |
-|---|---|---|
-| 1. Export | `breakhound prompt`, "Copy for agent" button in HTML report, `.md` / PDF export | 1 |
-| 2. MCP | Agent calls breakhound tools, edits code, verifies, repeats | 3 |
-| 3. Built-in fixer | `breakhound fix` with bring-your-own API key or local model (Ollama) | 4 ✅ |
+| Way | How |
+|---|---|
+| Export | `breakhound prompt`, "Copy for agent" button in HTML report, `.md` / PDF export |
+| MCP | Agent calls breakhound tools, edits code, verifies, repeats |
+| Built-in fixer | `breakhound fix` with the developer's own API key or a local model (Ollama) |
 
 ### MCP tools
 
@@ -451,46 +450,22 @@ An API error stops the run, since it would fail every issue the same way.
 
 ---
 
-## 11. Phases (to v1.0 launch)
-
-We build in phases but don't stop until v1.0 is launched.
-
-| Phase | Deliverable | Exit criteria |
-|---|---|---|
-| **0 · Foundation + spike** ✅ | Monorepo, CI, fixture corpus (~30 labelled bugs), analyzers for `page-overflow`, `content-overflow`, `overlap`, `unexpected-wrap`, `media-overflow`; sweep + bisect on one URL; JSON output | Meets the precision/recall bar on fixtures; manual review of Projects A/B/C shows ≥ 90% precision. **If not, revise detectors before continuing.** |
-| **1 · CLI + reports (MVP)** ✅ | All §7 detectors, fingerprint + breakpoints, settling, screenshots, HTML/MD/PDF/JSON/prompt reports, config file, `--fail-on` exit codes | One-command scan of a single URL produces all reports; used on A/B/C |
-| **2 · Whole-app** ✅ | Project detection, dev-server detection/start, all §5 adapters, dynamic samples, `login`, parallel routes, CI mode + GitHub Action | `npx @seybel/breakhound` with zero config discovers and scans every route of A, B and C |
-| **3 · Agent loop** ✅ | MCP server, `mcp install`, `verify`, checkpoint/undo, source-location plugins (Vite, Next, webpack) | An agent fixes fixture bugs end-to-end with verify + per-route undo |
-| **4 · Depth** ✅ | Interaction states (open menus/drawers/modals via `aria-expanded`, `<details>`, dialogs), WebKit/Firefox, `@container` awareness, `breakhound fix` (BYO key / Ollama), optional vision checks | Hamburger menus and modals are scanned open and closed |
-| **5 · DevTools panel** ✅ | Chrome DevTools panel reusing `analyzers` for live single-page use; Send to agent, verified in the browser | Panel shows issues and breakpoint timeline for the inspected tab |
-| **6 · Launch (v1.0)** | Docs site, README with demo GIF, examples repo, contribution guide, issue templates, npm publish, Chrome Web Store listing (justify `debugger` and the 127.0.0.1 host permission; put the store's public key in the manifest and `EXTENSION_IDS` before the npm release), launch posts | Public release |
-
----
-
-## 12. Testing strategy
+## 11. Testing strategy
 
 - **Unit tests** (Vitest + jsdom where layout isn't needed): selector generation, issue merging, range bisection, schema, report rendering, route adapters against fixture file trees.
-- **Layout tests** (Vitest + real Chromium): each fixture page declares its expected issues (`data-expect="page-overflow@320-359"`); the test scans it and compares. This is the accuracy benchmark, run in CI on every PR, with precision/recall reported.
+- **Layout tests** (Vitest + real Chromium, WebKit and Firefox): each fixture page declares its expected issues (`data-bh-expect="page-overflow@320-359"`); the test scans it and compares. This is the accuracy benchmark, run in CI on every PR, with precision/recall reported.
 - **Route discovery**: file-based adapters (Next, Nuxt, SvelteKit, Astro, Remix, TanStack) and the code reader are tested against generated file trees. The live-router readers run against small React Router (JSX and data router) and Vue Router apps in `fixtures/apps/`, bundled as minified production builds. A made-up app with a `dev` script covers starting and stopping the server, following links, login walls, `breakhound login` and samples end to end.
-- **Real-world checks**: Projects A/B/C, run locally only; results stay out of the repo.
 
 ---
 
-## 13. Risks
+## 12. Risks
 
 | Risk | Mitigation |
 |---|---|
-| False positives erode trust | Precision gate in Phase 0, conservative defaults, ignore rules, fixture benchmark in CI |
+| False positives erode trust | Conservative defaults, ignore rules, fixture benchmark in CI in three engines |
 | Code-defined React routes can't be discovered reliably | Runtime + AST + crawl fallback chain; config as a last resort, with a clear message |
 | Flaky measurements (animations, async content) | Settling step, persistence rule, re-measure on disagreement |
-| Slow scans on big apps | Resize-not-reload, coarse-then-bisect, parallel routes, `--changed` (routes touched since last scan, Phase 4) |
+| Slow scans on big apps | Resize-not-reload, coarse-then-bisect, parallel routes |
 | Agents make bad fixes | Verify loop with regression detection; per-route undo |
 | A big app's dev server plus the browser freezes the developer's machine | Memory guard on everything breakhound starts, with system pressure as a second signal; shuts down cleanly with advice (5.4.1) |
 | Playwright browser download size | One-time install with clear messaging; reuse any installed Chromium |
-
----
-
-## 14. Open items
-
-- Whether to publish internal packages separately: decide at launch.
-- Repo lives at `github.com/Seybel/breakhound`; the npm package is `@seybel/breakhound`, published from the `seybel` npm account. The unscoped `breakhound` on npm belongs to an unrelated tool, so every command we print and every agent config we write names the scoped package; `mcp install` replaces an entry that names the unscoped one. An org can be created later (GitHub redirects transferred repos).
