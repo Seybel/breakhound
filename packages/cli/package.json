@@ -24,7 +24,7 @@
   "author": "Seybel",
   "type": "module",
   "bin": {
-    "breakhound": "./bin/breakhound.cjs"
+    "breakhound": "bin/breakhound.cjs"
   },
   "main": "./dist/index.cjs",
   "types": "./dist/index.d.ts",

@@ -43,5 +43,10 @@ export default defineConfig([
     ...shared,
     format: ['cjs'],
     entry: { 'source-loader': 'src/source-loader.ts' },
+    // It sets module.exports on purpose: this entry is only ever built as CommonJS, so esbuild's
+    // warning about CommonJS in an ES module package doesn't apply.
+    esbuildOptions(options) {
+      options.logOverride = { ...options.logOverride, 'commonjs-variable-in-esm': 'silent' };
+    },
   },
 ]);
