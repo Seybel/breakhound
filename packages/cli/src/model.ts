@@ -159,7 +159,9 @@ const SETUP = `breakhound fix needs a model to write the fixes. Use one of:
   ANTHROPIC_API_KEY=...  (your Anthropic key; uses ${DEFAULT_ANTHROPIC_MODEL} unless you pass --model)
   OPENAI_API_KEY=... with --model <name>  (OpenAI, or any compatible API via OPENAI_BASE_URL)
   Ollama running locally, free: https://ollama.com, then for example: ollama pull qwen2.5-coder
-Or skip it: npx @seybel/breakhound prompt --copy, and paste the prompt into your coding agent.`;
+Using a coding agent (Claude Code, Cursor, Antigravity...)? It doesn't need a model here: run
+npx @seybel/breakhound mcp install once, then ask your agent to fix the breakhound issues.
+Or paste npx @seybel/breakhound prompt --copy into any agent.`;
 
 /**
  * Picks the model: the provider asked for, or else the first one set up, in

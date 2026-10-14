@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2
+
+- `breakhound mcp install` sets up Antigravity too, in the project's `.agents/mcp_config.json`.
+- `breakhound fix` without a model now says that a coding agent doesn't need one, and how to connect it.
+- The docs and `--help` say how to get a `breakhound` command of your own.
+
 ## 1.0.1
 
 - **Send to agent** works with the extension from the Chrome Web Store.

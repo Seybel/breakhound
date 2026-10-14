@@ -24,7 +24,7 @@ features:
     details: Right-click any page and choose Scan with breakhound, or open its tab in Chrome DevTools. A timeline of every width, and each issue shown where it's worst.
     link: /guide/extension
   - title: With your coding agent
-    details: Claude Code, Cursor, VS Code, Windsurf or Codex fix the issues, verify each fix at every width, and undo it if it's wrong.
+    details: Claude Code, Cursor, VS Code, Antigravity, Windsurf or Codex fix the issues, verify each fix at every width, and undo it if it's wrong.
     link: /guide/agents
 ---
 

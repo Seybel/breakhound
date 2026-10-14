@@ -47,7 +47,8 @@ Fixing
   breakhound undo [routes]       Revert the fixes for these routes (--session for all); lists them with no routes
   breakhound fix [routes]        Fix the last scan's issues with your own model (Anthropic or OpenAI key, or
                                  a local Ollama), verify each fix and commit it so it can be undone
-  breakhound mcp install         Add breakhound's MCP server to Claude Code, Cursor, VS Code, Windsurf or Codex
+  breakhound mcp install         Add breakhound's MCP server to Claude Code, Cursor, VS Code, Antigravity,
+                                 Windsurf or Codex
   breakhound mcp                 Run the MCP server (your agent starts it)
 
 Scan options
@@ -85,7 +86,7 @@ Fix options
   --all                 Include info-level issues
 
 MCP install options
-  --client <name>       claude, cursor, vscode, windsurf or codex (repeatable)
+  --client <name>       claude, cursor, vscode, antigravity, windsurf or codex (repeatable)
   -y, --yes             Don't ask before changing files
 
   -h, --help            Show this help
@@ -186,7 +187,7 @@ async function main(argv: string[]): Promise<number> {
   if (command === 'mcp') {
     if (rest[0] === 'install') {
       const clients = values.client ?? [];
-      const known = ['claude', 'cursor', 'vscode', 'windsurf', 'codex'];
+      const known = ['claude', 'cursor', 'vscode', 'antigravity', 'windsurf', 'codex'];
       const unknown = clients.filter((c) => !known.includes(c));
       if (unknown.length)
         throw new Error(`Unknown --client ${unknown.join(', ')}. Use one of: ${known.join(', ')}`);

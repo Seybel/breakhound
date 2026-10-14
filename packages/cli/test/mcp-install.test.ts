@@ -16,13 +16,19 @@ describe('mcp install', () => {
       JSON.stringify({ mcpServers: { other: { command: 'other' } } }),
     );
     expect(
-      await installMcp(project, { clients: ['cursor', 'vscode', 'codex'], yes: true, home }),
+      await installMcp(project, {
+        clients: ['cursor', 'vscode', 'antigravity', 'codex'],
+        yes: true,
+        home,
+      }),
     ).toBe(0);
     const cursor = JSON.parse(readFileSync(join(project, '.cursor/mcp.json'), 'utf8'));
     expect(Object.keys(cursor.mcpServers)).toEqual(['other', 'breakhound']);
     expect(cursor.mcpServers.breakhound).toEqual(serverCommand());
     const vscode = JSON.parse(readFileSync(join(project, '.vscode/mcp.json'), 'utf8'));
     expect(vscode.servers.breakhound.type).toBe('stdio');
+    const antigravity = JSON.parse(readFileSync(join(project, '.agents/mcp_config.json'), 'utf8'));
+    expect(antigravity.mcpServers.breakhound).toEqual(serverCommand());
     const toml = readFileSync(join(home, '.codex/config.toml'), 'utf8');
     expect(toml).toContain('[mcp_servers.breakhound]');
 

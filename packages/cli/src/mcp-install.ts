@@ -7,12 +7,12 @@ import { styleText } from 'node:util';
 
 /**
  * Adds breakhound's MCP server to the coding agents found on this machine.
- * Project-level files (Claude Code, Cursor, VS Code) are preferred, so the
- * whole team gets it; Windsurf and Codex only have a config in your home
+ * Project-level files (Claude Code, Cursor, VS Code, Antigravity) are preferred,
+ * so the whole team gets it; Windsurf and Codex only have a config in your home
  * folder. Nothing is written before you've seen the change and said yes.
  */
 
-export type ClientId = 'claude' | 'cursor' | 'vscode' | 'windsurf' | 'codex';
+export type ClientId = 'claude' | 'cursor' | 'vscode' | 'antigravity' | 'windsurf' | 'codex';
 
 export interface Client {
   id: ClientId;
@@ -115,6 +115,17 @@ export function allClients(cwd: string, home = homedir()): Client[] {
       // biome-ignore lint/suspicious/noTemplateCurlyInString: VS Code variable.
       cwd: '${workspaceFolder}',
     }),
+    // Antigravity's workspace config; its global one is ~/.gemini/config/mcp_config.json.
+    jsonClient(
+      'antigravity',
+      'Antigravity',
+      join(cwd, '.agents', 'mcp_config.json'),
+      'mcpServers',
+      {
+        command,
+        args,
+      },
+    ),
     jsonClient(
       'windsurf',
       'Windsurf',
@@ -137,6 +148,11 @@ export function detectClients(cwd: string, home = homedir()): Client[] {
       onPath('claude'),
     cursor: existsSync(join(cwd, '.cursor')) || existsSync(join(home, '.cursor')),
     vscode: existsSync(join(cwd, '.vscode')) || onPath('code'),
+    antigravity:
+      existsSync(join(cwd, '.agents', 'mcp_config.json')) ||
+      existsSync(join(home, '.gemini', 'config', 'mcp_config.json')) ||
+      existsSync(join(home, '.gemini', 'antigravity')) ||
+      onPath('antigravity'),
     windsurf: existsSync(join(home, '.codeium', 'windsurf')),
     codex: existsSync(join(home, '.codex')),
   };
@@ -163,7 +179,7 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
     : detectClients(cwd, home);
   if (!clients.length) {
     console.log(
-      "No coding agent found here. Pick one with --client claude, cursor, vscode, windsurf or codex, or add this to your agent's MCP settings:",
+      "No coding agent found here. Pick one with --client claude, cursor, vscode, antigravity, windsurf or codex, or add this to your agent's MCP settings:",
     );
     console.log(JSON.stringify({ [SERVER_NAME]: serverCommand() }, null, 2));
     return 1;

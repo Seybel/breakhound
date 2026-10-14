@@ -181,7 +181,7 @@ breakhound doesn't edit your code: your own agent does, and breakhound checks it
 npx @seybel/breakhound mcp install
 ```
 
-It finds Claude Code, Cursor, VS Code, Windsurf and Codex, shows what it will add to their MCP settings, and asks first. Then ask your agent to fix the responsive issues. It can:
+It finds Claude Code, Cursor, VS Code, Antigravity, Windsurf and Codex, shows what it will add to their MCP settings, and asks first. Then ask your agent to fix the responsive issues. It can:
 
 | Tool | What it does |
 |---|---|
