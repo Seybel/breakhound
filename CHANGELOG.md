@@ -2,6 +2,9 @@
 
 ## 1.0.2
 
+- Dynamic routes below a page that was found reuse its values: once `/cohorts/css-101` is scanned, `/cohorts/[slug]/settings` is too, with no config.
+- New `params` option gives dynamic route parameters a real value by name, for every route that uses them: `params: { slug: 'css-101', submissionId: '42' }`. The hint for routes left out names just the parameters still missing.
+- The HTML report shows the breakhound logo.
 - `breakhound mcp install` sets up Antigravity too, in the project's `.agents/mcp_config.json`.
 - `breakhound fix` without a model now says that a coding agent doesn't need one, and how to connect it.
 - The docs and `--help` say how to get a `breakhound` command of your own.

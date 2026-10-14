@@ -15,6 +15,12 @@ export interface BreakhoundConfig {
   exclude?: string[];
   /** A real URL for each dynamic route, e.g. { '/products/[id]': '/products/42' }. */
   samples?: Record<string, string>;
+  /**
+   * Values for dynamic route parameters by name, for routes no link on your pages fits,
+   * e.g. { slug: 'css-101', submissionId: '42' }. Every route using those names is filled in;
+   * a parent route's real URL fills its own parameters for the routes below it already.
+   */
+  params?: Record<string, string>;
   /** Most routes to scan in one run (default 100). */
   maxRoutes?: number;
   /** How to start the app when it isn't running, if not with its "dev" script. */

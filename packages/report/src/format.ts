@@ -94,3 +94,25 @@ export function plural(n: number, word: string): string {
 export function routeLabel(route: RouteResult): string {
   return route.route || new URL(route.url).pathname;
 }
+
+/**
+ * What to add to the config for the dynamic routes no link fitted: values for the parameters
+ * nothing gave one (named in the route's reason), or else a real URL for the first route.
+ */
+export function leftOutHint(
+  routes: { route: string; status: string; error?: string }[],
+): string | null {
+  const skipped = routes.filter((r) => r.status === 'skipped');
+  if (!skipped.length) return null;
+  const names = new Set<string>();
+  for (const r of skipped) {
+    const named = r.error?.match(/nothing gives (.+) a value/)?.[1] ?? '';
+    for (const m of named.matchAll(/\[([^\]]+)\]/g)) names.add(m[1] as string);
+  }
+  // A name like post-id needs quotes to be a valid key.
+  const key = (n: string) => (/^[A-Za-z_$][\w$]*$/.test(n) ? n : `'${n}'`);
+  if (names.size) return `params: { ${[...names].map((n) => `${key(n)}: '1'`).join(', ')} }`;
+  const first = (skipped[0] as { route: string }).route;
+  const example = first.replace(/\[\[?\.\.\.[^\]]+\]\]?/g, 'a/b').replace(/\[\[?[^\]]+\]\]?/g, '1');
+  return `samples: { '${first}': '${example}' }`;
+}

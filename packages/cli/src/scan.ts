@@ -215,6 +215,13 @@ async function pool<T>(items: T[], size: number, work: (item: T) => Promise<void
 }
 
 /** Runs `work` on queued jobs, `size` at a time, until the queue stays empty. */
+/** Why a dynamic route was left out; print and the reports read the names back from it. */
+function leftOutReason(missing: string[]): string {
+  return missing.length
+    ? `No page links to it, and nothing gives ${missing.map((n) => `[${n}]`).join(', ')} a value.`
+    : 'No page links to it, so there was no real URL to try.';
+}
+
 async function drain(
   queue: RouteQueue,
   size: number,
@@ -227,7 +234,9 @@ async function drain(
       const p: Promise<void> = work(job).finally(() => active.delete(p));
       active.add(p);
     }
-    if (!active.size) return;
+    // Links have had their chance: fill what's left from known values, which may find more.
+    if (!active.size && !queue.fillWaiting()) return;
+    if (!active.size) continue;
     await Promise.race(active);
   }
 }
@@ -300,6 +309,7 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
         config.samples ?? {},
         plan.crawl ? new Crawler(max, (path) => isWanted(path, config)) : null,
         plan.hashRouting,
+        config.params ?? {},
       );
       for (const url of plan.urls) queue.add({ url, route: routeOf(url, cwd) });
       for (const p of plan.patterns) {
@@ -470,7 +480,7 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
         url: '',
         finalUrl: '',
         status: 'skipped',
-        error: 'No page links to it, so there was no real URL to try.',
+        error: leftOutReason(queue.missing.get(pattern.path) ?? []),
         pageErrors: [],
         warnings: [],
         breakpoints: { observed: [], declared: [], unexplained: [] },

@@ -43,9 +43,15 @@ npx @seybel/breakhound --url https://staging.example.com
 
 breakhound still finds the routes from your project, then scans them on that server.
 
-**A dynamic route no page links to**
+**Dynamic routes no page links to**
 
-Routes like `/products/[id]` are scanned once, with a real link found on your pages. If nothing links to one, give it an address in your config:
+Routes like `/products/[id]` are scanned once, with a real link found on your pages, and routes below a found page reuse its values. For the rest, name a real value for each parameter once, and every route that uses it is filled in, however deep:
+
+```ts
+params: { slug: 'css-101', submissionId: '42' }
+```
+
+To give one route its own address instead:
 
 ```ts
 samples: { '/products/[id]': '/products/42' }

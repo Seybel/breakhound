@@ -125,6 +125,11 @@ describe('config', () => {
       /chromium, webkit, firefox/,
     );
     expect(() => validateConfig({ browsers: [] })).toThrow(/browsers/);
+    expect(validateConfig({ params: { slug: 'css-101', submissionId: '42' } })).toEqual([]);
+    expect(() => validateConfig({ params: { slug: 42 as unknown as string } })).toThrow(/params/);
+    expect(() => validateConfig({ params: ['slug'] as unknown as Record<string, string> })).toThrow(
+      /params/,
+    );
   });
 });
 

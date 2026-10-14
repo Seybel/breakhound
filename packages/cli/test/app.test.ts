@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { leftOutHint } from '@breakhound/report';
 import { describe, expect, it } from 'vitest';
 import { AUTH_FILE, runLogin } from '../src/auth';
 import { runScan } from '../src/scan';
@@ -141,6 +142,36 @@ describe('scanning a whole app with no config', () => {
       '/docs/[page]': 'scanned /about',
       '/users/[id]': 'skipped',
     });
+  });
+
+  it('fills routes below a linked page from its values and params, and names what is missing', async () => {
+    const root = makeProject();
+    const { result } = await runScan({
+      targets: [],
+      config: {
+        ...QUICK,
+        routes: ['/', '/blog/[slug]', '/blog/[slug]/comments/[commentId]', '/users/[id]/posts'],
+        params: { commentId: '9' },
+      },
+      cwd: root,
+      version: 'test',
+      quiet: true,
+    });
+    const byRoute = Object.fromEntries(
+      result.routes.map((r) => [
+        r.route,
+        `${r.status} ${r.url ? new URL(r.url).pathname : ''}`.trim(),
+      ]),
+    );
+    expect(byRoute).toEqual({
+      '/': 'scanned /',
+      '/blog/[slug]': 'scanned /blog/a',
+      '/blog/[slug]/comments/[commentId]': 'scanned /blog/a/comments/9',
+      '/users/[id]/posts': 'skipped',
+    });
+    const left = result.routes.find((r) => r.route === '/users/[id]/posts');
+    expect(left?.error).toContain('nothing gives [id] a value');
+    expect(leftOutHint(result.routes)).toBe("params: { id: '1' }");
   });
 
   it('scans an app mounted under a base path, and ignores links outside it', async () => {

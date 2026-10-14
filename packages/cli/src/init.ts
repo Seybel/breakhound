@@ -13,8 +13,8 @@ const TEMPLATE = (
   // Every route is found automatically. To narrow it down:
   // include: ['/blog/**'],
   // exclude: ['/admin/**'],
-  // A real URL for dynamic routes that no page links to:
-  // samples: { '/products/[id]': '/products/42' },
+  // Real values for dynamic route parameters no page links to, by name:
+  // params: { slug: 'my-first-post', id: '42' },
 
   // Viewport widths to sweep, in CSS pixels.
   widths: { min: 320, max: 1920 },

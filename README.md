@@ -78,7 +78,13 @@ npx @seybel/breakhound --url https://staging.example.com   # every route, on ano
 | Angular | your route definitions, from `src/main.ts` on, with lazily loaded `loadChildren` routes under their path |
 | Anything else | links followed from the home page (up to 50 pages, a few per section) |
 
-**Dynamic routes** like `/blog/[slug]` are scanned once, using a real link found on your pages (routes that share a template share a layout). If no page links to one, it's listed with a hint, and you can give it a URL:
+**Dynamic routes** like `/blog/[slug]` are scanned once, using a real link found on your pages (routes that share a template share a layout). Routes below one reuse its values: once `/cohorts/css-101` is found, `/cohorts/[slug]/settings` is scanned as `/cohorts/css-101/settings`. If something is still missing, it's listed with a hint naming the parameters. Give them a real value once, by name, and every route that uses them is filled in:
+
+```ts
+params: { slug: 'css-101', submissionId: '42' }
+```
+
+Or give one route its own URL, which wins over `params`:
 
 ```ts
 samples: { '/products/[id]': '/products/42' }
@@ -296,7 +302,8 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `baseUrl` | Scan this server instead of finding or starting the dev server |
 | `routes` | Scan exactly these routes instead of discovering them |
 | `include`, `exclude` | Route globs: `*` is one segment, `**` any number |
-| `samples` | A real URL for each dynamic route |
+| `samples` | A real URL for a dynamic route |
+| `params` | Real values for dynamic route parameters by name, for every route that uses them |
 | `maxRoutes` | Most routes per run (default 100) |
 | `server` | How to start the app: `{ command: 'npm run preview', port: 4173, timeout: 120 }` |
 | `widths` | `{ min, max, step }` in CSS pixels |

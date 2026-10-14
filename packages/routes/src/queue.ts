@@ -1,10 +1,34 @@
 import { type Crawler, isCrawlable, routeFor } from './crawl';
-import { type RoutePattern, staticUrlPath } from './pattern';
+import { type RoutePattern, type Segment, staticUrlPath } from './pattern';
 
 /** A page to scan: its URL, and the route it stands for (`/blog/[slug]` for `/blog/hello`). */
 export interface Target {
   url: string;
   route: string;
+}
+
+/** The parameter names in a segment's label: `[slug]`, `[[lang]]`, `[...path]`, `post-[id]`. */
+function namesIn(label: string): string[] {
+  return [...label.matchAll(/\[\[?(?:\.\.\.)?([^\]]+)\]\]?/g)].map((m) => m[1] as string);
+}
+
+/** A whole segment that is one parameter, like `[slug]` (not `post-[id]`, an optional or a catch-all). */
+function isPlainParam(s: Segment): boolean {
+  return (
+    s.kind === 'param' &&
+    !s.optional &&
+    namesIn(s.label).length === 1 &&
+    s.label.startsWith('[') &&
+    s.label.endsWith(']')
+  );
+}
+
+/** The route up to and including segment `i`, the key a parameter's value is shared under. */
+function prefixOf(segments: Segment[], i: number): string {
+  return `/${segments
+    .slice(0, i + 1)
+    .map((s) => (s.kind === 'static' ? s.value : s.label))
+    .join('/')}`;
 }
 
 function trimSlash(path: string): string {
@@ -28,6 +52,13 @@ export class RouteQueue {
   private readonly planned = new Set<string>();
   /** Dynamic routes still waiting for a link that fits them. */
   readonly waiting = new Map<string, RoutePattern>();
+  /** For routes left waiting at the end: the parameters nothing gave a value. */
+  readonly missing = new Map<string, string[]>();
+  /**
+   * Values parameters took in real URLs, under the route they belong to: `/cohorts/[slug]` →
+   * `css-101`. Routes below it reuse them, since a child of a real page is real too.
+   */
+  private readonly seen = new Map<string, string>();
   readonly patterns = new Map<string, RoutePattern>();
   private order = 0;
   /** Where the app is mounted on its server, e.g. "/docs"; "" at the root. */
@@ -39,6 +70,8 @@ export class RouteQueue {
     readonly crawler: Crawler | null,
     /** The app routes by hash, so its paths live after `/#`. */
     private readonly hashRouting = false,
+    /** Values for parameters by name, from the config, for routes no link fits. */
+    private readonly params: Record<string, string> = {},
   ) {
     this.basePath = baseUrl ? new URL(baseUrl).pathname.replace(/\/+$/, '') : '';
   }
@@ -98,8 +131,79 @@ export class RouteQueue {
       return;
     }
     const sample = this.samples[pattern.path];
-    if (sample) this.add({ url: this.urlFor(sample), route: pattern.path });
-    else this.waiting.set(pattern.path, pattern);
+    if (sample) {
+      const samplePath = /^https?:\/\//i.test(sample)
+        ? this.appPath(new URL(sample).pathname)
+        : sample;
+      if (samplePath !== null) this.learn(pattern, samplePath);
+      this.add({ url: this.urlFor(sample), route: pattern.path });
+    } else this.waiting.set(pattern.path, pattern);
+  }
+
+  /** Remembers the values a real URL gives a route's parameters. */
+  private learn(pattern: RoutePattern, path: string): void {
+    if (pattern.segments.some((s) => s.kind === 'rest' || (s.kind === 'param' && s.optional)))
+      return;
+    const parts = (path.split(/[?#]/)[0] as string).split('/').filter(Boolean);
+    if (parts.length !== pattern.segments.length) return;
+    pattern.segments.forEach((s, i) => {
+      if (isPlainParam(s)) {
+        const key = prefixOf(pattern.segments, i);
+        if (!this.seen.has(key)) this.seen.set(key, parts[i] as string);
+      }
+    });
+  }
+
+  /**
+   * A URL for a dynamic route from values already known: a parent route's real URL, then the
+   * config's params by name. Null, with the names still needed, when something is missing.
+   */
+  private build(pattern: RoutePattern): { path: string } | { missing: string[] } {
+    const parts: string[] = [];
+    const missing: string[] = [];
+    pattern.segments.forEach((s, i) => {
+      if (s.kind === 'static') {
+        parts.push(s.value);
+        return;
+      }
+      const inherited = isPlainParam(s) ? this.seen.get(prefixOf(pattern.segments, i)) : undefined;
+      if (inherited !== undefined) {
+        parts.push(inherited);
+        return;
+      }
+      const names = namesIn(s.label);
+      const absent = names.filter((n) => this.params[n] === undefined);
+      if (absent.length) {
+        if (!s.optional) missing.push(...absent);
+        return;
+      }
+      let value = s.label;
+      // A function, so a $ in the value is kept as it is.
+      for (const n of names)
+        value = value.replace(/\[\[?(?:\.\.\.)?[^\]]+\]\]?/, () => this.params[n] as string);
+      parts.push(value.replace(/^\/+|\/+$/g, ''));
+    });
+    return missing.length ? { missing: [...new Set(missing)] } : { path: `/${parts.join('/')}` };
+  }
+
+  /**
+   * Gives the routes no link fitted a URL from known values, once the links have had their
+   * chance. Returns how many were added; the rest stay waiting, with what they're missing.
+   */
+  fillWaiting(): number {
+    let added = 0;
+    for (const [key, pattern] of this.waiting) {
+      const built = this.build(pattern);
+      if ('missing' in built) {
+        this.missing.set(key, built.missing);
+        continue;
+      }
+      this.waiting.delete(key);
+      this.missing.delete(key);
+      this.add({ url: this.urlFor(built.path), route: pattern.path });
+      added++;
+    }
+    return added;
   }
 
   /** Links from a scanned page: samples for dynamic routes, and new pages when crawling. */
@@ -109,10 +213,13 @@ export class RouteQueue {
     const links = found
       .map((link) => this.linkPath(link))
       .filter((p): p is string => p !== null && isCrawlable(p));
-    if (this.waiting.size) {
+    if (this.patterns.size) {
       for (const link of links) {
         const route = routeFor(link, this.patterns.values());
-        if (route && this.waiting.has(route.path)) {
+        if (!route?.dynamic) continue;
+        // Even when its route has a URL already: routes below it may need its values.
+        this.learn(route, link);
+        if (this.waiting.has(route.path)) {
           this.waiting.delete(route.path);
           this.add({ url: this.urlFor(link), route: route.path });
         }

@@ -1,4 +1,11 @@
-export { DETECTOR_LABELS, formatRange, formatRanges, groupIssues, type IssueGroup } from './format';
+export {
+  DETECTOR_LABELS,
+  formatRange,
+  formatRanges,
+  groupIssues,
+  type IssueGroup,
+  leftOutHint,
+} from './format';
 export { type HtmlOptions, renderHtml } from './html';
 export {
   type PromptOptions,

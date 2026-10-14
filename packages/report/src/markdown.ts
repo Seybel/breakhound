@@ -5,6 +5,7 @@ import {
   formatRanges,
   groupIssues,
   type IssueGroup,
+  leftOutHint,
   openInstruction,
   plural,
   routeLabel,
@@ -87,8 +88,8 @@ export function renderSummary(result: ScanResult): string {
     [
       'Routes left out',
       result.routes.filter((r) => r.status === 'redirect' || r.status === 'skipped'),
-      result.routes.some((r) => r.status === 'skipped')
-        ? 'Give dynamic routes a real URL with `samples` in your config, e.g. `{ "/products/[id]": "/products/42" }`.'
+      leftOutHint(result.routes)
+        ? `Give dynamic routes real values in your config, e.g. \`${leftOutHint(result.routes)}\` (replace the 1s with real ones).`
         : undefined,
     ],
   ];

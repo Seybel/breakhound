@@ -31,7 +31,8 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `baseUrl` | Scan this server instead of finding or starting the dev server |
 | `routes` | Scan exactly these routes instead of discovering them |
 | `include`, `exclude` | Route globs: `*` is one segment, `**` any number |
-| `samples` | A real URL for each dynamic route |
+| `samples` | A real URL for a dynamic route |
+| `params` | Real values for dynamic route parameters by name, for every route that uses them |
 | `maxRoutes` | Most routes per run (default 100) |
 | `server` | How to start the app: `{ command: 'npm run preview', port: 4173, timeout: 120 }` |
 | `widths` | `{ min, max, step }` in CSS pixels |

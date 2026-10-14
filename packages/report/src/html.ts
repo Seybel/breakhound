@@ -1,6 +1,6 @@
 import type { ScanResult } from '@breakhound/engine';
 import { MARK_PNG, WORDMARK_PNG } from './brand';
-import { DETECTOR_LABELS, groupIssues, openInstruction, routeLabel } from './format';
+import { DETECTOR_LABELS, groupIssues, leftOutHint, openInstruction, routeLabel } from './format';
 import { renderPrompt } from './markdown';
 
 export interface HtmlOptions {
@@ -49,6 +49,7 @@ function buildData(result: ScanResult, options: HtmlOptions) {
       baseUrl: result.project.baseUrl,
     },
     summary: result.summary,
+    leftOutHint: leftOutHint(result.routes),
     routes: result.routes.map((r) => ({
       route: routeLabel(r),
       url: r.url,
@@ -287,7 +288,7 @@ dd code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 }
 `;
 
-const JS = String.raw`
+const JS = `
 (() => {
   const D = JSON.parse(document.getElementById('bh-data').textContent);
   const $ = (id) => document.getElementById(id);
@@ -405,11 +406,9 @@ const JS = String.raw`
   }
   const skipped = D.routes.filter((r) => r.status === 'skipped' || r.status === 'redirect');
   if (skipped.length) {
-    const dynamic = skipped.find((r) => r.status === 'skipped');
-    const example = dynamic && dynamic.route.replace(/\[\[?\.\.\.[^\]]+\]\]?/g, 'a/b').replace(/\[\[?[^\]]+\]\]?/g, '1');
     $('failed').append(el('div', { class: 'callout' },
       el('h2', { text: plural(skipped.length, 'route') + ' left out' }),
-      dynamic ? el('p', {}, 'Give dynamic routes a real URL in your config: ', el('code', { text: "samples: { '" + dynamic.route + "': '" + example + "' }" })) : false,
+      D.leftOutHint ? el('p', {}, 'Give dynamic routes real values in your config (replace the 1s with real ones): ', el('code', { text: D.leftOutHint })) : false,
       listing(skipped)));
   }
   const shaky = D.routes.filter((r) => r.warnings.length);

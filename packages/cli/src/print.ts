@@ -1,8 +1,7 @@
 import { relative } from 'node:path';
 import { styleText } from 'node:util';
 import type { RouteResult, ScanResult, Severity } from '@breakhound/engine';
-import { formatRanges, groupIssues } from '@breakhound/report';
-import { examplePath } from '@breakhound/routes';
+import { formatRanges, groupIssues, leftOutHint } from '@breakhound/report';
 import type { RoutePlan } from './app';
 
 const BADGE: Record<Severity, string> = {
@@ -154,12 +153,11 @@ export function printNotes(result: ScanResult, hasSavedLogin: boolean): void {
       `  ${styleText('yellow', '○')} ${plural2(login, 'page needs', 'pages need')} a login. ${how}`,
     );
   }
-  if (skipped.length) {
+  const hint = leftOutHint(skipped);
+  if (hint) {
     console.log(
-      `  ${styleText('dim', '–')} ${plural2(skipped.length, 'dynamic route', 'dynamic routes')} had no link to follow. Give each a real URL with samples in your config, e.g.`,
+      `  ${styleText('dim', '–')} ${plural2(skipped.length, 'dynamic route', 'dynamic routes')} had no link to follow. Give them real values in your config (replace the 1s), e.g.`,
     );
-    const first = skipped[0]?.route;
-    if (first)
-      console.log(styleText('dim', `     samples: { '${first}': '${examplePath(first)}' }`));
+    console.log(styleText('dim', `     ${hint}`));
   }
 }

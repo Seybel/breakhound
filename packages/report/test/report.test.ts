@@ -1,6 +1,6 @@
 import type { Issue, RouteResult, ScanResult } from '@breakhound/engine';
 import { describe, expect, it } from 'vitest';
-import { groupIssues, renderHtml, renderPrompt, renderSummary } from '../src/index';
+import { groupIssues, leftOutHint, renderHtml, renderPrompt, renderSummary } from '../src/index';
 
 function issue(overrides: Partial<Issue> = {}): Issue {
   return {
@@ -137,7 +137,9 @@ describe('summary', () => {
     expect(md).not.toContain('could not be checked');
     expect(md).toContain('## Pages that need a login\n\nRun `npx @seybel/breakhound login` once');
     expect(md).toContain('- /account: Needs a login: it redirected to /login');
-    expect(md).toContain('## Routes left out\n\nGive dynamic routes a real URL with `samples`');
+    expect(md).toContain(
+      "## Routes left out\n\nGive dynamic routes real values in your config, e.g. `samples: { '/users/[id]': '/users/1' }`",
+    );
     expect(md).toContain('- /users/[id]: No page links to it.');
   });
 });
@@ -149,5 +151,18 @@ describe('html report', () => {
     expect(html).not.toContain('</script><script>alert(1)');
     expect(html).toContain('\\u003c/script>');
     expect(html).not.toMatch(/<(link|script)[^>]+(href|src)="https?:/);
+  });
+});
+
+describe('the hint for dynamic routes left out', () => {
+  it('names the missing parameters, quoting names that need it', () => {
+    const left = (error: string) => ({ route: '/x/[a]', status: 'skipped', error });
+    expect(
+      leftOutHint([left('No page links to it, and nothing gives [slug], [post-id] a value.')]),
+    ).toBe("params: { slug: '1', 'post-id': '1' }");
+    expect(
+      leftOutHint([{ route: '/users/[id]', status: 'skipped', error: 'No page links to it.' }]),
+    ).toBe("samples: { '/users/[id]': '/users/1' }");
+    expect(leftOutHint([{ route: '/', status: 'scanned' }])).toBeNull();
   });
 });

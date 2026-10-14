@@ -81,6 +81,7 @@ export const KNOWN_KEYS = new Set([
   'include',
   'exclude',
   'samples',
+  'params',
   'maxRoutes',
   'server',
   'widths',
@@ -130,6 +131,18 @@ export function validateConfig(config: BreakhoundConfig): string[] {
     if (!ok) {
       throw new Error(
         `samples must map a dynamic route to a real one, like { "/products/[id]": "/products/42" }`,
+      );
+    }
+  }
+  if (config.params !== undefined) {
+    const ok =
+      config.params &&
+      typeof config.params === 'object' &&
+      !Array.isArray(config.params) &&
+      Object.values(config.params).every((v) => typeof v === 'string' && v !== '');
+    if (!ok) {
+      throw new Error(
+        `params must give dynamic route parameters a real value by name, like { "slug": "css-101" }`,
       );
     }
   }

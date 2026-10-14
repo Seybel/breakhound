@@ -123,11 +123,18 @@ export async function scanSite(cdp: Cdp, options: SiteScanOptions): Promise<Site
   queue.add({ url: start, route: startRoute });
   queue.add({ url: `${origin}${hashRouting ? '/#/' : '/'}`, route: routeOfPath('/') });
   for (const pattern of found?.routes ?? []) queue.addPattern(pattern);
+  // The page the developer is on is a real URL too: routes below it can reuse its values.
+  if (found) {
+    const at = new URL(start);
+    queue.addLinks([hashRouting ? `${at.pathname}${at.hash.split('?')[0]}` : at.pathname]);
+  }
 
   const routes: RouteResult[] = [];
   const scripts = await addTracking(cdp, options.analyzerScript);
   try {
-    for (let i = 0; i < queue.jobs.length && routes.length < max; i++) {
+    for (let i = 0; routes.length < max; i++) {
+      // Links have had their chance: fill the routes still waiting from known values.
+      if (i >= queue.jobs.length && !queue.fillWaiting()) break;
       if (options.cancelled?.()) throw new Cancelled();
       const job = queue.jobs[i];
       if (!job) continue;
