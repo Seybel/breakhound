@@ -54,6 +54,8 @@ export function describeState(state: PageState): string {
   switch (state.kind) {
     case 'dialog':
       return named ? `with the "${state.label}" dialog open` : 'with the dialog open';
+    case 'tab':
+      return named ? `with the "${state.label}" tab open` : 'with another tab open';
     case 'details':
     case 'disclosure':
       return named ? `with "${state.label}" expanded` : 'with the section expanded';

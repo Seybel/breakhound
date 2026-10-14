@@ -95,15 +95,16 @@ export interface IgnoreRule {
 export interface AnalyzeOptions {
   detectors?: DetectorId[];
   ignore?: IgnoreRule[];
-  /** Also list the menus, dialogs and disclosures that can be opened at this width. */
+  /** Also list the menus, dialogs, disclosures and tabs that can be opened at this width. */
   toggles?: boolean;
 }
 
 /**
  * What a toggle opens. `menu`: navigation menus, drawers and dropdowns.
  * `disclosure`: anything else with aria-expanded, such as accordions.
+ * `tab`: a tab (role="tab") that isn't selected.
  */
-export type ToggleKind = 'menu' | 'dialog' | 'popover' | 'details' | 'disclosure';
+export type ToggleKind = 'menu' | 'dialog' | 'popover' | 'details' | 'disclosure' | 'tab';
 
 /** Something on the page that opens more of it when clicked. */
 export interface Toggle {

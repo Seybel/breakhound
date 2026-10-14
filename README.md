@@ -128,15 +128,15 @@ Chromium finds most layout bugs, but Safari and Firefox lay some things out diff
 
 Two differences you'll meet early: Safari gives buttons, inputs and selects an 11px font unless you set one (Chrome and Firefox use about 13px), so unstyled controls show up as tiny text only in WebKit, with `font: inherit` as the fix (that's WebKit on a Mac: Playwright's WebKit on Linux, as in most CI, draws them like Chrome); and Firefox breaks long URLs at their slashes, so a URL that pushes the page wide in Chrome and Safari can wrap fine in Firefox.
 
-### Menus, dialogs and expandable sections
+### Menus, dialogs, tabs and expandable sections
 
-A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign-up modal, an FAQ answer. After scanning a page as it loads, breakhound opens what it finds there one at a time and sweeps the widths where each can be opened. That covers buttons with `aria-expanded`, `<details>`, popovers, dialogs, Bootstrap toggles, and buttons that are clearly a menu (`hamburger`, `menu-toggle`, an accessible name of "Menu"). Only what breaks while something is open gets reported, with what to open first:
+A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign-up modal, an FAQ answer, the second tab. After scanning a page as it loads, breakhound opens what it finds there one at a time and sweeps the widths where each can be opened. That covers buttons with `aria-expanded`, `<details>`, popovers, dialogs, tabs (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI), Bootstrap toggles, and buttons that are clearly a menu (`hamburger`, `menu-toggle`, an accessible name of "Menu"). Only what breaks while something is open gets reported, with what to open first:
 
 ```
 ✖ 320–399px  Page scrolls horizontally (80px wider than the viewport), with "Menu" open
 ```
 
-It never clicks a link to another page or a button that submits a form, and it opens only one question of an FAQ, since they all share a layout. It opens up to 5 per page. Set `states` to change that, or `--no-states` (or `data-breakhound-ignore="states"` on an element) to leave them closed.
+It never clicks a link to another page or a button that submits a form, and it opens only one question of an FAQ, since they all share a layout, but every tab, since each shows something different. It opens up to 5 per page. Set `states` to change that, or `--no-states` (or `data-breakhound-ignore="states"` on an element) to leave them closed.
 
 ### A second opinion from a vision model (optional)
 
@@ -312,7 +312,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `vision` | `true` to add a vision model's opinion, or `{ model, provider, widths }` |
 | `fix` | The model `breakhound fix` uses: `{ provider: 'ollama', model: 'qwen2.5-coder' }` |
 | `browsers` | Engines to check in: `["chromium", "webkit", "firefox"]` (default Chromium only) |
-| `states` | Most menus, dialogs and expandable sections to open per page (default 5), or `false` |
+| `states` | Most menus, dialogs, tabs and expandable sections to open per page (default 5), or `false` |
 | `concurrency` | Browser tabs to use at once (default half your CPU cores, up to 4) |
 | `memoryLimit` | Most memory the dev server and browser may use together, e.g. `"6GB"`, `"50%"` or `"off"` (default 60% of your memory) |
 
@@ -351,7 +351,7 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 --fail-on <level>       Exit 1 at error, warning, info or none (default error)
 --pdf                   Also write report.pdf
 --no-screenshots        Skip screenshots
---no-states             Don't open menus, dialogs and expandable sections
+--no-states             Don't open menus, dialogs, tabs and expandable sections
 --browsers <list>       Also check other engines, e.g. chromium,webkit,firefox
 --vision                Also ask your own vision model what looks off (info only)
 --concurrency <n>       Browser tabs to use at once

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+
+- Tabs are scanned too. Each tab that isn't selected (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI) is opened in turn, so a layout that breaks only on the second tab is found, as `with the "Quizzes" tab open`.
+
 ## 1.0.3
 
 - Dynamic routes below a page that was found reuse its values: once `/cohorts/css-101` is scanned, `/cohorts/[slug]/settings` is too, with no config.

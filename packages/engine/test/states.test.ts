@@ -61,6 +61,9 @@ describe('choosing what to open', () => {
     expect(describeState({ kind: 'details', label: 'Specs', trigger: 'summary' })).toBe(
       'with "Specs" expanded',
     );
+    expect(describeState({ kind: 'tab', label: 'Quizzes', trigger: 'b' })).toBe(
+      'with the "Quizzes" tab open',
+    );
   });
 });
 
@@ -96,5 +99,24 @@ describe('scanning a page with a dialog', () => {
     const result = await scanner.scanPage(url, { ...QUICK, states: 0 });
     expect(result.states).toBeUndefined();
     expect(result.issues).toEqual([]);
+  });
+});
+
+describe('scanning a page with tabs', () => {
+  const scanner = new Scanner();
+  afterAll(() => scanner.close());
+  const url = pathToFileURL(
+    join(import.meta.dirname, '../../../fixtures/pages/bug-tabs.html'),
+  ).href;
+
+  it('opens each tab that is not selected, and finds what breaks only in it', async () => {
+    const result = await scanner.scanPage(url, { minWidth: 320, maxWidth: 800 });
+    expect(result.states?.map((s) => [s.kind, s.label, s.trigger])).toEqual([
+      ['tab', 'Schedule', '#t2'],
+      ['tab', 'Settings', '#t3'],
+    ]);
+    expect(result.issues.map((i) => i.title)).toEqual([
+      'Page scrolls horizontally (160px wider than the viewport), with the "Schedule" tab open',
+    ]);
   });
 });

@@ -41,7 +41,7 @@ Running breakhound through `npx` without installing it, you get `breakhound.conf
 | `vision` | `true` to add a vision model's opinion, or `{ model, provider, widths }` |
 | `fix` | The model `breakhound fix` uses: `{ provider: 'ollama', model: 'qwen2.5-coder' }` |
 | `browsers` | Engines to check in: `["chromium", "webkit", "firefox"]` (default Chromium only) |
-| `states` | Most menus, dialogs and expandable sections to open per page (default 5), or `false` |
+| `states` | Most menus, dialogs, tabs and expandable sections to open per page (default 5), or `false` |
 | `concurrency` | Browser tabs to use at once (default half your CPU cores, up to 4) |
 | `memoryLimit` | Most memory the dev server and browser may use together, e.g. `"6GB"`, `"50%"` or `"off"` (default 60% of your memory) |
 

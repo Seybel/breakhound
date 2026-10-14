@@ -26,15 +26,15 @@ Chromium finds most layout bugs, but Safari and Firefox lay some things out diff
 
 Two differences you'll meet early: Safari gives buttons, inputs and selects an 11px font unless you set one (Chrome and Firefox use about 13px), so unstyled controls show up as tiny text only in WebKit, with `font: inherit` as the fix (that's WebKit on a Mac: Playwright's WebKit on Linux, as in most CI, draws them like Chrome); and Firefox breaks long URLs at their slashes, so a URL that pushes the page wide in Chrome and Safari can wrap fine in Firefox.
 
-## Menus, dialogs and expandable sections
+## Menus, dialogs, tabs and expandable sections
 
-A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign-up modal, an FAQ answer. After scanning a page as it loads, breakhound opens what it finds there one at a time and sweeps the widths where each can be opened. That covers buttons with `aria-expanded`, `<details>`, popovers, dialogs, Bootstrap toggles, and buttons that are clearly a menu (`hamburger`, `menu-toggle`, an accessible name of "Menu"). Only what breaks while something is open gets reported, with what to open first:
+A lot of what breaks on a phone is hidden until you tap: the mobile menu, a sign-up modal, an FAQ answer, the second tab. After scanning a page as it loads, breakhound opens what it finds there one at a time and sweeps the widths where each can be opened. That covers buttons with `aria-expanded`, `<details>`, popovers, dialogs, tabs (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI), Bootstrap toggles, and buttons that are clearly a menu (`hamburger`, `menu-toggle`, an accessible name of "Menu"). Only what breaks while something is open gets reported, with what to open first:
 
 ```
 ✖ 320–399px  Page scrolls horizontally (80px wider than the viewport), with "Menu" open
 ```
 
-It never clicks a link to another page or a button that submits a form, and it opens only one question of an FAQ, since they all share a layout. It opens up to 5 per page. Set `states` to change that, or `--no-states` (or `data-breakhound-ignore="states"` on an element) to leave them closed.
+It never clicks a link to another page or a button that submits a form, and it opens only one question of an FAQ, since they all share a layout, but every tab, since each shows something different. It opens up to 5 per page. Set `states` to change that, or `--no-states` (or `data-breakhound-ignore="states"` on an element) to leave them closed.
 
 ## A second opinion from a vision model (optional)
 

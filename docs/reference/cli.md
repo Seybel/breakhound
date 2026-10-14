@@ -26,7 +26,7 @@ breakhound mcp                 Run the MCP server (your agent starts it)
 --fail-on <level>       Exit 1 at error, warning, info or none (default error)
 --pdf                   Also write report.pdf
 --no-screenshots        Skip screenshots
---no-states             Don't open menus, dialogs and expandable sections
+--no-states             Don't open menus, dialogs, tabs and expandable sections
 --browsers <list>       Also check other engines, e.g. chromium,webkit,firefox
 --vision                Also ask your own vision model what looks off (info only)
 --concurrency <n>       Browser tabs to use at once

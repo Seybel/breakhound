@@ -3,11 +3,12 @@ import { cachedSelector, resolveSelector } from './selector';
 import type { IgnoreRule, Toggle, ToggleKind } from './types';
 
 /**
- * Elements that say they open something. Plain buttons are only taken when
- * their name says menu (see MENU_CLASS and MENU_LABEL), because clicking an
+ * Elements that say they open something, and tabs. Plain buttons are only taken
+ * when their name says menu (see MENU_CLASS and MENU_LABEL), because clicking an
  * arbitrary button can do anything.
  */
 const CANDIDATES = [
+  '[role="tab"]',
   '[aria-expanded]',
   '[aria-haspopup]',
   '[popovertarget]',
@@ -89,6 +90,9 @@ function kindOf(el: Element): ToggleKind | null {
     return details.open || details.querySelector(':scope > summary') !== el ? null : 'details';
   }
   if (el.matches('input, select, textarea, [role="combobox"], [contenteditable]')) return null;
+  // The selected tab is what the scan already saw.
+  if (el.getAttribute('role') === 'tab')
+    return el.getAttribute('aria-selected') === 'true' ? null : 'tab';
   if (el.hasAttribute('popovertarget')) {
     return el.getAttribute('popovertargetaction') === 'hide' ? null : 'popover';
   }
@@ -167,6 +171,7 @@ const PRIORITY: Record<ToggleKind, number> = {
   menu: 0,
   dialog: 0,
   popover: 1,
+  tab: 1,
   disclosure: 2,
   details: 3,
 };
@@ -191,7 +196,8 @@ export function findToggles(rules: IgnoreRule[] = []): Toggle[] {
       selector: cachedSelector(el),
       kind,
       label: shortLabel(el, kind),
-      group: groupOf(el, kind),
+      // Each tab shows different content, unlike the questions of an FAQ.
+      group: kind === 'tab' ? `tab|${cachedSelector(el)}` : groupOf(el, kind),
       priority: PRIORITY[kind] * 2 + (inHeader ? 0 : 1),
     });
   }
@@ -210,6 +216,8 @@ export function toggleState(selector: string): { shown: boolean; open: boolean |
   if (el.matches('details > summary')) {
     return { shown, open: (el.parentElement as HTMLDetailsElement).open };
   }
+  if (el.getAttribute('role') === 'tab')
+    return { shown, open: el.getAttribute('aria-selected') === 'true' };
   const expanded = el.getAttribute('aria-expanded');
   if (expanded === 'true' || expanded === 'false') return { shown, open: expanded === 'true' };
   const target = targetOf(el, 'popovertarget') ?? targetOf(el, 'commandfor');
