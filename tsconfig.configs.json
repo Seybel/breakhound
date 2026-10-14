@@ -1,0 +1,9 @@
+{
+  // The build and test config files, which the packages' own tsconfigs (src only) don't cover.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["vitest.config.ts", "packages/*/tsup.config.ts", "docs/.vitepress/config.mts"]
+}

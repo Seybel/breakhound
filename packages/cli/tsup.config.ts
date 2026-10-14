@@ -1,12 +1,12 @@
 import { copyFileSync } from 'node:fs';
-import { defineConfig } from 'tsup';
+import { defineConfig, type Options } from 'tsup';
 
 // The internal @breakhound/* packages are bundled in, and so is magic-string
 // (small, and ESM/CommonJS interop would otherwise differ between the plugin
 // builds). Only real npm deps stay external.
-const shared = {
-  format: ['esm'] as const,
-  platform: 'node' as const,
+const shared: Options = {
+  format: ['esm'],
+  platform: 'node',
   target: 'node20',
   noExternal: [/^@breakhound\//],
   external: ['playwright', 'jiti', '@babel/parser'],

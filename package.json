@@ -19,7 +19,7 @@
     "dev": "npm run build:analyzers && tsx packages/cli/src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p packages/analyzers && tsc -p packages/engine && tsc -p packages/routes && tsc -p packages/source && tsc -p packages/report && tsc -p packages/cli && tsc -p packages/extension",
+    "typecheck": "tsc -p packages/analyzers && tsc -p packages/engine && tsc -p packages/routes && tsc -p packages/source && tsc -p packages/report && tsc -p packages/cli && tsc -p packages/extension && tsc -p tsconfig.configs.json",
     "lint": "biome check .",
     "format": "biome check --write .",
     "build": "npm run build -w @seybel/breakhound",
