@@ -45,7 +45,13 @@ In your project folder:
 npx @seybel/breakhound
 ```
 
-That's it: no config. To keep it in your project instead, `npm i -D @seybel/breakhound`; the command it installs is `breakhound`.
+That's it: no config. npx runs it without installing anything. To type `breakhound` directly instead, install it globally:
+
+```bash
+npm i -g @seybel/breakhound
+```
+
+Or add it to your project with `npm i -D @seybel/breakhound`, so everyone gets the same version, and run it as `npx breakhound` or from an npm script.
 
 If your dev server is already running it's used, otherwise breakhound starts it with your `dev` script and stops it when done. Chromium is downloaded automatically the first time (about 150 MB).
 
@@ -312,7 +318,7 @@ You can also mark elements in your markup:
 
 ## CLI
 
-Run these with `npx @seybel/breakhound`, or as `breakhound` once it's installed in your project (in npm scripts, for example).
+Run these with `npx @seybel/breakhound`, or as `breakhound` after `npm i -g @seybel/breakhound`. Installed in a project, it's `npx breakhound` or an npm script.
 
 ```
 breakhound                     Find your app and scan every route

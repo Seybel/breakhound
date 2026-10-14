@@ -29,7 +29,7 @@ const VERSION = readVersion();
 
 const HELP = `breakhound ${VERSION}
 Find where your layout breaks across every viewport width.
-Run it with npx @seybel/breakhound, or as breakhound once it's installed in your project.
+Run it with npx @seybel/breakhound, or as breakhound after npm i -g @seybel/breakhound.
 
 Usage
   breakhound                     Find your app and scan every route

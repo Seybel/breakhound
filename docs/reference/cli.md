@@ -1,6 +1,6 @@
 # Command line
 
-Run these with `npx @seybel/breakhound`, or as `breakhound` once it's installed in your project (in npm scripts, for example).
+Run these with `npx @seybel/breakhound`, or as `breakhound` after `npm i -g @seybel/breakhound`. Installed in a project, it's `npx breakhound` or an npm script.
 
 ```
 breakhound                     Find your app and scan every route
