@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.5
+
+- Clearer examples for dynamic routes and `params` in the docs, `--help` and config errors.
+
 ## 1.0.4
 
 - Tabs are scanned too. Each tab that isn't selected (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI) is opened in turn, so a layout that breaks only on the second tab is found, as `with the "Billing" tab open`.
