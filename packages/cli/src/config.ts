@@ -142,7 +142,7 @@ export function validateConfig(config: BreakhoundConfig): string[] {
       Object.values(config.params).every((v) => typeof v === 'string' && v !== '');
     if (!ok) {
       throw new Error(
-        `params must give dynamic route parameters a real value by name, like { "slug": "css-101" }`,
+        `params must give dynamic route parameters a real value by name, like { "username": "jane" }`,
       );
     }
   }

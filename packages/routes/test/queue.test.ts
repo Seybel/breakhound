@@ -20,51 +20,50 @@ function filled(
 describe('dynamic routes no link fits', () => {
   it('reuse the values of a parent route a real link was found for', () => {
     const { urls, missing } = filled(
-      ['/cohorts/[slug]', '/cohorts/[slug]/settings', '/cohorts/[slug]/members/[memberId]'],
-      ['/cohorts/css-101'],
+      ['/users/[username]', '/users/[username]/settings', '/users/[username]/orders/[orderId]'],
+      ['/users/jane'],
     );
     expect(urls).toEqual({
-      '/cohorts/[slug]': '/cohorts/css-101',
-      '/cohorts/[slug]/settings': '/cohorts/css-101/settings',
+      '/users/[username]': '/users/jane',
+      '/users/[username]/settings': '/users/jane/settings',
     });
     // Only what nothing gave a value is asked for.
-    expect(missing).toEqual({ '/cohorts/[slug]/members/[memberId]': ['memberId'] });
+    expect(missing).toEqual({ '/users/[username]/orders/[orderId]': ['orderId'] });
   });
 
   it('take the values params names, however deep the route', () => {
     const { urls, missing } = filled(
-      ['/cohorts/[slug]', '/cohorts/[slug]/submissions/assignment/[submissionId]'],
-      ['/cohorts/css-101'],
-      { params: { submissionId: '42' } },
+      ['/users/[username]', '/users/[username]/orders/history/[orderId]'],
+      ['/users/jane'],
+      { params: { orderId: '1001' } },
     );
-    expect(urls['/cohorts/[slug]/submissions/assignment/[submissionId]']).toBe(
-      '/cohorts/css-101/submissions/assignment/42',
+    expect(urls['/users/[username]/orders/history/[orderId]']).toBe(
+      '/users/jane/orders/history/1001',
     );
     expect(missing).toEqual({});
     // With no link at all, params can give every value.
     expect(
-      filled(['/cohorts/[slug]/submissions/assignment/[submissionId]'], [], {
-        params: { slug: '1', submissionId: '1' },
+      filled(['/users/[username]/orders/history/[orderId]'], [], {
+        params: { username: '1', orderId: '1' },
       }).urls,
     ).toEqual({
-      '/cohorts/[slug]/submissions/assignment/[submissionId]':
-        '/cohorts/1/submissions/assignment/1',
+      '/users/[username]/orders/history/[orderId]': '/users/1/orders/history/1',
     });
   });
 
   it('prefer a real link, then a sample, over values they are filled from', () => {
     const { urls } = filled(
-      ['/cohorts/[slug]', '/cohorts/[slug]/settings', '/cohorts/[slug]/lessons/[lesson]'],
-      ['/cohorts/css-101', '/cohorts/js-201/settings'],
+      ['/users/[username]', '/users/[username]/settings', '/users/[username]/orders/[orderId]'],
+      ['/users/jane', '/users/sam/settings'],
       {
-        samples: { '/cohorts/[slug]/lessons/[lesson]': '/cohorts/html-1/lessons/intro' },
-        params: { slug: 'from-params', lesson: 'from-params' },
+        samples: { '/users/[username]/orders/[orderId]': '/users/alex/orders/7' },
+        params: { username: 'from-params', orderId: 'from-params' },
       },
     );
     expect(urls).toEqual({
-      '/cohorts/[slug]/lessons/[lesson]': '/cohorts/html-1/lessons/intro',
-      '/cohorts/[slug]': '/cohorts/css-101',
-      '/cohorts/[slug]/settings': '/cohorts/js-201/settings',
+      '/users/[username]/orders/[orderId]': '/users/alex/orders/7',
+      '/users/[username]': '/users/jane',
+      '/users/[username]/settings': '/users/sam/settings',
     });
   });
 

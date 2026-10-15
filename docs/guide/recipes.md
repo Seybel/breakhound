@@ -48,7 +48,7 @@ breakhound still finds the routes from your project, then scans them on that ser
 Routes like `/products/[id]` are scanned once, with a real link found on your pages, and routes below a found page reuse its values. For the rest, name a real value for each parameter once, and every route that uses it is filled in, however deep:
 
 ```ts
-params: { slug: 'css-101', submissionId: '42' }
+params: { username: 'jane', orderId: '1001' }
 ```
 
 To give one route its own address instead:

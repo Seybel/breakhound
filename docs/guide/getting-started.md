@@ -43,10 +43,10 @@ npx @seybel/breakhound --url https://staging.example.com   # every route, on ano
 | Angular | your route definitions, from `src/main.ts` on, with lazily loaded `loadChildren` routes under their path |
 | Anything else | links followed from the home page (up to 50 pages, a few per section) |
 
-**Dynamic routes** like `/blog/[slug]` are scanned once, using a real link found on your pages (routes that share a template share a layout). Routes below one reuse its values: once `/cohorts/css-101` is found, `/cohorts/[slug]/settings` is scanned as `/cohorts/css-101/settings`. If something is still missing, it's listed with a hint naming the parameters. Give them a real value once, by name, and every route that uses them is filled in:
+**Dynamic routes** like `/blog/[slug]` are scanned once, using a real link found on your pages (routes that share a template share a layout). Routes below one reuse its values: once `/users/jane` is found, `/users/[username]/settings` is scanned as `/users/jane/settings`. If something is still missing, it's listed with a hint naming the parameters. Give them a real value once, by name, and every route that uses them is filled in:
 
 ```ts
-params: { slug: 'css-101', submissionId: '42' }
+params: { username: 'jane', orderId: '1001' }
 ```
 
 Or give one route its own URL, which wins over `params`:

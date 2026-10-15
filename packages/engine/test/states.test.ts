@@ -61,8 +61,8 @@ describe('choosing what to open', () => {
     expect(describeState({ kind: 'details', label: 'Specs', trigger: 'summary' })).toBe(
       'with "Specs" expanded',
     );
-    expect(describeState({ kind: 'tab', label: 'Quizzes', trigger: 'b' })).toBe(
-      'with the "Quizzes" tab open',
+    expect(describeState({ kind: 'tab', label: 'Billing', trigger: 'b' })).toBe(
+      'with the "Billing" tab open',
     );
   });
 });

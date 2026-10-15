@@ -55,8 +55,8 @@ export class RouteQueue {
   /** For routes left waiting at the end: the parameters nothing gave a value. */
   readonly missing = new Map<string, string[]>();
   /**
-   * Values parameters took in real URLs, under the route they belong to: `/cohorts/[slug]` →
-   * `css-101`. Routes below it reuse them, since a child of a real page is real too.
+   * Values parameters took in real URLs, under the route they belong to: `/users/[username]` →
+   * `jane`. Routes below it reuse them, since a child of a real page is real too.
    */
   private readonly seen = new Map<string, string>();
   readonly patterns = new Map<string, RoutePattern>();

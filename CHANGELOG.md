@@ -2,14 +2,14 @@
 
 ## 1.0.4
 
-- Tabs are scanned too. Each tab that isn't selected (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI) is opened in turn, so a layout that breaks only on the second tab is found, as `with the "Quizzes" tab open`.
+- Tabs are scanned too. Each tab that isn't selected (`role="tab"`, as in Radix, shadcn/ui, Headless UI and MUI) is opened in turn, so a layout that breaks only on the second tab is found, as `with the "Billing" tab open`.
 - Tabs scrolled out of sight in a tab bar that scrolls sideways are opened too.
 - Menus whose button changes its class when opened, like Bootstrap's `navbar-toggler collapsed`, are scanned open again. They were skipped before.
 
 ## 1.0.3
 
-- Dynamic routes below a page that was found reuse its values: once `/cohorts/css-101` is scanned, `/cohorts/[slug]/settings` is too, with no config.
-- New `params` option gives dynamic route parameters a real value by name, for every route that uses them: `params: { slug: 'css-101', submissionId: '42' }`. The hint for routes left out names just the parameters still missing.
+- Dynamic routes below a page that was found reuse its values: once `/users/jane` is scanned, `/users/[username]/settings` is too, with no config.
+- New `params` option gives dynamic route parameters a real value by name, for every route that uses them: `params: { username: 'jane', orderId: '1001' }`. The hint for routes left out names just the parameters still missing.
 - The HTML report shows the breakhound logo.
 
 ## 1.0.2

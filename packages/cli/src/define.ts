@@ -17,7 +17,7 @@ export interface BreakhoundConfig {
   samples?: Record<string, string>;
   /**
    * Values for dynamic route parameters by name, for routes no link on your pages fits,
-   * e.g. { slug: 'css-101', submissionId: '42' }. Every route using those names is filled in;
+   * e.g. { username: 'jane', orderId: '1001' }. Every route using those names is filled in;
    * a parent route's real URL fills its own parameters for the routes below it already.
    */
   params?: Record<string, string>;
