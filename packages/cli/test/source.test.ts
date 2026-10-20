@@ -1,8 +1,11 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { RouteResult } from '@breakhound/report';
 import { vitePlugin } from '@breakhound/source';
 import { createServer, type ViteDevServer } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
-import { runScan } from '../src/scan';
+import { relativeSources, runScan } from '../src/scan';
 
 const root = join(import.meta.dirname, '../../../fixtures/apps/vite-source');
 const servers: ViteDevServer[] = [];
@@ -58,5 +61,17 @@ describe('source locations', () => {
       component: 'App',
       exact: false,
     });
+  });
+});
+
+describe('source paths at the root of a monorepo', () => {
+  it('are relative to where breakhound ran, not to the app it found there', () => {
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-sources-'));
+    mkdirSync(join(root, 'apps/web/src'), { recursive: true });
+    writeFileSync(join(root, 'apps/web/src/App.jsx'), '');
+    const element = { selector: '.banner', source: { file: '/src/App.jsx', exact: true } };
+    const routes = [{ issues: [{ element }] }] as unknown as RouteResult[];
+    relativeSources(routes, join(root, 'apps/web'), '', join('apps', 'web'));
+    expect(element.source).toEqual({ file: 'apps/web/src/App.jsx', exact: true });
   });
 });

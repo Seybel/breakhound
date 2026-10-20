@@ -176,14 +176,24 @@ export function projectPath(file: string, root: string, basePath = ''): string |
   return null;
 }
 
-function relativeSources(routes: RouteResult[], root: string, basePath: string): void {
+/**
+ * Makes issue source paths relative to where breakhound ran: the app's own folder, or with
+ * `workspace` (run at a monorepo's root), that folder below it.
+ */
+export function relativeSources(
+  routes: RouteResult[],
+  root: string,
+  basePath: string,
+  workspace = '',
+): void {
+  const prefix = workspace ? `${workspace.split(sep).join('/')}/` : '';
   for (const route of routes) {
     for (const issue of route.issues) {
       for (const element of [issue.element, issue.related]) {
         const source = element?.source;
         if (!element || !source) continue;
         const file = projectPath(source.file, root, basePath);
-        element.source = file ? { ...source, file } : null;
+        element.source = file ? { ...source, file: `${prefix}${file}` } : null;
       }
     }
   }
@@ -498,7 +508,12 @@ async function scan(req: ScanRequest): Promise<ScanOutcome> {
   }
 
   applySeverity(routes, config);
-  relativeSources(routes, app?.project?.root ?? cwd, app?.project?.basePath ?? '');
+  relativeSources(
+    routes,
+    app?.project?.root ?? cwd,
+    app?.project?.basePath ?? '',
+    app?.project?.workspace,
+  );
   const firstUrl = pageTargets[0]?.url;
   const baseUrl =
     app?.baseUrl ??
@@ -556,7 +571,7 @@ export async function saveExtensionScan(
     issues: r.issues.filter((i) => off[i.detector] !== false),
   }));
   applySeverity(routes, config);
-  relativeSources(routes, project?.root ?? cwd, project?.basePath ?? '');
+  relativeSources(routes, project?.root ?? cwd, project?.basePath ?? '', project?.workspace);
   const framework = project?.framework;
   const result = createScanResult(routes, {
     version: sent.tool.version,

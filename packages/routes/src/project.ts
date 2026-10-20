@@ -212,6 +212,10 @@ export function normalizeBasePath(path: string): string {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
+/** Monorepo tools that run the dev scripts of the packages, not a dev server of their own. */
+const RUNS_PACKAGES =
+  /\b(turbo|nx|lerna|moon)\b|\bpnpm\b.*\s(-r|--recursive|--filter|-F)\b|\b(npm|yarn|bun)\b.*\s(--workspaces?|-w|--filter|workspaces?)\b/;
+
 /** The package folders a monorepo lists, in package.json `workspaces` or pnpm-workspace.yaml. */
 function workspaceDirs(root: string, pkg: PackageJson): string[] {
   const globs = Array.isArray(pkg.workspaces)
@@ -281,7 +285,10 @@ export function detectProject(cwd: string): Project | null {
   if (!pkg) return null;
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const framework = detectFramework(deps);
-  const apps = framework.id === 'unknown' ? workspaceApps(cwd, pkg) : [];
+  const own = pickDevScript(pkg.scripts ?? {});
+  // A root with a framework is an app, unless its dev script runs its packages' (turbo dev).
+  const isApp = framework.id !== 'unknown' && !!own && !RUNS_PACKAGES.test(own.command);
+  const apps = isApp ? [] : workspaceApps(cwd, pkg);
   if (apps.length === 1) {
     const app = detectProject(apps[0] as string);
     if (app) return { ...app, workspace: relative(cwd, apps[0] as string) };

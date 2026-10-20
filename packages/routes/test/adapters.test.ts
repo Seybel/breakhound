@@ -424,6 +424,32 @@ describe('monorepos', () => {
     ]);
   });
 
+  it('looks past a framework the root only depends on, when its dev script runs the packages', () => {
+    const files = {
+      'apps/web/package.json': app({ next: '*' }, 'next dev'),
+    };
+    const runner = project({
+      ...files,
+      'package.json': JSON.stringify({
+        workspaces: ['apps/*'],
+        scripts: { dev: 'turbo run dev' },
+        devDependencies: { react: '*' },
+      }),
+    });
+    expect(detectProject(runner)?.workspace).toBe(join('apps', 'web'));
+    // Its own server (with React in it) makes the root an app, whatever its workspaces hold.
+    const own = project({
+      ...files,
+      'package.json': JSON.stringify({
+        workspaces: ['apps/*'],
+        scripts: { dev: 'node server.js' },
+        dependencies: { react: '*' },
+      }),
+    });
+    expect(detectProject(own)?.root).toBe(own);
+    expect(detectProject(own)?.workspace).toBeUndefined();
+  });
+
   it('leaves a root that is an app itself alone', () => {
     const root = project({
       'package.json': JSON.stringify({

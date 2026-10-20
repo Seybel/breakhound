@@ -79,16 +79,21 @@ export async function resolveServer(
       'No package.json here, so there is no app to find. Run breakhound in your project folder, or pass a URL: npx @seybel/breakhound http://localhost:3000',
     );
   }
-  if (config.server?.port) {
-    project.ports = [config.server.port, ...project.ports.filter((p) => p !== config.server?.port)];
-    project.configuredPorts = [config.server.port, ...project.configuredPorts];
-  }
+  const withPort = (p: Project): Project => {
+    const port = config.server?.port;
+    if (!port) return p;
+    p.ports = [port, ...p.ports.filter((q) => q !== port)];
+    p.configuredPorts = [port, ...p.configuredPorts];
+    return p;
+  };
+  withPort(project);
   if (project.workspace) log(quiet, styleText('dim', `Using the app in ${project.workspace}`));
   if (project.apps && !config.server?.command) {
     // At a monorepo's root with several apps: the one already running, if just one is.
     const found = await Promise.all(
       project.apps.map(async (dir) => {
-        const app = detectProject(join(cwd, dir));
+        const found = detectProject(join(cwd, dir));
+        const app = found && withPort(found);
         const running = app ? await findRunningServer(app) : null;
         return app && running ? { dir, app, running } : null;
       }),
@@ -117,7 +122,8 @@ export async function resolveServer(
   // Watched for memory from its first second: a big app's first compile is the heaviest part.
   let pid: number | undefined;
   const started = await startServer(project, {
-    ...(command ? { command } : {}),
+    // A command from the config runs where breakhound was run, like the user would run it.
+    ...(command ? { command, cwd } : {}),
     ...(config.server?.port ? { port: config.server.port } : {}),
     ...(config.server?.timeout ? { timeoutMs: config.server.timeout * 1000 } : {}),
     onSpawn: (id) => {

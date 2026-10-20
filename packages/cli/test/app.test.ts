@@ -287,6 +287,29 @@ describe('an app that is already running', () => {
     }
   });
 
+  it('runs a dev command from the config where breakhound runs, not in the app it found', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-command-'));
+    mkdirSync(join(root, 'apps/web'), { recursive: true });
+    writeFileSync(
+      join(root, 'package.json'),
+      JSON.stringify({ workspaces: ['apps/*'], scripts: { dev: 'turbo dev' } }),
+    );
+    writeFileSync(
+      join(root, 'apps/web/package.json'),
+      JSON.stringify({ scripts: { dev: 'vite' }, dependencies: { vite: '*' } }),
+    );
+    // Only at the root: started in apps/web, the command would fail.
+    writeFileSync(join(root, 'server.mjs'), SERVER);
+    const app = await resolveServer(root, { server: { command: 'node server.mjs' } }, true);
+    try {
+      expect(app.server).not.toBeNull();
+      expect(app.project?.workspace).toBe(join('apps', 'web'));
+      expect(app.baseUrl).toMatch(/^http:\/\/localhost:\d+$/);
+    } finally {
+      await app.server?.stop();
+    }
+  });
+
   it('picks the running app at the root of a monorepo with several', async () => {
     const entry = `/src/web-${Date.now()}.ts`;
     const { server, port } = await serving(

@@ -181,6 +181,8 @@ export interface StartOptions {
   command?: string;
   /** Fixed port to wait on, when the command doesn't print its URL. */
   port?: number;
+  /** Where to run it; the project's folder by default. */
+  cwd?: string;
   timeoutMs?: number;
   /** Receives the server's output, for troubleshooting. */
   onOutput?: (line: string) => void;
@@ -231,7 +233,7 @@ export async function startServer(
   }
   const timeoutMs = options.timeoutMs ?? 120_000;
   const child = spawn(command, {
-    cwd: project.root,
+    cwd: options.cwd ?? project.root,
     shell: true,
     detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -278,7 +280,7 @@ export async function startServer(
       // Some dev servers exit when the app is already running, naming where (Next.js does).
       const printed = printedUrl as string | null;
       const page = printed ? await probe(`${printed}/`, 5000) : null;
-      if (printed && page && page.status < 500) {
+      if (printed && page && page.status < 500 && looksLikeProject(project, page, true)) {
         process.removeListener('exit', cleanup);
         return { url: printed, alreadyRunning: true, stop: async () => {} };
       }
