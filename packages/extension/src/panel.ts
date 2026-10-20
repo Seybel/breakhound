@@ -179,6 +179,7 @@ function h<K extends keyof HTMLElementTagNameMap>(
 }
 
 const ICONS = {
+  open: '<path d="M9.5 2.5h4v4M13.5 2.5 8 8M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>',
   stop: '<rect x="4" y="4" width="8" height="8" rx="1.6" fill="currentColor"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 3.6V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.6" fill="none" stroke="currentColor" stroke-width="1.4"/>',
   check:
@@ -229,14 +230,41 @@ let noticeAction: ((b: HTMLButtonElement) => void) | null = null;
 function notify(
   message: string | null,
   kind: 'error' | 'note' = 'error',
-  action?: { label: string; run: (b: HTMLButtonElement) => void },
+  action?: { label: string; run: (b: HTMLButtonElement) => void; icon?: keyof typeof ICONS },
 ): void {
   ui.notice.hidden = !message;
   ui.notice.classList.toggle('error', kind === 'error');
   ui.noticeText.textContent = message ?? '';
   noticeAction = action?.run ?? null;
   ui.noticeAction.hidden = !action;
-  if (action) label(ui.noticeAction, 'copy', action.label);
+  if (action) label(ui.noticeAction, action.icon ?? 'copy', action.label);
+}
+
+const FILE_ACCESS =
+  'To scan a page opened from a file, turn on "Allow access to file URLs" for breakhound. Chrome restarts breakhound when you do, so open it again after.';
+
+/** Chrome keeps extensions out of file:// pages until the developer allows it, once. */
+async function needsFileAccess(): Promise<boolean> {
+  const url = await tabUrl();
+  if (!url?.startsWith('file:')) return false;
+  try {
+    return !(await chrome.extension.isAllowedFileSchemeAccess());
+  } catch {
+    return false;
+  }
+}
+
+function askForFileAccess(): void {
+  const settings = `chrome://extensions/?id=${chrome.runtime.id}`;
+  notify(FILE_ACCESS, 'error', {
+    label: 'Open settings',
+    icon: 'open',
+    run: () => {
+      chrome.tabs.create({ url: settings }).catch(() => {
+        notify(`${FILE_ACCESS} It's on breakhound's page at ${settings}`);
+      });
+    },
+  });
 }
 
 // ---- settings, remembered per browser ----
@@ -708,6 +736,10 @@ async function scan(check?: {
     );
     return { error: 'No widths' };
   }
+  if (await needsFileAccess()) {
+    if (!check) askForFileAccess();
+    return { error: FILE_ACCESS };
+  }
   if (!check) saveSettings();
   notify(null);
   await resetView();
@@ -809,11 +841,14 @@ async function scan(check?: {
     } else {
       const message = error instanceof Error ? error.message : String(error);
       failure = message;
-      notify(
-        /detached|target closed|No tab with given id/i.test(message)
-          ? 'The scan stopped because the debugging bar was closed or the tab went away.'
-          : `The scan failed: ${message}`,
-      );
+      // Chrome says so as the scan reloads the page, or attaches to it.
+      if (/file URL|file:\/\//i.test(message)) askForFileAccess();
+      else
+        notify(
+          /detached|target closed|No tab with given id/i.test(message)
+            ? 'The scan stopped because the debugging bar was closed or the tab went away.'
+            : `The scan failed: ${message}`,
+        );
     }
   } finally {
     clearInterval(tick);

@@ -4,6 +4,7 @@
 
 - Works at the root of a monorepo: breakhound finds the app in your workspaces, or with several apps, the one that's running.
 - When the dev server is already running and the dev command exits because of it (as Next.js does), breakhound uses the running app instead of failing.
+- The extension explains how to scan a page opened from a file, and opens the setting Chrome needs for it, instead of failing with Chrome's error.
 
 ## 1.0.5
 

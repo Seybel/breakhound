@@ -25,6 +25,7 @@ declare namespace chrome {
   export { _debugger as debugger };
 
   export namespace runtime {
+    const id: string;
     const lastError: { message?: string } | undefined;
     function getManifest(): { version: string };
     const onInstalled: { addListener(callback: () => void): void };
@@ -40,6 +41,12 @@ declare namespace chrome {
         callback: (tabId: number, changeInfo: { status?: 'loading' | 'complete' }) => void,
       ): void;
     };
+    function create(properties: { url: string }): Promise<Tab>;
+  }
+
+  export namespace extension {
+    /** Whether "Allow access to file URLs" is on for this extension. */
+    function isAllowedFileSchemeAccess(): Promise<boolean>;
   }
 
   export namespace sidePanel {

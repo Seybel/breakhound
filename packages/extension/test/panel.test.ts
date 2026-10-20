@@ -4,6 +4,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { type BrowserContext, chromium, type Page, type Worker } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startBridge } from '../../cli/src/bridge';
@@ -453,6 +454,32 @@ describe('the DevTools panel', () => {
     // Widths are remembered for next time.
     await panel.reload();
     expect(await panel.inputValue('#max')).toBe('1440');
+    await site.close();
+    await panel.close();
+  });
+});
+
+describe('a page opened from a file', () => {
+  it('asks for file access before scanning, and opens the setting', async () => {
+    const { site, panel } = await openAt(pathToFileURL(join(PAGES, 'bug-fixed-width.html')).href);
+    // Extensions loaded from the command line get file access; a store install starts without it.
+    await panel.evaluate(() => {
+      const { chrome } = globalThis as unknown as {
+        chrome: { extension: { isAllowedFileSchemeAccess: () => Promise<boolean> } };
+      };
+      chrome.extension.isAllowedFileSchemeAccess = async () => false;
+    });
+    await panel.click('#scan');
+    await expect
+      .poll(() => panel.locator('#notice-text').textContent())
+      .toContain('turn on "Allow access to file URLs" for breakhound');
+    expect(await panel.evaluate(() => document.body.dataset.phase)).not.toBe('scanning');
+    const [settings] = await Promise.all([
+      context.waitForEvent('page'),
+      panel.click('#notice-action'),
+    ]);
+    expect(settings.url()).toBe(`chrome://extensions/?id=${extensionId}`);
+    await settings.close();
     await site.close();
     await panel.close();
   });
