@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+
+- A shorter README, with the details on the docs site.
+
 ## 1.0.6
 
 - Works at the root of a monorepo: breakhound finds the app in your workspaces, or with several apps, the one that's running.

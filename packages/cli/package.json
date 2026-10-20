@@ -1,6 +1,6 @@
 {
   "name": "@seybel/breakhound",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Find where your layout breaks across every viewport width, then hand the fix to your coding agent.",
   "keywords": [
     "responsive",
@@ -11,7 +11,7 @@
     "playwright",
     "mcp"
   ],
-  "homepage": "https://github.com/Seybel/breakhound#readme",
+  "homepage": "https://seybel.github.io/breakhound/",
   "bugs": {
     "url": "https://github.com/Seybel/breakhound/issues"
   },
