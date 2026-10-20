@@ -65,6 +65,6 @@ Fixture pages are synthetic: build them from scratch, and never copy markup from
 - One change per pull request, with a test that fails without it.
 - `npm run lint`, `npm run typecheck` and `npm test` pass.
 - User-facing text is plain and specific: say what happened and what to do next.
-- New options go in the README and in `define.ts`, so the config schema picks them up.
+- New options go in the docs (`docs/reference/config.md`) and in `define.ts`, so the config schema picks them up.
 
 By contributing you agree that your work is released under the [MIT License](LICENSE).

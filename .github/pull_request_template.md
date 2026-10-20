@@ -2,4 +2,4 @@
 
 - [ ] A test that fails without this change
 - [ ] `npm run lint`, `npm run typecheck` and `npm test` pass
-- [ ] The README says how to use anything new
+- [ ] The docs (`docs/`) say how to use anything new
