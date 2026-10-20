@@ -1,6 +1,6 @@
 {
   "name": "@seybel/breakhound",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Find where your layout breaks across every viewport width, then hand the fix to your coding agent.",
   "keywords": [
     "responsive",

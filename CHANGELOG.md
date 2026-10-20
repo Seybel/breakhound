@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6
+
+- Works at the root of a monorepo: breakhound finds the app in your workspaces, or with several apps, the one that's running.
+- When the dev server is already running and the dev command exits because of it (as Next.js does), breakhound uses the running app instead of failing.
+
 ## 1.0.5
 
 - Clearer examples for dynamic routes and `params` in the docs, `--help` and config errors.
