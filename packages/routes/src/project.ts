@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 
 export type FrameworkId =
   | 'next'
@@ -41,6 +41,10 @@ export interface Project {
   configuredPorts: number[];
   /** Where the app is mounted, e.g. "/docs" for Next's basePath; "" at the root. */
   basePath: string;
+  /** Run at a monorepo's root: the app folder found there, relative to it. */
+  workspace?: string;
+  /** Run at a monorepo's root with several apps: their folders, relative to it. */
+  apps?: string[];
 }
 
 const FRAMEWORKS: Record<FrameworkId, Omit<Framework, 'id'>> = {
@@ -81,6 +85,7 @@ interface PackageJson {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   packageManager?: string;
+  workspaces?: string[] | { packages?: string[] };
 }
 
 function readJson<T>(file: string): T | null {
@@ -207,12 +212,80 @@ export function normalizeBasePath(path: string): string {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
-/** Finds the app in `cwd`: its framework, how to start it, and where it likely runs. */
+/** The package folders a monorepo lists, in package.json `workspaces` or pnpm-workspace.yaml. */
+function workspaceDirs(root: string, pkg: PackageJson): string[] {
+  const globs = Array.isArray(pkg.workspaces)
+    ? [...pkg.workspaces]
+    : [...(pkg.workspaces?.packages ?? [])];
+  const pnpm = join(root, 'pnpm-workspace.yaml');
+  if (existsSync(pnpm)) {
+    let inPackages = false;
+    for (const line of readFileSync(pnpm, 'utf8').split(/\r?\n/)) {
+      if (/^packages\s*:/.test(line)) inPackages = true;
+      else if (/^\S/.test(line)) inPackages = false;
+      else if (inPackages) {
+        const item = line.match(/^\s*-\s*['"]?([^'"#]+?)['"]?\s*(?:#.*)?$/)?.[1];
+        if (item) globs.push(item);
+      }
+    }
+  }
+  const expand = (dir: string, parts: string[], depth = 0): string[] => {
+    const [part, ...rest] = parts;
+    if (part === undefined) return [dir];
+    if (part === '.' || part === '') return expand(dir, rest, depth);
+    if (!part.includes('*'))
+      return existsSync(join(dir, part)) ? expand(join(dir, part), rest, depth) : [];
+    let subdirs: string[];
+    try {
+      subdirs = readdirSync(dir, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && d.name !== 'node_modules' && !d.name.startsWith('.'))
+        .map((d) => d.name);
+    } catch {
+      return [];
+    }
+    if (part === '**') {
+      // Any depth, within reason: here, or in a folder below.
+      return [
+        ...expand(dir, rest, depth),
+        ...(depth < 3 ? subdirs.flatMap((d) => expand(join(dir, d), parts, depth + 1)) : []),
+      ];
+    }
+    const match = new RegExp(
+      `^${part.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`,
+    );
+    return subdirs.filter((d) => match.test(d)).flatMap((d) => expand(join(dir, d), rest, depth));
+  };
+  const of = (globs: string[]) =>
+    globs.flatMap((g) => expand(root, g.replace(/\/+$/, '').split('/')));
+  const left = new Set(of(globs.filter((g) => g.startsWith('!')).map((g) => g.slice(1))));
+  return [...new Set(of(globs.filter((g) => !g.startsWith('!'))))].filter((d) => !left.has(d));
+}
+
+/** The packages of a monorepo that are apps: a framework, and a script that starts its dev server. */
+function workspaceApps(root: string, pkg: PackageJson): string[] {
+  return workspaceDirs(root, pkg).filter((dir) => {
+    const app = readJson<PackageJson>(join(dir, 'package.json'));
+    if (!app) return false;
+    const framework = detectFramework({ ...app.dependencies, ...app.devDependencies });
+    const script = pickDevScript(app.scripts ?? {});
+    return framework.id !== 'unknown' && !!script && DEV_SERVER.test(script.command);
+  });
+}
+
+/**
+ * Finds the app in `cwd`: its framework, how to start it, and where it likely runs. At the root
+ * of a monorepo, that's its one app; with several, `apps` lists them.
+ */
 export function detectProject(cwd: string): Project | null {
   const pkg = readJson<PackageJson>(join(cwd, 'package.json'));
   if (!pkg) return null;
   const deps = { ...pkg.dependencies, ...pkg.devDependencies };
   const framework = detectFramework(deps);
+  const apps = framework.id === 'unknown' ? workspaceApps(cwd, pkg) : [];
+  if (apps.length === 1) {
+    const app = detectProject(apps[0] as string);
+    if (app) return { ...app, workspace: relative(cwd, apps[0] as string) };
+  }
   const devScript = pickDevScript(pkg.scripts ?? {});
   const defaultPort = DEFAULT_PORT[framework.id];
   const configured = [...new Set(configuredPorts(cwd, devScript?.command))];
@@ -225,5 +298,6 @@ export function detectProject(cwd: string): Project | null {
     ports: [...new Set(ports)],
     configuredPorts: configured,
     basePath: detectBasePath(cwd),
+    ...(apps.length > 1 ? { apps: apps.map((a) => relative(cwd, a)) } : {}),
   };
 }

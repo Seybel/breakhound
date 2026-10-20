@@ -83,7 +83,11 @@ server: { command: 'npm run preview', port: 4173 }
 
 **A monorepo**
 
-Run breakhound in the app's own folder (where its `package.json` and `dev` script are), not at the repo root.
+Run it at the root as usual. breakhound reads your workspaces (`package.json` or `pnpm-workspace.yaml`) and finds the app. With several apps, it scans the one whose dev server is running; otherwise run it in that app's own folder:
+
+```bash
+cd apps/web && npx @seybel/breakhound
+```
 
 **A big app, or a smaller machine**
 

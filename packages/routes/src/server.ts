@@ -147,6 +147,8 @@ export interface RunningServer {
   pid?: number;
   /** Set when breakhound started the server itself. */
   command?: string;
+  /** The dev command exited because the app was already running, at `url`. Nothing to stop. */
+  alreadyRunning?: boolean;
   stop(): Promise<void>;
 }
 
@@ -273,6 +275,13 @@ export async function startServer(
   let failingSince: number | null = null;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) {
+      // Some dev servers exit when the app is already running, naming where (Next.js does).
+      const printed = printedUrl as string | null;
+      const page = printed ? await probe(`${printed}/`, 5000) : null;
+      if (printed && page && page.status < 500) {
+        process.removeListener('exit', cleanup);
+        return { url: printed, alreadyRunning: true, stop: async () => {} };
+      }
       throw new Error(
         `The dev server (${command}) stopped before it was ready:\n${output.slice(-15).join('\n')}`,
       );

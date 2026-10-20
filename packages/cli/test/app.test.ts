@@ -1,9 +1,11 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { leftOutHint } from '@breakhound/report';
 import { describe, expect, it } from 'vitest';
+import { resolveServer } from '../src/app';
 import { AUTH_FILE, runLogin } from '../src/auth';
 import { runScan } from '../src/scan';
 
@@ -250,5 +252,76 @@ server.listen(0, '127.0.0.1', () => console.log('Local: http://localhost:' + ser
     expect(byRoute).toEqual({ '/': '#/', '/about': '#/about', '/wide': '#/wide' });
     const wide = result.routes.find((r) => r.route === '/wide');
     expect(wide?.issues.map((i) => i.detector)).toContain('page-overflow');
+  });
+});
+
+/** A server already running on a free port, serving `html` on every path. */
+async function serving(html: string): Promise<{ server: Server; port: number }> {
+  const server = createServer((_, res) => {
+    res.writeHead(200, { 'content-type': 'text/html' });
+    res.end(html);
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  return { server, port: (server.address() as { port: number }).port };
+}
+
+describe('an app that is already running', () => {
+  it("uses it when the dev command exits, saying where it's running", async () => {
+    const { server, port } = await serving('<!doctype html><html><body>Hi</body></html>');
+    try {
+      const root = mkdtempSync(join(tmpdir(), 'breakhound-running-'));
+      // Like Next.js when a dev server for the project is already up: print it, then exit 1.
+      writeFileSync(
+        join(root, 'exit.mjs'),
+        `console.log('Another dev server is already running.\\n- Local: http://localhost:${port}');\nprocess.exit(1);\n`,
+      );
+      writeFileSync(
+        join(root, 'package.json'),
+        JSON.stringify({ name: 'running-app', scripts: { dev: 'node exit.mjs' } }),
+      );
+      const app = await resolveServer(root, {}, true);
+      expect(app.baseUrl).toBe(`http://localhost:${port}`);
+      expect(app.server).toBeNull();
+    } finally {
+      server.close();
+    }
+  });
+
+  it('picks the running app at the root of a monorepo with several', async () => {
+    const entry = `/src/web-${Date.now()}.ts`;
+    const { server, port } = await serving(
+      `<!doctype html><html><body><script type="module" src="${entry}"></script></body></html>`,
+    );
+    try {
+      const root = mkdtempSync(join(tmpdir(), 'breakhound-monorepo-'));
+      const files: Record<string, string> = {
+        'package.json': JSON.stringify({ workspaces: ['apps/*'], scripts: { dev: 'turbo dev' } }),
+        'apps/web/package.json': JSON.stringify({
+          scripts: { dev: `vite --port ${port}` },
+          dependencies: { vite: '*' },
+        }),
+        'apps/web/index.html': `<script type="module" src="${entry}"></script>`,
+        'apps/admin/package.json': JSON.stringify({
+          scripts: { dev: 'vite --port 1' },
+          dependencies: { vite: '*' },
+        }),
+        'apps/admin/index.html': '<script type="module" src="/src/admin-not-running.ts"></script>',
+      };
+      for (const [file, content] of Object.entries(files)) {
+        mkdirSync(join(root, file, '..'), { recursive: true });
+        writeFileSync(join(root, file), content);
+      }
+      const app = await resolveServer(root, {}, true);
+      expect(app.baseUrl).toBe(`http://localhost:${port}`);
+      expect(app.project?.root).toBe(join(root, 'apps/web'));
+
+      server.close();
+      // With none of them running, it says which apps there are and how to pick one.
+      await expect(resolveServer(root, {}, true)).rejects.toThrow(
+        /monorepo with 2 apps \(apps\/admin, apps\/web\)\. Run breakhound in the one to scan/,
+      );
+    } finally {
+      server.close();
+    }
   });
 });

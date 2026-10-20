@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { styleText } from 'node:util';
 import type { Scanner } from '@breakhound/engine';
 import {
@@ -82,6 +83,27 @@ export async function resolveServer(
     project.ports = [config.server.port, ...project.ports.filter((p) => p !== config.server?.port)];
     project.configuredPorts = [config.server.port, ...project.configuredPorts];
   }
+  if (project.workspace) log(quiet, styleText('dim', `Using the app in ${project.workspace}`));
+  if (project.apps && !config.server?.command) {
+    // At a monorepo's root with several apps: the one already running, if just one is.
+    const found = await Promise.all(
+      project.apps.map(async (dir) => {
+        const app = detectProject(join(cwd, dir));
+        const running = app ? await findRunningServer(app) : null;
+        return app && running ? { dir, app, running } : null;
+      }),
+    );
+    const live = found.filter((f) => f !== null);
+    if (live.length !== 1 || !live[0]) {
+      throw new Error(
+        `This is a monorepo with ${project.apps.length} apps (${project.apps.join(', ')}). Run breakhound in the one to scan, e.g. cd ${project.apps[0]} && npx @seybel/breakhound, or start its dev server first.`,
+      );
+    }
+    const { dir, app, running } = live[0];
+    const baseUrl = withBasePath(running.url, app.basePath);
+    log(quiet, `${styleText('green', '✔')} ${app.framework.name} in ${dir} running at ${baseUrl}`);
+    return { project: { ...app, workspace: dir }, baseUrl, server: null };
+  }
   const running = config.server?.command ? null : await findRunningServer(project);
   if (running) {
     const baseUrl = withBasePath(running.url, project.basePath);
@@ -106,6 +128,12 @@ export async function resolveServer(
     guard.untrackServer(pid);
     throw error;
   });
+  if (started.alreadyRunning) {
+    guard.untrackServer(pid);
+    const baseUrl = withBasePath(started.url, project.basePath);
+    log(quiet, `${styleText('green', '✔')} ${name ?? 'App'} already running at ${baseUrl}`);
+    return { project, baseUrl, server: null };
+  }
   const server = {
     ...started,
     stop: async () => {

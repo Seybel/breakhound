@@ -380,6 +380,66 @@ describe('project detection', () => {
   });
 });
 
+describe('monorepos', () => {
+  const app = (deps: Record<string, string>, dev: string) =>
+    JSON.stringify({ scripts: { dev }, dependencies: deps });
+
+  it('uses the one app when run at the root', () => {
+    const root = project({
+      'package.json': JSON.stringify({
+        workspaces: ['apps/*', 'packages/*'],
+        scripts: { dev: 'turbo dev' },
+      }),
+      'apps/web/package.json': app({ next: '*' }, 'next dev --port 3100'),
+      // A shared component library is not an app, even with React and a script.
+      'packages/ui/package.json': app({ react: '*' }, 'tsc --watch'),
+      'pnpm-lock.yaml': '',
+    });
+    const p = detectProject(root);
+    expect(p?.root).toBe(join(root, 'apps/web'));
+    expect(p?.workspace).toBe(join('apps', 'web'));
+    expect(p?.framework.id).toBe('next');
+    expect(p?.devScript?.command).toBe('next dev --port 3100');
+    expect(p?.packageManager).toBe('pnpm');
+    expect(p?.ports[0]).toBe(3100);
+  });
+
+  it('lists the apps when there are several, from pnpm-workspace.yaml', () => {
+    const root = project({
+      'package.json': JSON.stringify({ scripts: { dev: 'turbo dev' } }),
+      'pnpm-workspace.yaml':
+        "packages:\n  - 'apps/*'\n  - \"sites/**\" # docs too\n  - '!apps/old'\n",
+      'apps/web/package.json': app({ next: '*' }, 'next dev'),
+      'apps/admin/package.json': app({ vite: '*', react: '*' }, 'vite'),
+      'apps/old/package.json': app({ next: '*' }, 'next dev'),
+      'sites/docs/site/package.json': app({ astro: '*' }, 'astro dev'),
+    });
+    const p = detectProject(root);
+    expect(p?.root).toBe(root);
+    expect(p?.framework.id).toBe('unknown');
+    expect(p?.apps?.sort()).toEqual([
+      join('apps', 'admin'),
+      join('apps', 'web'),
+      join('sites', 'docs', 'site'),
+    ]);
+  });
+
+  it('leaves a root that is an app itself alone', () => {
+    const root = project({
+      'package.json': JSON.stringify({
+        workspaces: ['packages/*'],
+        scripts: { dev: 'vite' },
+        dependencies: { vite: '*', vue: '*' },
+      }),
+      'packages/site/package.json': app({ next: '*' }, 'next dev'),
+    });
+    const p = detectProject(root);
+    expect(p?.root).toBe(root);
+    expect(p?.framework.id).toBe('vue');
+    expect(p?.workspace).toBeUndefined();
+  });
+});
+
 describe('crawling', () => {
   it('takes every top-level page but only a few siblings deeper down', () => {
     const crawler = new Crawler(50);
