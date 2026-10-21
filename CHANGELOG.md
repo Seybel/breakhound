@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.8
+
+- The extension no longer reports false issues on pages that adjust their layout in a resize handler (a debounced resize, say) when scanning without **Reload first**. It now waits for those handlers the way the CLI does, so both find the same issues.
+
 ## 1.0.7
 
 - A shorter README, with the details on the docs site.
