@@ -16,3 +16,6 @@ packages/cli/LICENSE
 # Docs site build
 docs/.vitepress/cache/
 docs/.vitepress/dist/
+
+# Extension builds made for the store
+/*.zip
