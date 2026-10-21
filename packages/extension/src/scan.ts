@@ -134,6 +134,57 @@ async function reloadTracked(cdp: Cdp, analyzerScript: string): Promise<string[]
   return ids;
 }
 
+interface Listener {
+  type: string;
+  useCapture: boolean;
+  passive: boolean;
+  once: boolean;
+  handler?: { objectId?: string };
+}
+
+/**
+ * A page scanned as it is loaded without breakhound's resize tracking. Added now, it waits for
+ * resize handlers added from here on; the window's resize listeners already there are added again
+ * through it, so a resize waits for them too, as after a reload. Where the reload added the
+ * tracking already, nothing changes.
+ */
+async function trackLate(cdp: Cdp): Promise<void> {
+  await evaluate(cdp, RESIZE_PROBE);
+  // In a group, so the listeners come with their handlers, and are let go of together.
+  const objectGroup = 'breakhound-listeners';
+  try {
+    const { result } = await cdp.send<{ result: { objectId?: string } }>('Runtime.evaluate', {
+      expression: 'window',
+      objectGroup,
+    });
+    const win = result.objectId;
+    if (!win) return;
+    const { listeners } = await cdp.send<{ listeners: Listener[] }>(
+      'DOMDebugger.getEventListeners',
+      { objectId: win },
+    );
+    for (const l of listeners) {
+      const handler = l.handler?.objectId;
+      if (l.type !== 'resize' || !handler) continue;
+      await cdp.send('Runtime.callFunctionOn', {
+        objectId: win,
+        functionDeclaration:
+          'function (listener, capture, passive, once) { this.__breakhound_settle.adopt(listener, capture, passive, once); }',
+        arguments: [
+          { objectId: handler },
+          { value: l.useCapture },
+          { value: l.passive },
+          { value: l.once },
+        ],
+      });
+    }
+  } catch {
+    // Without it, a resize waits for the next frames only, as before.
+  } finally {
+    await cdp.send('Runtime.releaseObjectGroup', { objectGroup }).catch(() => {});
+  }
+}
+
 /** Freezes animations and transitions, which would otherwise be measured mid-flight. */
 async function freeze(cdp: Cdp): Promise<void> {
   await evaluate(
@@ -176,6 +227,7 @@ export async function scanTab(cdp: Cdp, options: TabScanOptions): Promise<RouteR
   const opts = { ...TAB_DEFAULTS, ...options };
   const started = Date.now();
   const scripts = opts.reload ? await reloadTracked(cdp, opts.analyzerScript) : [];
+  if (!opts.reload) await trackLate(cdp);
   await evaluate(cdp, opts.analyzerScript);
 
   const where = await evaluate<{

@@ -155,6 +155,19 @@ describe('the DevTools panel', () => {
     await panel.close();
   });
 
+  it("waits for the page's own resize handlers when scanning it as it is", async () => {
+    // A panel sized by a debounced resize handler the page set up on load, before breakhound came.
+    const { site, panel } = await open('clean-debounced-layout.html');
+    expect(await panel.isChecked('#reload')).toBe(false);
+    await panel.fill('#min', '320');
+    await panel.fill('#max', '900');
+    await panel.click('#scan');
+    await finished(panel);
+    expect(await panel.locator('.issue-title').allTextContents()).toEqual([]);
+    await site.close();
+    await panel.close();
+  }, 150_000);
+
   it('shows the page at the width clicked or dragged to on the timeline', async () => {
     const { site, panel } = await open('bug-nav-wrap.html');
     await panel.setViewportSize({ width: 1000, height: 700 });

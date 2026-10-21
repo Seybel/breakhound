@@ -107,6 +107,27 @@ describe('scanning the inspected tab', () => {
     }
   });
 
+  // Resize handlers the page added before breakhound's tracking: the panel finds and wraps them.
+  for (const [name, count] of [
+    ['clean-debounced-layout.html', 0],
+    ['bug-debounced-layout.html', 1],
+  ] as const) {
+    it(`waits for the page's own resize handlers without reloading, as the CLI does, on ${name}`, async () => {
+      const url = pathToFileURL(join(PAGES, name)).href;
+      // Every resize waits out its 300ms debounce, so a shorter sweep.
+      const widths = { minWidth: 320, maxWidth: 900 };
+      const cli = await scanner.scanPage(url, { ...widths, states: 0, concurrency: 1 });
+      const { page, cdp } = await openTab(url);
+      try {
+        const panel = await scanTab(cdp, { analyzerScript, ...widths });
+        expect(summary(panel.issues)).toEqual(summary(cli.issues));
+        expect(panel.issues).toHaveLength(count);
+      } finally {
+        await page.context().close();
+      }
+    }, 150_000);
+  }
+
   it('waits while the tab is hidden instead of failing, and carries on when it is back', async () => {
     const { page, cdp } = await openTab(pathToFileURL(join(PAGES, 'bug-fixed-width.html')).href);
     try {

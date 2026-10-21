@@ -54,8 +54,13 @@ export class NetworkTracker {
  * timers they schedule, including timers those timers schedule a few levels
  * deep (how debounce helpers re-arm). After a resize we wait exactly until
  * those timers have fired instead of guessing a debounce delay.
+ *
+ * It can also be added to a page that has already loaded (the extension
+ * scanning a page as it is). Listeners added before it aren't wrapped then;
+ * `adopt` adds one again, wrapped, as if it had been added after.
  */
 export const RESIZE_PROBE = `(() => {
+  if (window.__breakhound_settle) return;
   const MAX_DEPTH = 3;
   const MAX_DELAY = 2000;
   let depth = 0;
@@ -98,10 +103,11 @@ export const RESIZE_PROBE = `(() => {
   };
 
   const wrappers = new WeakMap();
+  const wrapped = new WeakSet();
   const wrap = (listener) => {
     if (!listener) return listener;
     let w = wrappers.get(listener);
-    if (!w) { w = tracked(listener, 1); wrappers.set(listener, w); }
+    if (!w) { w = tracked(listener, 1); wrappers.set(listener, w); wrapped.add(w); }
     return w;
   };
 
@@ -136,8 +142,25 @@ export const RESIZE_PROBE = `(() => {
     };
   }
 
+  // A window resize listener added before this script: taken off and added again, wrapped. One set
+  // as window.onresize is wrapped where it is.
+  const adopt = (listener, capture, passive, once) => {
+    // The browser lists a listener added after this script by its wrapper.
+    if (!listener || wrappers.has(listener) || wrapped.has(listener)) return;
+    if (listener === window.onresize) {
+      window.onresize = wrap(listener);
+      return;
+    }
+    remove.call(window, 'resize', listener, capture);
+    window.addEventListener('resize', listener, { capture, passive, once });
+  };
+
   Object.defineProperty(window, '__breakhound_settle', {
-    value: { pending: () => pending, listeners: () => listeners + (window.onresize ? 1 : 0) },
+    value: {
+      pending: () => pending,
+      listeners: () => listeners + (window.onresize ? 1 : 0),
+      adopt,
+    },
   });
 })();`;
 
