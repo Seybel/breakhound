@@ -15,8 +15,11 @@
 | `oversized-text` | Headings and display text left at their desktop size on phones, wrapping a word or two a line |
 | `edge-gutter` | Text pressed against the edge of a phone screen |
 | `viewport-meta` | A missing responsive viewport tag |
+| `calendar` | A month or week calendar whose 7 days don't fit side by side. What breaks inside it is reported once, as the calendar |
 
 Every issue comes with the exact width ranges where it happens, the element to blame, the numbers behind it, a screenshot, and a likely fix. breakhound also reports the widths where your layout actually changes and flags changes that no media or container query explains.
+
+Some layouts can't simply shrink. A month or week calendar needs its 7 days side by side, so making the days narrower, or showing fewer than 7, makes it worse. breakhound recognises one by its row of weekday names, in your page's language too, and instead of an issue for every day it reports the calendar once, with the width where it starts to fit and the two fixes that work: let it scroll sideways inside its own box below that width, which keeps one layout, or show the days as a list there (an agenda view), the usual choice for calendars on phones. It only does this for what it already found breaking inside the calendar, so a calendar that fits is never flagged, and a date picker (a small grid of day numbers) is left as it was.
 
 It's built to be quiet: carousels, off-canvas menus, badges, decorative shapes, ellipsis and line-clamp, and framework dev overlays are all understood and left alone. It also looks inside web components (open shadow roots) and handles right-to-left pages.
 

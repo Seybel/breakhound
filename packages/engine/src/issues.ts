@@ -31,6 +31,8 @@ export function findingKey(f: Finding): string {
 
 function severityScore(f: Finding): number {
   const e = f.evidence;
+  // A calendar is worst where its days are narrowest.
+  if (typeof e.dayWidthPx === 'number') return -e.dayWidthPx;
   if (typeof e.overflowPx === 'number') return e.overflowPx;
   if (typeof e.overlapWidth === 'number' && typeof e.overlapHeight === 'number') {
     return e.overlapWidth * e.overlapHeight;
@@ -166,6 +168,9 @@ export function buildIssues(
       evidence = { ...evidence, fixedWidthPx: onlyWidth };
       suggestion = `It stays ${onlyWidth}px wide no matter the screen size. Replace the fixed width with max-width: 100% (or a fluid width) so it can shrink.`;
     }
+    if (f.detector === 'calendar') {
+      suggestion = calendarSuggestion(ranges, widths[widths.length - 1] ?? 0, f.evidence);
+    }
 
     const issue: Issue = {
       id: issueId(route, f),
@@ -190,6 +195,29 @@ export function buildIssues(
     (a, b) =>
       order[a.severity] - order[b.severity] || (a.ranges[0]?.from ?? 0) - (b.ranges[0]?.from ?? 0),
   );
+}
+
+/**
+ * How to fix a calendar whose days run out of room, from the widths where they did. Both ways
+ * are offered, cheapest first: breakhound can't know whether people need the whole month on a
+ * phone, only where it stops fitting.
+ */
+export function calendarSuggestion(
+  ranges: WidthRange[],
+  widest: number,
+  evidence: Finding['evidence'],
+): string {
+  const last = ranges[ranges.length - 1]?.to ?? widest;
+  const list = (where: string) =>
+    `show the days as a list ${where} (an agenda view, one day per row), the usual choice for calendars on phones`;
+  if (last >= widest) {
+    return `Its 7 days don't fit side by side at any width up to ${widest}px. Give the calendar more room or show less in each day, and ${list('on small screens')}.`;
+  }
+  const below = `below ${last + 1}px`;
+  if (evidence.scrollsSideways) {
+    return `It already scrolls sideways, but its days are still too narrow ${below}. Give the grid a min-width so each day keeps its room as it scrolls, or ${list(below)}. Narrower days, or fewer than 7 columns, won't fix it.`;
+  }
+  return `A calendar needs its 7 days side by side, and ${below} they don't fit. Narrower days, or fewer than 7 columns, won't fix it. Either let it scroll sideways inside its own box ${below} (a wrapper with overflow-x: auto, and a min-width on the grid), which keeps one layout; or ${list(below)}.`;
 }
 
 /** Joins ranges that touch or overlap into one. */

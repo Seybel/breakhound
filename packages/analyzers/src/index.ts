@@ -1,3 +1,4 @@
+import { foldCalendars } from './detectors/calendar';
 import { contentOverflow, mediaOverflow } from './detectors/containment';
 import { distortedMedia, smallTapTargets, viewportMeta } from './detectors/elements';
 import { overlap } from './detectors/overlap';
@@ -13,7 +14,7 @@ import {
   snapshot,
 } from './dom';
 import { containerSignature, declaredBreakpoints, layoutSignature } from './fingerprint';
-import { cachedSelector, elementOf, resolveSelector } from './selector';
+import { cachedSelector, describe, elementOf, resolveSelector } from './selector';
 import { findToggles } from './states';
 import {
   type AnalyzeOptions,
@@ -30,7 +31,7 @@ export type * from './types';
 export { DETECTOR_IDS };
 
 const DETECTORS: Record<
-  Exclude<DetectorId, 'unexpected-wrap' | 'vision'>,
+  Exclude<DetectorId, 'unexpected-wrap' | 'calendar' | 'vision'>,
   (s: Snapshot) => Finding[]
 > = {
   'page-overflow': pageOverflow,
@@ -87,13 +88,21 @@ export function analyze(options: AnalyzeOptions = {}): AnalyzeResult {
   const rules = options.ignore ?? [];
   const snap = snapshot();
 
-  const findings: Finding[] = [];
+  let findings: Finding[] = [];
   for (const [id, run] of Object.entries(DETECTORS) as [DetectorId, (s: Snapshot) => Finding[]][]) {
     if (!enabled.has(id)) continue;
     for (const f of run(snap)) {
       if (isIgnored(f.element, id, rules) || isIgnored(f.related, id, rules)) continue;
       findings.push(f);
     }
+  }
+
+  if (enabled.has('calendar')) {
+    findings = foldCalendars(
+      snap,
+      findings,
+      (root) => !isIgnored(describe(root), 'calendar', rules),
+    );
   }
 
   const wraps = enabled.has('unexpected-wrap')

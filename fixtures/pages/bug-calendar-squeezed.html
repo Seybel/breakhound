@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Month calendar whose days shrink until their events collide</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 16px; }
+.calendar { border: 1px solid #ccc; border-radius: 8px; }
+.calendar-nav { display: flex; justify-content: space-between; padding: 8px 12px; }
+.calendar-nav button { font: inherit; }
+/* Columns that shrink with the screen, so the events in them run into each other. */
+.weekdays, .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.weekdays div { padding: 8px 4px; text-align: center; font-size: 13px; font-weight: bold; }
+.day { min-height: 110px; padding: 4px; border-top: 1px solid #eee; }
+.num { display: block; font-size: 13px; }
+.event { display: flex; gap: 4px; margin-top: 4px; padding: 2px 4px; font-size: 12px; color: #224; background: #eef; border-radius: 3px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+<h1>Events</h1>
+<div class="calendar" data-bh-expect="calendar@320-924">
+<div class="calendar-nav"><button type="button">Previous</button><strong>March</strong><button type="button">Next</button></div>
+<div class="weekdays"><div>Monday</div><div>Tuesday</div><div>Wednesday</div><div>Thursday</div><div>Friday</div><div>Saturday</div><div>Sunday</div></div>
+<div class="days"><div class="day"><span class="num">1</span><a href="#" class="event">13:30 Design review</a></div><div class="day"><span class="num">2</span></div><div class="day"><span class="num">3</span></div><div class="day"><span class="num">4</span></div><div class="day"><span class="num">5</span><a href="#" class="event">16:00 Weekly planning</a><a href="#" class="event">09:00 Team standup</a></div><div class="day"><span class="num">6</span></div><div class="day"><span class="num">7</span><a href="#" class="event">13:30 Design review</a></div><div class="day"><span class="num">8</span></div><div class="day"><span class="num">9</span></div><div class="day"><span class="num">10</span></div><div class="day"><span class="num">11</span><a href="#" class="event">16:00 Weekly planning</a><a href="#" class="event">09:00 Team standup</a></div><div class="day"><span class="num">12</span></div><div class="day"><span class="num">13</span><a href="#" class="event">13:30 Design review</a></div><div class="day"><span class="num">14</span></div><div class="day"><span class="num">15</span></div><div class="day"><span class="num">16</span></div><div class="day"><span class="num">17</span><a href="#" class="event">16:00 Weekly planning</a><a href="#" class="event">09:00 Team standup</a></div><div class="day"><span class="num">18</span></div><div class="day"><span class="num">19</span><a href="#" class="event">13:30 Design review</a></div><div class="day"><span class="num">20</span></div><div class="day"><span class="num">21</span></div><div class="day"><span class="num">22</span></div><div class="day"><span class="num">23</span><a href="#" class="event">16:00 Weekly planning</a><a href="#" class="event">09:00 Team standup</a></div><div class="day"><span class="num">24</span></div><div class="day"><span class="num">25</span><a href="#" class="event">13:30 Design review</a></div><div class="day"><span class="num">26</span></div><div class="day"><span class="num">27</span></div><div class="day"><span class="num">28</span></div><div class="day"><span class="num">29</span><a href="#" class="event">16:00 Weekly planning</a><a href="#" class="event">09:00 Team standup</a></div><div class="day"><span class="num">30</span></div><div class="day"><span class="num">31</span><a href="#" class="event">13:30 Design review</a></div><div class="day"><span class="num">1</span></div><div class="day"><span class="num">2</span></div><div class="day"><span class="num">3</span></div><div class="day"><span class="num">4</span><a href="#" class="event">16:00 Weekly planning</a><a href="#" class="event">09:00 Team standup</a></div></div>
+</div>
+</main>
+</body>
+</html>

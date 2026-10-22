@@ -16,6 +16,7 @@ export const DETECTOR_LABELS: Record<DetectorId, string> = {
   'unexpected-wrap': 'Unexpected wrap',
   'clipped-text': 'Clipped text',
   'squished-text': 'Squished text',
+  calendar: 'Calendar too narrow',
   'distorted-media': 'Distorted image',
   'small-tap-target': 'Small tap target',
   'tiny-text': 'Tiny text',

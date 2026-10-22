@@ -8,6 +8,8 @@ export type DetectorId =
   | 'unexpected-wrap'
   | 'clipped-text'
   | 'squished-text'
+  /** What breaks inside a month or week calendar, reported once as the calendar. */
+  | 'calendar'
   | 'distorted-media'
   | 'small-tap-target'
   | 'tiny-text'
@@ -25,6 +27,7 @@ export const DETECTOR_IDS: readonly DetectorId[] = [
   'unexpected-wrap',
   'clipped-text',
   'squished-text',
+  'calendar',
   'distorted-media',
   'small-tap-target',
   'tiny-text',
