@@ -291,8 +291,11 @@ describe('the DevTools panel', () => {
     try {
       const { site, panel } = await openAt(`${siteOrigin}/about`);
       await panel.setViewportSize({ width: 1000, height: 700 });
+      expect(await panel.textContent('#intro-scan')).toBe('Scan this page');
       await panel.click('#mode-site');
       expect(await panel.isHidden('#reload-switch')).toBe(true);
+      expect(await panel.textContent('#intro-scan')).toBe('Scan whole site');
+      expect(await panel.textContent('#intro-title')).toBe('Find where this site breaks');
       await scanned(panel);
 
       const chips = await panel.locator('.page-chip .path').allTextContents();
@@ -312,10 +315,10 @@ describe('the DevTools panel', () => {
       );
       await expect.poll(() => innerWidth(site)).toBe(worst);
 
-      // The choice is remembered.
+      // Opened again, the panel is back on the page: a whole-site scan is chosen each time.
       await panel.reload();
-      expect(await panel.getAttribute('#mode-site', 'aria-pressed')).toBe('true');
-      await panel.click('#mode-page');
+      expect(await panel.getAttribute('#mode-page', 'aria-pressed')).toBe('true');
+      expect(await panel.textContent('#intro-scan')).toBe('Scan this page');
       await site.close();
       await panel.close();
     } finally {

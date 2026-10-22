@@ -66,6 +66,7 @@ const ui = {
   noticeClose: $<HTMLButtonElement>('notice-close'),
   intro: $('intro'),
   introScan: $<HTMLButtonElement>('intro-scan'),
+  introTitle: $('intro-title'),
   results: $('results'),
   stats: $('stats'),
   viewing: $('viewing'),
@@ -272,7 +273,7 @@ function askForFileAccess(): void {
 const SETTINGS_KEY = 'breakhound.settings';
 
 function loadSettings(): void {
-  let saved: { min?: number; max?: number; reload?: boolean; mode?: 'page' | 'site' } = {};
+  let saved: { min?: number; max?: number; reload?: boolean } = {};
   try {
     saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
   } catch {
@@ -281,7 +282,9 @@ function loadSettings(): void {
   ui.min.value = String(saved.min ?? TAB_DEFAULTS.minWidth);
   ui.max.value = String(saved.max ?? TAB_DEFAULTS.maxWidth);
   ui.reload.checked = saved.reload ?? false;
-  state.mode = saved.mode === 'site' ? 'site' : 'page';
+  // Not remembered: a whole-site scan is a choice made for one run, and the context menu starts
+  // scanning as soon as the panel opens.
+  state.mode = 'page';
 }
 
 function saveSettings(): void {
@@ -292,7 +295,6 @@ function saveSettings(): void {
         min: ui.min.valueAsNumber,
         max: ui.max.valueAsNumber,
         reload: ui.reload.checked,
-        mode: state.mode,
       }),
     );
   } catch {
@@ -1088,6 +1090,9 @@ function select(issue: Issue | null, width?: number): void {
 function renderToolbar(): void {
   const scanning = state.phase === 'scanning';
   label(ui.scan, 'sweep', state.result ? 'Scan again' : 'Scan');
+  const site = state.mode === 'site';
+  label(ui.introScan, 'sweep', site ? 'Scan whole site' : 'Scan this page');
+  ui.introTitle.textContent = `Find where this ${site ? 'site' : 'page'} breaks`;
   ui.scan.disabled = scanning;
   ui.stop.hidden = !scanning;
   ui.stop.disabled = state.stopping;
@@ -1882,7 +1887,6 @@ ui.issues.addEventListener('keydown', (e) => {
 
 // ---- wiring ----
 
-label(ui.introScan, 'sweep', 'Scan this page');
 label(ui.copyAll, 'copy', 'Copy prompt');
 label(ui.viewingReset, 'reset', 'Back to its own width');
 ui.noticeClose.append(icon('close'));
@@ -1935,7 +1939,6 @@ for (const [button, mode] of [
 ] as const) {
   button.addEventListener('click', () => {
     state.mode = mode;
-    saveSettings();
     renderToolbar();
   });
 }
