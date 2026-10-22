@@ -35,7 +35,7 @@ Before finishing, run verify with no routes to check every page.
 
 scan and verify answer within about 45 seconds. When one says it's still running, it carries on: call it again with the same arguments to get its result, rather than something else. It says what it's waiting for; if that's the developer's browser tab, ask them to bring it into view.
 
-Issues sent from the extension are checked again in the developer's own browser: verify asks the open breakhound panel to scan the pages, so their login and browser carry over. If no panel is open, verify says so; ask the developer to open it rather than calling scan, which replaces their issues with a headless scan. Chrome doesn't draw a tab that's out of view, so before you verify them, tell the developer in one line that breakhound is about to check your fixes in their Chrome tab, and that the tab needs to be in view (beside their editor is fine) until it's done.`;
+Issues sent from the extension are checked again in the developer's own browser: verify asks the open breakhound panel to scan the pages, so their login and browser carry over. If no panel is open, verify says so; ask the developer to open it rather than calling scan, which replaces their issues with a headless scan. Chrome doesn't draw a tab that's out of view, so before you first verify them, tell the developer in one line that breakhound is about to check your fixes in their Chrome tab, and that the tab needs to be in view (beside their editor is fine) until it's done.`;
 
 /** Offered to clients as a ready-made prompt (a slash command in Claude Code). */
 const FIX_PROMPT = `Fix the responsive layout issues breakhound found in this project.
@@ -263,7 +263,7 @@ export function createTools(): Tool[] {
       name: 'verify',
       kind: 'long',
       description:
-        "Scan routes again and compare with the baseline from scan: which issues are fixed, which are still there, and which are new (a change broke something, maybe at another width or on another route). Pass the routes you changed for a quick check, and nothing to check every route before you finish. Issues sent from the browser extension are checked in the developer's Chrome tab, which must be in view: tell them before you call it.",
+        "Scan routes again and compare with the baseline from scan: which issues are fixed, which are still there, and which are new (a change broke something, maybe at another width or on another route). Pass the routes you changed for a quick check, and nothing to check every route before you finish. Issues sent from the browser extension are checked in the developer's Chrome tab, which must be in view: tell them before you first call it.",
       inputSchema: {
         type: 'object',
         properties: {

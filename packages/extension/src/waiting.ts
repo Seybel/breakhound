@@ -20,7 +20,10 @@ export function askToNotify(): void {
   } catch {
     return;
   }
-  chrome.permissions.request({ permissions: ['notifications'] }).catch(() => {});
+  // Never in the way of what the click is for.
+  try {
+    chrome.permissions.request({ permissions: ['notifications'] }).catch(() => {});
+  } catch {}
 }
 
 let listening = false;
@@ -61,3 +64,8 @@ export function clearWaiting(tabId: number): void {
   if (!shown.delete(tabId)) return;
   chrome.notifications?.clear(idFor(tabId)).catch(() => {});
 }
+
+// It stays until it's dealt with, so it goes with the panel: closed, nothing waits on the tab.
+addEventListener('pagehide', () => {
+  for (const tab of [...shown]) clearWaiting(tab);
+});

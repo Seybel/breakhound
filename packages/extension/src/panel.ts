@@ -536,7 +536,7 @@ function renderAgent(): void {
   );
   ui.agent.classList.toggle('offline', !agent.online);
   ui.agent.title = agent.online
-    ? `Your coding agent in ${server.root} is connected. It checks its fixes in this tab, so keep this panel open while it works. Click to change project.`
+    ? `Your coding agent in ${server.root} is connected, running breakhound ${server.version}. It checks its fixes in this tab, so keep this panel open while it works. Click to change project.`
     : lostTouch(server);
 }
 

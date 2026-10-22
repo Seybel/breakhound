@@ -489,9 +489,10 @@ describe('the DevTools panel', () => {
       const cleared: string[] = [];
       Object.assign(w, { bhShown: shown, bhCleared: cleared, bhAsked: 0 });
       c.permissions = {
-        request: async () => {
+        // Asking can go wrong, and the click still does what it's for.
+        request: () => {
           w.bhAsked = (w.bhAsked as number) + 1;
-          return true;
+          throw new Error('No permissions here');
         },
       };
       c.notifications = {
@@ -623,6 +624,8 @@ describe('the DevTools panel', () => {
       // Send to agent is hidden until there's something to send; the chip still opens the menu.
       const { site, panel } = await open('clean-responsive.html');
       await panel.waitForSelector('#agent:not([hidden])');
+      // Hovering it says which breakhound the agent runs.
+      expect(await panel.getAttribute('#agent', 'title')).toContain('running breakhound 1.0.0');
       expect(await panel.isHidden('#send')).toBe(true);
       const chipAt = () =>
         panel.evaluate(
