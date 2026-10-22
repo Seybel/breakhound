@@ -171,7 +171,14 @@ describe('the bridge to the browser extension', () => {
     (bad.routes[0]?.issues[0] as unknown as Record<string, unknown>).detector = 'made-up';
     const res = await post(bridge.port, 'scan', { result: bad });
     expect(res.status).toBe(400);
+    // A check from a newer extension: it says which, and what to do.
+    expect(res.body.error).toMatch(/doesn't know the check "made-up".*latest breakhound/);
     expect(existsSync(join(root, '.breakhound/result.json'))).toBe(false);
+  });
+
+  it('says which checks it knows, so a newer extension sends only those', async () => {
+    const { body } = await post(bridge.port, 'hello', {});
+    expect(body.detectors).toContain('calendar');
   });
 
   it("saves a sent scan as the baseline, with the project's own settings", async () => {
@@ -231,6 +238,23 @@ describe('the bridge to the browser extension', () => {
     expect(v.failing.map((c) => c.issue.element.selector)).toEqual(['.card']);
     expect(v.regressions).toEqual([]);
     expect(formatVerify(v, severitiesAtOrAbove('warning'))).toContain('Fixed: 1 · Still there: 1');
+  });
+
+  it("ends a check whose pages it can't take, so verify hears why", async () => {
+    const panel = (async () => {
+      const { body } = await post(bridge.port, 'checks', { origin: SITE });
+      const bad = issue('.card', 'overlap');
+      (bad as unknown as Record<string, unknown>).detector = 'made-up';
+      const id = (body.check as { id: string }).id;
+      return post(bridge.port, 'checks/done', { id, routes: [page('/', [bad])] });
+    })();
+    const checking = bridge.scanInBrowser(
+      [{ route: '/', url: `${SITE}/` }],
+      { minWidth: 320, maxWidth: 800 },
+      SITE,
+    );
+    await expect(checking).rejects.toThrow(/made-up/);
+    expect((await panel).status).toBe(400);
   });
 
   it('only gives a check to a panel on the same site', async () => {

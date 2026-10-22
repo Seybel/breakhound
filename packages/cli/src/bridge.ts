@@ -142,6 +142,16 @@ function checkRoutes(value: unknown): RouteResult[] {
     for (const i of r.issues) {
       const element = isObject(i) ? i.element : null;
       if (
+        isObject(i) &&
+        typeof i.detector === 'string' &&
+        !DETECTOR_IDS.includes(i.detector as never)
+      ) {
+        throw new HttpError(
+          400,
+          `This project's breakhound doesn't know the check "${i.detector.slice(0, 40)}" yet. Restart your agent with the latest breakhound to send it.`,
+        );
+      }
+      if (
         !isObject(i) ||
         typeof i.id !== 'string' ||
         typeof i.title !== 'string' ||
@@ -217,6 +227,8 @@ export async function startBridge(opts: BridgeOptions): Promise<Bridge | null> {
           version: opts.version,
           root: opts.root,
           project: projectName(opts.root),
+          // So a newer extension sends only checks this version knows.
+          detectors: DETECTOR_IDS,
         });
       case '/breakhound/match': {
         if (typeof body.url !== 'string') throw new HttpError(400, 'No url');
@@ -299,7 +311,15 @@ export async function startBridge(opts: BridgeOptions): Promise<Bridge | null> {
         checks.delete(check.id);
         clearTimeout(check.timer);
         if (typeof body.error === 'string') check.reject(new Error(body.error.slice(0, 500)));
-        else check.resolve(checkRoutes(body.routes));
+        else {
+          // What can't be taken still ends the check, so verify hears why instead of waiting on.
+          try {
+            check.resolve(checkRoutes(body.routes));
+          } catch (error) {
+            check.reject(error instanceof Error ? error : new Error(String(error)));
+            throw error;
+          }
+        }
         return reply({});
       }
       default:
