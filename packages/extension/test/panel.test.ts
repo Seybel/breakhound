@@ -652,17 +652,24 @@ describe('the DevTools panel', () => {
   });
 
   it('says what to check when it loses touch with the agent, and stops once it is back', async () => {
-    // Another breakhound running on this machine would answer for the one stopped here: the
-    // panel doesn't see it.
-    const others = BRIDGE_PORTS.map((port) => `http://127.0.0.1:${port}/**`);
-    const busy = await Promise.all(
-      BRIDGE_PORTS.map((port) =>
-        fetch(`http://127.0.0.1:${port}/`)
-          .then(() => true)
-          .catch(() => false),
-      ),
+    // Another breakhound would answer for the one stopped here: one running on this machine,
+    // or started by a test running alongside. This test's two keep ports of their own, the
+    // highest free ones (the others take the lowest), and the panel sees no other.
+    const free = (
+      await Promise.all(
+        BRIDGE_PORTS.map((port) =>
+          fetch(`http://127.0.0.1:${port}/`)
+            .then(() => null)
+            .catch(() => port),
+        ),
+      )
+    ).filter((p): p is number => p !== null);
+    const [otherPort, port] = free.slice(-2);
+    if (port === undefined || otherPort === undefined)
+      throw new Error('No free ports for the test');
+    const blocked = BRIDGE_PORTS.filter((p) => p !== port && p !== otherPort).map(
+      (p) => `http://127.0.0.1:${p}/**`,
     );
-    const blocked = others.filter((_, i) => busy[i]);
     for (const url of blocked) await context.route(url, (r) => r.abort());
     const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'lost-shop' }));
@@ -672,6 +679,7 @@ describe('the DevTools panel', () => {
         root,
         version: '1.0.0',
         loadConfig: async () => (await loadConfig(root)).config,
+        ports: [port],
       });
     let bridge = await start();
     if (!bridge) throw new Error('No free port for the bridge');
@@ -702,7 +710,6 @@ describe('the DevTools panel', () => {
       expect(await panel.isHidden('#notice')).toBe(true);
 
       // Lost again, and something else answers on its port, so it doesn't come back by itself.
-      const { port } = bridge;
       await bridge.close();
       bridge = null;
       held = createServer((_req, res) => res.writeHead(404).end());
@@ -717,6 +724,7 @@ describe('the DevTools panel', () => {
         root: otherRoot,
         version: '1.0.0',
         loadConfig: async () => (await loadConfig(otherRoot)).config,
+        ports: [otherPort],
       });
       await panel.click('#agent');
       await panel.click('#agent-menu button:has-text("other-shop")');
