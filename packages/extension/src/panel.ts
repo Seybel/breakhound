@@ -23,6 +23,7 @@ import { Cancelled, evaluate, fitScale, setWidth, type Viewport } from './cdp';
 import { loadPage, scanTab, TAB_DEFAULTS } from './scan';
 import { LEFTOVERS, TabSession } from './session';
 import { SITE_MAX_PAGES, scanPages, scanSite } from './site';
+import { askToNotify, clearWaiting, showWaiting } from './waiting';
 
 /**
  * Inside DevTools the tab is the inspected one. In the side panel (opened from
@@ -667,7 +668,7 @@ async function deliver(server: AgentServer, result: ScanResult): Promise<void> {
   remember(new URL(result.project.baseUrl ?? '').origin, server.root);
   listen(server);
   notify(
-    `Sent ${sent.issues} ${sent.issues === 1 ? 'issue' : 'issues'} to your agent in ${server.project}. Ask it to "fix the breakhound issues" (in Claude Code, /mcp__breakhound__fix). Keep this panel open: your agent checks its fixes here, in this tab.`,
+    `Sent ${sent.issues} ${sent.issues === 1 ? 'issue' : 'issues'} to your agent in ${server.project}. Ask it to "fix the breakhound issues" (in Claude Code, /mcp__breakhound__fix). Keep this panel open: your agent checks its fixes here, in this tab, and Chrome only draws a tab that's in view, so keep it visible, beside your editor say, or switch back when breakhound tells you.`,
     'note',
     { label: 'Copy request', run: (b) => void copyWith(b, 'Fix the breakhound issues') },
   );
@@ -756,7 +757,7 @@ function scheduleLive(): void {
 }
 
 /** The coding agent's check running now: told when the tab is hidden and the check pauses. */
-let checking: { server: AgentServer; id: string; done: number } | null = null;
+let checking: { server: AgentServer; id: string; done: number; route: string } | null = null;
 
 /** Shows one page of the last scan: its timeline, issues and details. */
 function showPage(index: number): void {
@@ -872,12 +873,12 @@ async function scan(check?: {
     await session.attach();
     if (check) {
       const { server, check: c } = check;
-      checking = { server, id: c.id, done: 0 };
+      checking = { server, id: c.id, done: 0, route: c.pages[0]?.route ?? '/' };
       await scanPages(session, c.pages, {
         ...common,
         onPage: (p) => {
           onPage(p);
-          if (checking) checking.done = p.index;
+          if (checking) Object.assign(checking, { done: p.index, route: p.route });
           checkProgress(server, c.id, p.index, `Checking ${p.route} in the browser`);
         },
         onResult,
@@ -919,6 +920,7 @@ async function scan(check?: {
     }
   } finally {
     checking = null;
+    clearWaiting(tabId);
     clearInterval(tick);
     await session.detach();
     // A whole-site scan ends back on the page it started from: that was breakhound, not the developer.
@@ -1970,7 +1972,11 @@ ui.stop.addEventListener('click', () => {
 ui.viewingReset.addEventListener('click', () => void resetView());
 ui.noticeClose.addEventListener('click', () => notify(null));
 ui.copyAll.addEventListener('click', () => void copyWith(ui.copyAll, prompt()));
-ui.send.addEventListener('click', () => void sendToAgent());
+ui.send.addEventListener('click', () => {
+  // In the click itself: Chrome only asks for a permission during one.
+  askToNotify();
+  void sendToAgent();
+});
 ui.noticeAction.addEventListener('click', () => noticeAction?.(ui.noticeAction));
 ui.agent.addEventListener('click', () => {
   void findServers().then((servers) => {
@@ -2027,6 +2033,9 @@ session.onHidden = (hidden) => {
         ? "Paused: the breakhound tab in the developer's Chrome is hidden (another tab in front, or the window covered or minimized), and Chrome doesn't draw hidden tabs. Ask the developer to bring that tab into view; the check carries on by itself then."
         : 'Checking again: the tab is back in view',
     );
+    // And the developer hears it too, in their editor most likely.
+    if (hidden) showWaiting(tabId, checking.route);
+    else clearWaiting(tabId);
   }
   if (hidden) {
     notify(

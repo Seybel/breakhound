@@ -6,6 +6,7 @@
 - An overlap in a grid whose columns already shrink no longer suggests `minmax(0, 1fr)` columns, only fewer columns.
 - **Send to agent** works when your project's breakhound is older than the extension (the extension updates by itself; the copy your agent runs may not have yet). The extension sends only checks that version knows, and a newer breakhound says which checks it knows. Before, the whole scan was refused with "Bad issue".
 - When the extension checks your agent's fixes and breakhound can't take what it sends back, **verify** says why straight away instead of waiting until it times out.
+- When your agent's check waits because the breakhound tab is out of view (you're in your editor, say), a notification tells you, and clicking it brings the tab back. breakhound asks to show notifications the first time you send a scan to your agent. Your agent also tells you before it checks its fixes in Chrome.
 
 ## 1.0.9
 

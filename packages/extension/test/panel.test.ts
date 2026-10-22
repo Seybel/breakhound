@@ -469,7 +469,7 @@ describe('the DevTools panel', () => {
     }
   });
 
-  it('tells the agent why its check is paused while the tab is hidden, then finishes', async () => {
+  it('tells the agent and the developer why its check is paused while the tab is hidden, then finishes', async () => {
     const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'paused-shop' }));
     writeFileSync(join(root, 'breakhound.config.json'), JSON.stringify({ baseUrl: origin }));
@@ -479,11 +479,44 @@ describe('the DevTools panel', () => {
       loadConfig: async () => (await loadConfig(root)).config,
     });
     if (!bridge) throw new Error('No free port for the bridge');
+    // Chrome asks the developer before an extension shows notifications, in a prompt a test
+    // can't answer: the panel gets a stand-in that keeps what it's asked to show.
+    await context.addInitScript(() => {
+      if (location.protocol !== 'chrome-extension:') return;
+      const w = window as unknown as Record<string, unknown>;
+      const c = (globalThis as unknown as { chrome: Record<string, unknown> }).chrome;
+      const shown: { id: string; title: string; message: string }[] = [];
+      const cleared: string[] = [];
+      Object.assign(w, { bhShown: shown, bhCleared: cleared, bhAsked: 0 });
+      c.permissions = {
+        request: async () => {
+          w.bhAsked = (w.bhAsked as number) + 1;
+          return true;
+        },
+      };
+      c.notifications = {
+        create: async (id: string, o: { title: string; message: string }) => {
+          shown.push({ id, title: o.title, message: o.message });
+          return id;
+        },
+        clear: async (id: string) => {
+          cleared.push(id);
+          return true;
+        },
+        onClicked: { addListener: (cb: (id: string) => void) => Object.assign(w, { bhClick: cb }) },
+      };
+    });
     try {
       const { site, panel } = await open('bug-fixed-width.html');
       await scanned(panel);
+      // It asks only once in a browser, and an earlier test may have sent a scan.
+      await panel.evaluate(() => localStorage.removeItem('breakhound.notifications-asked'));
       await panel.click('#send');
       await expect.poll(() => panel.textContent('#notice-text')).toContain('paused-shop');
+      // Asked once, on the click, whether it may tell the developer later.
+      expect(await panel.evaluate(() => (window as unknown as { bhAsked: number }).bhAsked)).toBe(
+        1,
+      );
 
       // From here the tab is hidden the way Chrome hides one: it says so, and draws no frames.
       await site.addInitScript(() => {
@@ -514,6 +547,21 @@ describe('the DevTools panel', () => {
         })
         .toBe(true);
       expect(heard.find((m) => m.startsWith('Paused'))).toContain('Ask the developer');
+      // The developer, in their editor, gets a notification that brings the tab back.
+      type Note = { id: string; title: string; message: string };
+      const notes = () => panel.evaluate(() => (window as unknown as { bhShown: Note[] }).bhShown);
+      await expect
+        .poll(async () => (await notes()).map((n) => n.title))
+        .toContain('Your agent is waiting on Chrome');
+      const [note] = await notes();
+      expect(note?.message).toContain('out of view');
+      await panel.evaluate(
+        (id) => (window as unknown as { bhClick: (id: string) => void }).bhClick(id),
+        note?.id ?? '',
+      );
+      expect(
+        await panel.evaluate(() => (window as unknown as { bhCleared: string[] }).bhCleared),
+      ).toContain(note?.id);
 
       // Back in view: the check carries on by itself.
       await site.evaluate(() => localStorage.setItem('breakhound-test-shown', '1'));

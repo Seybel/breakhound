@@ -16,6 +16,7 @@
     }
   },
   "permissions": ["debugger", "contextMenus", "sidePanel"],
+  "optional_permissions": ["notifications"],
   "host_permissions": ["http://127.0.0.1/*"],
   "minimum_chrome_version": "120",
   "icons": {

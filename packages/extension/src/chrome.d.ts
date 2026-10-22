@@ -28,6 +28,7 @@ declare namespace chrome {
     const id: string;
     const lastError: { message?: string } | undefined;
     function getManifest(): { version: string };
+    function getURL(path: string): string;
     const onInstalled: { addListener(callback: () => void): void };
   }
 
@@ -42,7 +43,35 @@ declare namespace chrome {
       ): void;
     };
     function create(properties: { url: string }): Promise<Tab>;
+    function get(tabId: number): Promise<Tab>;
+    function update(tabId: number, properties: { active?: boolean }): Promise<Tab>;
   }
+
+  export namespace windows {
+    function update(windowId: number, properties: { focused?: boolean }): Promise<unknown>;
+  }
+
+  export namespace permissions {
+    function request(permissions: { permissions: string[] }): Promise<boolean>;
+  }
+
+  /** Only there once the developer has allowed notifications (an optional permission). */
+  export const notifications:
+    | {
+        create(
+          id: string,
+          options: {
+            type: 'basic';
+            iconUrl: string;
+            title: string;
+            message: string;
+            requireInteraction?: boolean;
+          },
+        ): Promise<string>;
+        clear(id: string): Promise<boolean>;
+        onClicked: { addListener(callback: (id: string) => void): void };
+      }
+    | undefined;
 
   export namespace extension {
     /** Whether "Allow access to file URLs" is on for this extension. */
