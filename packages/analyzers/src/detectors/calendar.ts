@@ -26,6 +26,13 @@ const FOLDED = new Set<DetectorId>([
 const EVENT_CELL_HEIGHT = 56;
 /** Lined up under a weekday: the same left edge and width, give or take. */
 const ALIGN_PX = 2;
+/**
+ * How far above the weekdays the days can be. Calendar libraries often put the weekdays in a
+ * table of their own, several wrappers away from the days' table.
+ */
+const MAX_LEVELS = 10;
+/** Abbreviations that aren't the start of the full name. */
+const ALIASES: Record<string, string> = { weds: 'wednesday' };
 
 const normalize = (text: string) =>
   text
@@ -72,7 +79,7 @@ function weekNames(): WeekNames[] {
 }
 
 function isDay(text: string, week: WeekNames, day: number): boolean {
-  if (week.exact[day]?.has(text)) return true;
+  if (week.exact[day]?.has(text) || ALIASES[text] === week.long[day]) return true;
   // "Mo", "Tue", "Thurs": the start of the full name.
   return text.length >= 2 && (week.long[day]?.startsWith(text) ?? false);
 }
@@ -116,15 +123,32 @@ function dayCells(snap: Snapshot, scope: Element, weekdays: ElementRecord[]): El
   return out;
 }
 
-/** Holds events, rather than only its day number: tall, or with more than a number in it. */
+/** Days with room for events, rather than a date picker's small squares of day numbers. */
 function holdsEvents(days: ElementRecord[]): boolean {
   const heights = days.map((d) => d.rect.height).sort((a, b) => a - b);
-  const median = heights[Math.floor(heights.length / 2)] ?? 0;
-  if (median >= EVENT_CELL_HEIGHT) return true;
-  return days.some((d) => {
-    const text = (d.el.textContent ?? '').replace(/[\d\s]/g, '');
-    return text.length >= 3;
-  });
+  return (heights[Math.floor(heights.length / 2)] ?? 0) >= EVENT_CELL_HEIGHT;
+}
+
+/** What a heading shows: "Mon" from <span class="sm:hidden">M</span><span>Mon</span>. */
+function shownText(el: Element): string {
+  const text = el instanceof HTMLElement ? el.innerText : el.textContent;
+  // A week view's "Mon 12" is still Monday.
+  return normalize((text ?? '').replace(/\d+/g, ' '));
+}
+
+/** 7 weekdays side by side among these cells, after a week number or time column if any. */
+function weekRow(snap: Snapshot, cells: Element[]): ElementRecord[] | null {
+  for (let start = 0; start <= 1 && start + 7 <= cells.length; start++) {
+    const row = cells
+      .slice(start, start + 7)
+      .map((c) => snap.byElement.get(c))
+      .filter((r): r is ElementRecord => !!r && r.rect.width > 0);
+    if (row.length !== 7 || !isWeek(row.map((r) => shownText(r.el)))) continue;
+    // Side by side, in one row.
+    const tops = row.map((r) => Math.round(r.rect.top));
+    if (Math.max(...tops) - Math.min(...tops) <= ALIGN_PX) return row;
+  }
+  return null;
 }
 
 function scrollsSideways(snap: Snapshot, el: Element): boolean {
@@ -142,21 +166,12 @@ export function findCalendars(snap: Snapshot): Calendar[] {
     const children = renderedChildren(rec.el);
     if (children.length < 7) continue;
     if (found.some((c) => c.root.contains(rec.el))) continue;
-    const weekdays = children
-      .slice(0, 7)
-      .map((c) => snap.byElement.get(c))
-      .filter((r): r is ElementRecord => !!r && r.rect.width > 0);
-    if (weekdays.length !== 7) continue;
-    // A week view's "Mon 12" is still Monday.
-    const texts = weekdays.map((w) => normalize((w.el.textContent ?? '').replace(/\d+/g, ' ')));
-    if (!isWeek(texts)) continue;
-    // Side by side: one row, each to the right of the last (or left, on a right-to-left page).
-    const tops = weekdays.map((w) => Math.round(w.rect.top));
-    if (Math.max(...tops) - Math.min(...tops) > ALIGN_PX) continue;
+    const weekdays = weekRow(snap, children);
+    if (!weekdays) continue;
 
-    // The days are in the same grid, or in one beside it: look a few levels up for them.
+    // The days are in the same grid, or in one beside it: look further up for them.
     let scope: Element | null = rec.el;
-    for (let level = 0; scope && level < 4; level++, scope = composedParent(scope)) {
+    for (let level = 0; scope && level < MAX_LEVELS; level++, scope = composedParent(scope)) {
       if (scope === document.body) break;
       const days = dayCells(snap, scope, weekdays);
       const columns = new Set(days.map((d) => weekdays.findIndex((w) => lined(w, d))));
@@ -212,6 +227,12 @@ export function foldCalendars(
     const dayWidth = Math.round(Math.min(...calendar.weekdays.map((w) => w.rect.width)) * 10) / 10;
     // One of each kind, as the calendar's evidence: what an agent would otherwise be told.
     const kinds = [...new Map(list.map((f) => [f.detector, f])).values()];
+    // Each check's worst severity, so a project's settings for those checks still apply.
+    const checks = new Map<DetectorId, Severity>();
+    for (const f of list) {
+      const was = checks.get(f.detector);
+      if (!was || RANK[f.severity] < RANK[was]) checks.set(f.detector, f.severity);
+    }
     rest.push({
       detector: 'calendar',
       severity,
@@ -221,6 +242,7 @@ export function foldCalendars(
         dayWidthPx: dayWidth,
         elementsInside: new Set(list.map((f) => f.element.selector)).size,
         found: kinds.map((f) => `${f.title} at ${f.element.selector}`).join('; '),
+        checksInside: [...checks].map(([id, s]) => `${id}:${s}`).join(' '),
         ...(calendar.scrolls ? { scrollsSideways: true } : {}),
       },
       styles: {},

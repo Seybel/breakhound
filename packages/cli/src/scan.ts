@@ -10,6 +10,7 @@ import {
   DEFAULTS,
   DETECTOR_IDS,
   type DetectorId,
+  type Issue,
   mergeBrowserResults,
   type PageResult,
   type PageSkip,
@@ -205,12 +206,48 @@ function enabledDetectors(config: BreakhoundConfig): DetectorId[] | undefined {
   return DETECTOR_IDS.filter((id) => overrides[id] !== false);
 }
 
+type Overrides = NonNullable<BreakhoundConfig['detectors']>;
+const SEVERITY_RANK: Record<Severity, number> = { error: 0, warning: 1, info: 2 };
+
+/** The checks a calendar issue stands for (what they found inside it), still switched on. */
+function calendarChecks(issue: Issue, overrides: Overrides): { id: string; severity: Severity }[] {
+  return String(issue.evidence.checksInside ?? '')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => {
+      const [id = '', severity = 'error'] = part.split(':');
+      const o = overrides[id as DetectorId];
+      return { id, severity: (typeof o === 'string' ? o : severity) as Severity };
+    })
+    .filter((c) => overrides[c.id as DetectorId] !== false);
+}
+
+/**
+ * Whether the project's settings keep this issue. A browser scans with every check on, so its
+ * issues are filtered here; a calendar goes when every check it stands for is switched off.
+ */
+export function keepIssue(issue: Issue, overrides: Overrides): boolean {
+  if (overrides[issue.detector] === false) return false;
+  if (issue.detector !== 'calendar' || !issue.evidence.checksInside) return true;
+  return calendarChecks(issue, overrides).length > 0;
+}
+
 function applySeverity(routes: RouteResult[], config: BreakhoundConfig): void {
   const overrides = config.detectors ?? {};
   for (const route of routes) {
     for (const issue of route.issues) {
       const o = overrides[issue.detector];
       if (o === 'error' || o === 'warning' || o === 'info') issue.severity = o as Severity;
+      else if (issue.detector === 'calendar') {
+        // As severe as the worst of what it stands for, with the project's severities for those.
+        const checks = calendarChecks(issue, overrides);
+        if (checks.length) {
+          issue.severity = checks.reduce<Severity>(
+            (worst, c) => (SEVERITY_RANK[c.severity] < SEVERITY_RANK[worst] ? c.severity : worst),
+            'info',
+          );
+        }
+      }
     }
   }
 }
@@ -568,7 +605,7 @@ export async function saveExtensionScan(
   const off = config.detectors ?? {};
   const routes = sent.routes.map((r) => ({
     ...r,
-    issues: r.issues.filter((i) => off[i.detector] !== false),
+    issues: r.issues.filter((i) => keepIssue(i, off)),
   }));
   applySeverity(routes, config);
   relativeSources(routes, project?.root ?? cwd, project?.basePath ?? '', project?.workspace);

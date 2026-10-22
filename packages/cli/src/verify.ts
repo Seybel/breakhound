@@ -12,7 +12,7 @@ import { formatRanges, type WrittenReports } from '@breakhound/report';
 import { globMatches } from '@breakhound/routes';
 import type { AppServer } from './app';
 import type { BreakhoundConfig } from './config';
-import { BASELINE_FILE, mergeScans, runScan, saveReports } from './scan';
+import { BASELINE_FILE, keepIssue, mergeScans, runScan, saveReports } from './scan';
 
 /** One issue in a verify run, with how it looked in the baseline when it was there. */
 export interface IssueChange {
@@ -200,7 +200,7 @@ export async function runVerify(req: VerifyRequest): Promise<VerifyOutcome> {
     });
     // The browser scans with every check on; the project's own settings apply here.
     const off = req.config.detectors ?? {};
-    for (const r of now.routes) r.issues = r.issues.filter((i) => off[i.detector] !== false);
+    for (const r of now.routes) r.issues = r.issues.filter((i) => keepIssue(i, off));
     return finishVerify(req, baseline, now);
   }
   const { settings } = baseline;

@@ -95,6 +95,47 @@ describe('a calendar whose days run out of room', () => {
   });
 });
 
+describe('how calendars are built', () => {
+  it('finds the days in a table of their own, far from the weekdays', async () => {
+    // As some calendar libraries do: the weekdays and the days in separate tables, each in
+    // its own section of an outer table, behind scroll wrappers.
+    const issues = await scan(
+      calendarPage(ENGLISH, {
+        css: '.month { display: none; } table { width: 100%; border-collapse: collapse; table-layout: fixed; } td.day { height: 100px; vertical-align: top; }',
+        wrap: () => {
+          const weekdays = ENGLISH.map((d) => `<th><div><a>${d}</a></div></th>`).join('');
+          const weeks = Array.from(
+            { length: 5 },
+            (_, w) =>
+              `<tr>${Array.from({ length: 7 }, (_, d) => `<td class="day"><div><span>${w * 7 + d + 1}</span>${d % 2 ? '' : `<a href="#" class="event">${EVENTS[d % 3]}</a>`}</div></td>`).join('')}</tr>`,
+          ).join('');
+          return `<table class="outer"><thead><tr><th><div class="harness"><div class="scroller"><table><thead><tr>${weekdays}</tr></thead></table></div></div></th></tr></thead><tbody><tr><td><div class="harness"><div class="scroller"><div class="body"><table><tbody>${weeks}</tbody></table></div></div></div></td></tr></tbody></table>`;
+        },
+      }),
+    );
+    expect(issues.map((i) => i.detector)).toContain('calendar');
+  });
+
+  it('reads the weekdays after a time or week number column, as they are shown', async () => {
+    const week = await scan(
+      calendarPage(['', ...ENGLISH], {
+        css: '.month { grid-template-columns: 48px repeat(7, minmax(0, 1fr)); } .day:nth-of-type(8n + 9) { visibility: hidden; }',
+      }),
+    );
+    expect(week.map((i) => i.detector)).toContain('calendar');
+    // One name for phones and one for wider screens, with only one shown.
+    const twoNames = await scan(
+      calendarPage(
+        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(
+          (d) => `<span class="short">${d[0]}</span><span class="long">${d.slice(0, 3)}</span>`,
+        ),
+        { css: '.short { display: none; }' },
+      ),
+    );
+    expect(twoNames.map((i) => i.detector)).toContain('calendar');
+  });
+});
+
 describe('what is not a calendar', () => {
   it('leaves a row of 7 other things, or 7 weekdays out of order, as they were', async () => {
     const other = await scan(
