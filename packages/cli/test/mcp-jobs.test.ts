@@ -18,9 +18,14 @@ const toServer = new PassThrough();
 const fromServer = new PassThrough();
 let serverDone: Promise<void>;
 const client = new Client({ name: 'test-agent', version: '1.0.0' });
+/** What the client found wrong in what the server sent, like progress for a call already answered. */
+const clientErrors: string[] = [];
+const progress: string[] = [];
 
 async function call(name: string, args: Record<string, unknown> = {}) {
-  const res = await client.callTool({ name, arguments: args });
+  const res = await client.callTool({ name, arguments: args }, undefined, {
+    onprogress: (p) => progress.push(p.message ?? ''),
+  });
   const content = res.content as { type: string; text?: string }[];
   return { text: content.map((c) => c.text ?? '').join('\n'), isError: Boolean(res.isError) };
 }
@@ -45,6 +50,7 @@ beforeAll(async () => {
   serverDone = runMcpServer('test', { input: toServer, output: fromServer });
   delete process.env.BREAKHOUND_REPLY_WITHIN_MS;
   await client.connect(new StreamTransport(toServer, fromServer));
+  client.onerror = (error) => clientErrors.push(error.message);
 });
 
 afterAll(async () => {
@@ -77,5 +83,9 @@ describe('a scan or verify that outlasts the call', () => {
     expect(verify.isError).toBe(false);
     expect(verify.text).toContain('/pricing');
     expect((await call('list_issues')).text).not.toContain('Note:');
+
+    // Progress reached the calls that were waiting, and only those.
+    expect(progress.some((m) => m.startsWith('Scanned') || m.startsWith('Checked'))).toBe(true);
+    expect(clientErrors).toEqual([]);
   }, 180_000);
 });

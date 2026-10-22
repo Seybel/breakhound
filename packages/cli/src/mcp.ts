@@ -74,6 +74,8 @@ interface Job {
   startedAt: number;
   /** The last progress it reported. */
   latest: string;
+  /** Sends progress to the call waiting on it now, if one is. */
+  waiting: ToolContext['progress'] | null;
   finished: boolean;
   done: Promise<ToolResult>;
 }
@@ -502,9 +504,20 @@ export async function runMcpServer(
     return root;
   }
 
-  /** Runs a tool and says how it went; never throws. */
-  async function runTool(tool: Tool, params: Json, onProgress?: (message: string) => void) {
+  /** Progress for the call waiting on it, with that call's token; nothing when it has none. */
+  const progressFor = (params: Json) => {
     const token = (params._meta as Json | undefined)?.progressToken;
+    return (done: number, message: string) => {
+      if (token !== undefined)
+        send({
+          method: 'notifications/progress',
+          params: { progressToken: token, progress: done, message },
+        });
+    };
+  };
+
+  /** Runs a tool and says how it went; never throws. */
+  async function runTool(tool: Tool, params: Json, progress: ToolContext['progress']) {
     try {
       const dir = await projectRoot();
       const { config, warnings } = await loadConfig(dir);
@@ -515,14 +528,7 @@ export async function runMcpServer(
           root: dir,
           config,
           bridge,
-          progress(done, message) {
-            onProgress?.(message);
-            if (token !== undefined)
-              send({
-                method: 'notifications/progress',
-                params: { progressToken: token, progress: done, message },
-              });
-          },
+          progress,
         }),
       );
       if (warnings.length)
@@ -543,9 +549,12 @@ export async function runMcpServer(
    * Waits for the job, but not past the time an agent waits for an answer (often 60s): then says
    * it's still running. The job carries on, and the same call again picks it up.
    */
-  async function collect(j: Job): Promise<ToolResult> {
+  async function collect(j: Job, params: Json): Promise<ToolResult> {
     const late = new Promise<null>((r) => setTimeout(() => r(null), replyWithinMs).unref());
+    // Progress goes to this call while it waits: a call that has answered can't take any more.
+    j.waiting = progressFor(params);
     const result = await Promise.race([j.done, late]);
+    j.waiting = null;
     if (result) {
       if (job === j) job = null;
       return result;
@@ -564,7 +573,7 @@ export async function runMcpServer(
     const key = `${tool.name} ${JSON.stringify(params.arguments ?? {})}`;
     const busy = job && !job.finished ? job : null;
     if (tool.kind === 'read') {
-      const result = await runTool(tool, params);
+      const result = await runTool(tool, params, progressFor(params));
       // What's on disk is from before the scan or verify still running.
       if (busy)
         result.content.push({
@@ -575,7 +584,7 @@ export async function runMcpServer(
       return;
     }
     if (job?.key === key) {
-      send({ id, result: await collect(job) });
+      send({ id, result: await collect(job, params) });
       return;
     }
     if (busy) {
@@ -591,7 +600,7 @@ export async function runMcpServer(
     if (tool.kind !== 'long') {
       // A result nobody came back for is over once something else changes the project.
       job = null;
-      queue = queue.then(() => runTool(tool, params));
+      queue = queue.then(() => runTool(tool, params, progressFor(params)));
       send({ id, result: await (queue as Promise<ToolResult>) });
       return;
     }
@@ -604,11 +613,13 @@ export async function runMcpServer(
       startedAt: Date.now(),
       latest: '',
       finished: false,
+      waiting: null,
       done: Promise.resolve(text('')),
     };
     j.done = queue.then(() =>
-      runTool(tool, params, (message) => {
+      runTool(tool, params, (done, message) => {
         j.latest = message;
+        j.waiting?.(done, message);
       }),
     );
     j.done.then(() => {
@@ -616,7 +627,7 @@ export async function runMcpServer(
     });
     queue = j.done;
     job = j;
-    send({ id, result: await collect(j) });
+    send({ id, result: await collect(j, params) });
   }
 
   function handle(message: Json): void {

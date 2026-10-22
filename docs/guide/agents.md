@@ -21,7 +21,7 @@ It finds Claude Code, Cursor, VS Code, Antigravity, Windsurf and Codex, shows wh
 
 `verify` is the point: agents often fix 812px and break 1280px, or fix one page and break another that shares a component. New issues show up there, at any width, on any page that was scanned.
 
-The dev server stays up between calls, so each verify only takes as long as the scan. In Claude Code, `/mcp__breakhound__fix` asks for the whole loop in one go.
+The dev server stays up between calls, so each verify only takes as long as the scan. A scan or verify still going after about 45 seconds answers that it's still running, and what it's waiting for, instead of letting your agent's call time out; the agent calls it again to get the result. In Claude Code, `/mcp__breakhound__fix` asks for the whole loop in one go.
 
 ## From the browser
 
