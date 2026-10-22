@@ -4,6 +4,7 @@
 
 - The extension always opens on **This page**. Before, it remembered **Whole site** from the last time, so right-clicking **Scan with breakhound** could start a whole-site scan.
 - The extension's start button and heading say what it's about to scan: **Scan this page** or **Scan whole site**.
+- The toolbar button says **Scan again** only when it would repeat the same kind of scan, and **Scan** after switching between This page and Whole site.
 
 ## 1.0.8
 

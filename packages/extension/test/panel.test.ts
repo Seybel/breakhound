@@ -306,6 +306,12 @@ describe('the DevTools panel', () => {
       );
       expect(site.url()).toBe(`${siteOrigin}/about`);
       expect(await panel.textContent('#stats')).toMatch(/Pages\s*3/);
+      // The toolbar says "again" only for the same kind of scan.
+      expect(await panel.textContent('#scan')).toBe('Scan again');
+      await panel.click('#mode-page');
+      expect(await panel.textContent('#scan')).toBe('Scan');
+      await panel.click('#mode-site');
+      expect(await panel.textContent('#scan')).toBe('Scan again');
 
       // Showing an issue from /pricing takes the tab there first.
       await panel.locator('.issue-head').first().click();

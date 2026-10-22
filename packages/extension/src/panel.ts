@@ -101,6 +101,8 @@ interface State {
   stopping: boolean;
   /** Every page of the last scan; one unless it was a whole-site scan. */
   pages: PageView[];
+  /** What the results shown came from: the page, the whole site, or a coding agent's check. */
+  scanned: 'page' | 'site' | 'check' | null;
   /** The page shown: `result` and `live` are its. */
   current: number;
   /** In a whole-site scan, the page being scanned now. */
@@ -135,6 +137,7 @@ const state: State = {
   mode: 'page',
   stopping: false,
   pages: [],
+  scanned: null,
   current: 0,
   scanning: null,
   from: null,
@@ -859,6 +862,7 @@ async function scan(check?: {
     navigatedAt = Date.now();
     if (finished && pages.length) {
       state.startedAt = startedAt;
+      state.scanned = check ? 'check' : site ? 'site' : 'page';
       showPage(firstWorthSeeing(pages));
       if (site && !pages.some((p) => p.route.status === 'scanned')) {
         notify('None of the pages could be scanned.');
@@ -1089,7 +1093,8 @@ function select(issue: Issue | null, width?: number): void {
 
 function renderToolbar(): void {
   const scanning = state.phase === 'scanning';
-  label(ui.scan, 'sweep', state.result ? 'Scan again' : 'Scan');
+  // "Again" only for the same kind of scan: after a page, a whole-site scan isn't one again.
+  label(ui.scan, 'sweep', state.result && state.scanned === state.mode ? 'Scan again' : 'Scan');
   const site = state.mode === 'site';
   label(ui.introScan, 'sweep', site ? 'Scan whole site' : 'Scan this page');
   ui.introTitle.textContent = `Find where this ${site ? 'site' : 'page'} breaks`;
