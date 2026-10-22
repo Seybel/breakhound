@@ -449,6 +449,7 @@ svg.icon {
 }
 .notice span {
   flex: 1;
+  white-space: pre-line;
 }
 .notice.error {
   color: var(--error);

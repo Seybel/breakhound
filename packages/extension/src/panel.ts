@@ -461,6 +461,20 @@ function prompt(fingerprints?: string[]): string {
 
 const AGENTS_KEY = 'breakhound.agents';
 const SETUP_COMMAND = 'npx @seybel/breakhound mcp install';
+/**
+ * Setting it up isn't always enough: an agent runs breakhound only with the project open, and
+ * some (Cursor, VS Code) add a server switched off, or wait for you to start it.
+ */
+const SWITCHED_ON =
+  'Your agent runs breakhound only while the project folder is open in it, and with breakhound switched on in its MCP settings, so check both.';
+const SWITCHED_ON_HELP = 'https://seybel.github.io/breakhound/guide/agents#not-connected';
+
+/** Shows how to switch breakhound on in each agent. */
+const howToCheck = {
+  label: 'How to check',
+  icon: 'open',
+  run: () => void chrome.tabs.create({ url: SWITCHED_ON_HELP }).catch(() => {}),
+} as const;
 
 const agent = {
   /** The project's breakhound server the panel listens to, for checks of the agent's fixes. */
@@ -522,7 +536,18 @@ function renderAgent(): void {
   ui.agent.classList.toggle('offline', !agent.online);
   ui.agent.title = agent.online
     ? `Your coding agent in ${server.root} is connected. It checks its fixes in this tab, so keep this panel open while it works. Click to change project.`
-    : `Lost touch with the agent in ${server.root}. breakhound keeps looking for it.`;
+    : lostTouch(server);
+}
+
+function lostTouch(server: AgentServer): string {
+  return `Lost touch with your agent in ${server.root}. ${SWITCHED_ON} breakhound keeps looking for it.`;
+}
+
+/** Back in touch: a notice saying it was lost no longer holds. */
+function backInTouch(server: AgentServer): void {
+  agent.online = true;
+  renderAgent();
+  if (!ui.notice.hidden && ui.noticeText.textContent === lostTouch(server)) notify(null);
 }
 
 function hideMenu(): void {
@@ -586,10 +611,7 @@ function listen(server: AgentServer): void {
           continue;
         }
         const check = await nextCheck(current, origin, stop.signal);
-        if (!agent.online) {
-          agent.online = true;
-          renderAgent();
-        }
+        if (!agent.online) backInTouch(current);
         if (check) await runCheck(current, check);
       } catch {
         if (stop.signal.aborted) return;
@@ -600,8 +622,8 @@ function listen(server: AgentServer): void {
         const again = (await findServers()).find((s) => s.root === server.root);
         if (again) {
           current = again;
-          Object.assign(agent, { server: again, online: true });
-          renderAgent();
+          agent.server = again;
+          backInTouch(again);
         }
       }
     }
@@ -653,7 +675,7 @@ async function sendToAgent(): Promise<void> {
     const servers = byProject(await findServers());
     if (!servers.length) {
       notify(
-        `No coding agent is connected to breakhound yet. In your project, run ${SETUP_COMMAND} once, then restart your agent (Claude Code, Cursor, Codex…). Until then, Copy prompt works with any agent.`,
+        `No coding agent is connected to breakhound yet. In your project, run ${SETUP_COMMAND} once, then restart your agent (Claude Code, Cursor, Codex…).\nAlready done? ${SWITCHED_ON}\nUntil then, Copy prompt works with any agent.`,
         'note',
         { label: 'Copy command', run: (b) => void copyWith(b, SETUP_COMMAND) },
       );
@@ -1940,6 +1962,7 @@ ui.agent.addEventListener('click', () => {
     if (!projects.length) {
       agent.online = false;
       renderAgent();
+      if (agent.server) notify(lostTouch(agent.server), 'note', howToCheck);
       return;
     }
     pickProject(projects, (server) => {

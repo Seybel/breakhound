@@ -65,7 +65,7 @@ Pick whichever suits you.
 npx @seybel/breakhound mcp install
 ```
 
-Restart your agent, then ask it to "fix the breakhound issues" (in Claude Code, `/mcp__breakhound__fix`). It reads the issues, edits your code, and checks each fix at every width itself, so you can skip to step 5.
+Restart your agent, then ask it to "fix the breakhound issues" (in Claude Code, `/mcp__breakhound__fix`). No breakhound tools in your agent? [Check it's switched on](./agents#not-connected). It reads the issues, edits your code, and checks each fix at every width itself, so you can skip to step 5.
 
 **With any agent, by pasting.**
 

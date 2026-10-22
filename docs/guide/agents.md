@@ -23,6 +23,27 @@ It finds Claude Code, Cursor, VS Code, Antigravity, Windsurf and Codex, shows wh
 
 The dev server stays up between calls, so each verify only takes as long as the scan. A scan or verify still going after about 45 seconds answers that it's still running, and what it's waiting for, instead of letting your agent's call time out; the agent calls it again to get the result. In Claude Code, `/mcp__breakhound__fix` asks for the whole loop in one go.
 
+## When your agent doesn't see breakhound {#not-connected}
+
+Setting it up adds breakhound to your agent's MCP settings, but your agent decides when to run it. If it has no breakhound tools, or the extension says no coding agent is connected, check these.
+
+**The project folder is open in your agent.** breakhound runs for the folder your agent has open. Claude Code, Cursor, VS Code and Antigravity read it from the project's own settings, so a window with no folder open, or another folder, has no breakhound. Windsurf and Codex have one setting for every project, so open or start them in the project folder.
+
+**breakhound is switched on.** Each agent asks for this its own way:
+
+| Agent | Set up in | Switch it on |
+|---|---|---|
+| Claude Code | `.mcp.json` | Approve breakhound when Claude Code asks, the first time you start it in the project. Dismissed it? `/mcp` lists each server, whether it's connected, and lets you approve it. |
+| Cursor | `.cursor/mcp.json` | **Cursor Settings → Tools & MCP**: switch breakhound on. If it's on but shows no tools, switch it off and on again, or click its refresh icon. |
+| VS Code | `.vscode/mcp.json` | Click **Start** above breakhound in `.vscode/mcp.json`, and trust it when asked. Or run **MCP: List Servers** from the Command Palette, pick breakhound and start it; **Show Output** there says what went wrong if it stops. Its tools are for Copilot Chat in agent mode. |
+| Antigravity | `.agents/mcp_config.json` | Reload its MCP servers, or restart Antigravity, with the project open. |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | In Cascade, open **Manage MCPs** and click **Refresh**. |
+| Codex | `~/.codex/config.toml` | Start a new session in the project folder. `/mcp` lists the servers running in it. |
+
+**Your agent was restarted.** Agents start their MCP servers when a session or window opens, so one added while yours was open shows up after a restart, or the refresh above.
+
+Once it's running, the breakhound extension shows a chip with the project's name in its toolbar.
+
 ## From the browser
 
 Scanned a page in the breakhound extension? Click **Send to agent** and the issues go to the agent working on that app, with nothing to copy and paste. Then ask it to "fix the breakhound issues".
@@ -31,7 +52,7 @@ Scanned a page in the breakhound extension? Click **Send to agent** and the issu
 - breakhound picks the project serving the page, the way the CLI recognises your dev server (or from `baseUrl` in your config). When it can't tell, for a staging site say, it asks which project.
 - When the agent verifies a fix, the panel scans those pages again **in your browser**: same login, same browser, so the comparison is exact. Keep the panel open while it works; a chip in the toolbar shows the agent is connected. If the panel is closed, verify says so, and the agent asks you to open it.
 
-It works through the MCP server, so it needs `npx @seybel/breakhound mcp install` once (the panel shows the command if your agent isn't connected yet). `breakhound mcp` listens on 127.0.0.1 only, on a port from 47821, and answers only the breakhound extension. It only ever writes the scan you sent into `.breakhound/`; it never reads or sends your files.
+It works through the MCP server, so it needs `npx @seybel/breakhound mcp install` once (the panel shows the command if your agent isn't connected yet), and breakhound [switched on in your agent](#not-connected). `breakhound mcp` listens on 127.0.0.1 only, on a port from 47821, and answers only the breakhound extension. It only ever writes the scan you sent into `.breakhound/`; it never reads or sends your files.
 
 ## With a prompt
 

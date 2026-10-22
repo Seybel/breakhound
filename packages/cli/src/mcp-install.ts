@@ -172,6 +172,10 @@ function show(path: string, cwd: string): string {
   return rel.startsWith('..') ? path.replace(homedir(), '~') : rel;
 }
 
+/** Set up isn't always on: agents run it only with the project open, and some add it switched off. */
+const NOT_SHOWING_UP =
+  'Not showing up? Your agent runs breakhound only while this folder is open in it, and with breakhound switched on in its MCP settings (Cursor and VS Code may add it switched off), so check both. How, for each agent: https://seybel.github.io/breakhound/guide/agents#not-connected';
+
 export async function installMcp(cwd: string, options: InstallOptions = {}): Promise<number> {
   const home = options.home ?? homedir();
   const clients = options.clients?.length
@@ -199,7 +203,10 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
       console.log(`${styleText('yellow', '!')} ${client.name}: ${(error as Error).message}`);
     }
   }
-  if (!changes.length) return 0;
+  if (!changes.length) {
+    console.log(`\n${NOT_SHOWING_UP}`);
+    return 0;
+  }
 
   console.log('\nbreakhound will add its MCP server to:\n');
   const { command, args } = serverCommand();
@@ -229,5 +236,6 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
   console.log(
     `\nRestart your agent (or reload its MCP servers), then ask it to "fix the responsive issues breakhound finds".`,
   );
+  console.log(NOT_SHOWING_UP);
   return 0;
 }

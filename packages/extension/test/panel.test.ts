@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startBridge } from '../../cli/src/bridge';
 import { loadConfig } from '../../cli/src/config';
 import { runVerify } from '../../cli/src/verify';
+import { BRIDGE_PORTS } from '../../engine/src/bridge';
 
 const here = import.meta.dirname;
 const PAGES = join(here, '../../../fixtures/pages');
@@ -598,6 +599,59 @@ describe('the DevTools panel', () => {
       await bridge.close();
     }
   });
+
+  it('says what to check when it loses touch with the agent, and stops once it is back', async () => {
+    // Another breakhound running on this machine would answer for the one stopped here: the
+    // panel doesn't see it.
+    const others = BRIDGE_PORTS.map((port) => `http://127.0.0.1:${port}/**`);
+    const busy = await Promise.all(
+      BRIDGE_PORTS.map((port) =>
+        fetch(`http://127.0.0.1:${port}/`)
+          .then(() => true)
+          .catch(() => false),
+      ),
+    );
+    const blocked = others.filter((_, i) => busy[i]);
+    for (const url of blocked) await context.route(url, (r) => r.abort());
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'lost-shop' }));
+    writeFileSync(join(root, 'breakhound.config.json'), JSON.stringify({ baseUrl: origin }));
+    const start = () =>
+      startBridge({
+        root,
+        version: '1.0.0',
+        loadConfig: async () => (await loadConfig(root)).config,
+      });
+    let bridge = await start();
+    if (!bridge) throw new Error('No free port for the bridge');
+    try {
+      const { site, panel } = await open('clean-responsive.html');
+      await panel.waitForSelector('#agent:not([hidden])');
+      // The agent quits, or the project is closed in it.
+      await bridge.close();
+      await panel.click('#agent');
+      await expect.poll(() => panel.textContent('#notice-text')).toContain('Lost touch');
+      expect(await panel.textContent('#notice-text')).toContain('switched on in its MCP settings');
+      // And shows how, for each agent (answered here, so the test needs no network).
+      await context.route('https://seybel.github.io/**', (r) => r.fulfill({ body: '' }));
+      const [help] = await Promise.all([
+        context.waitForEvent('page'),
+        panel.click('#notice-action'),
+      ]);
+      expect(help.url()).toContain('/guide/agents#not-connected');
+      await help.close();
+      await context.unroute('https://seybel.github.io/**');
+      // It comes back: the notice no longer holds.
+      bridge = await start();
+      await panel.waitForSelector('#agent:not(.offline)', { timeout: 20_000 });
+      expect(await panel.isHidden('#notice')).toBe(true);
+      await site.close();
+      await panel.close();
+    } finally {
+      await bridge?.close();
+      for (const url of blocked) await context.unroute(url);
+    }
+  }, 60_000);
 
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');

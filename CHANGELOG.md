@@ -10,6 +10,7 @@
 - The MCP server sends breakhound's icon, for agents that show one beside each server.
 - **scan** and **verify** no longer time out in your agent. They answer within about 45 seconds; if they're not done by then, they say they're still running and what they're waiting for, and calling them again picks up the same job. **list_issues**, **list_routes** and **get_issue** answer at once instead of waiting behind them.
 - When a check in your browser pauses because the breakhound tab is hidden, your agent is told, so it can ask you to bring the tab into view.
+- When no agent is connected, or the extension loses touch with one, it says what to check: the project folder is open in your agent, and breakhound is switched on in its MCP settings. `mcp install` says the same, and the docs show [how, for each agent](https://seybel.github.io/breakhound/guide/agents#not-connected).
 
 ## 1.0.8
 

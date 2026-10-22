@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { allClients, installMcp, serverCommand } from '../src/mcp-install';
 
 const temp = (name: string) => mkdtempSync(join(tmpdir(), `breakhound-${name}-`));
@@ -32,7 +32,14 @@ describe('mcp install', () => {
     const toml = readFileSync(join(home, '.codex/config.toml'), 'utf8');
     expect(toml).toContain('[mcp_servers.breakhound]');
 
-    await installMcp(project, { clients: ['cursor', 'codex'], yes: true, home });
+    // Already set up, it still says what to check when the agent doesn't show breakhound.
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await installMcp(project, { clients: ['cursor', 'codex'], yes: true, home });
+      expect(log.mock.calls.flat().join('\n')).toContain('switched on in its MCP settings');
+    } finally {
+      log.mockRestore();
+    }
     expect(readFileSync(join(home, '.codex/config.toml'), 'utf8')).toBe(toml);
   });
 
