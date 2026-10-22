@@ -8,6 +8,8 @@
 - The extension's menu asking which project a page is from stays inside the panel when the toolbar wraps onto more rows.
 - Clicking the agent chip before a scan, or on a page with nothing wrong, shows that menu too. It used to open out of sight.
 - The MCP server sends breakhound's icon, for agents that show one beside each server.
+- **scan** and **verify** no longer time out in your agent. They answer within about 45 seconds; if they're not done by then, they say they're still running and what they're waiting for, and calling them again picks up the same job. **list_issues**, **list_routes** and **get_issue** answer at once instead of waiting behind them.
+- When a check in your browser pauses because the breakhound tab is hidden, your agent is told, so it can ask you to bring the tab into view.
 
 ## 1.0.8
 

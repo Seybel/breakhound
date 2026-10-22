@@ -289,7 +289,7 @@ export async function startBridge(opts: BridgeOptions): Promise<Bridge | null> {
       case '/breakhound/checks/progress': {
         const check = checks.get(String(body.id));
         if (check && typeof body.done === 'number' && typeof body.message === 'string') {
-          check.onProgress?.(body.done, body.message.slice(0, 200));
+          check.onProgress?.(body.done, body.message.slice(0, 400));
         }
         return reply({});
       }

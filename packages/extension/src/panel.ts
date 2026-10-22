@@ -717,6 +717,9 @@ function scheduleLive(): void {
   });
 }
 
+/** The coding agent's check running now: told when the tab is hidden and the check pauses. */
+let checking: { server: AgentServer; id: string; done: number } | null = null;
+
 /** Shows one page of the last scan: its timeline, issues and details. */
 function showPage(index: number): void {
   const page = state.pages[index];
@@ -831,10 +834,12 @@ async function scan(check?: {
     await session.attach();
     if (check) {
       const { server, check: c } = check;
+      checking = { server, id: c.id, done: 0 };
       await scanPages(session, c.pages, {
         ...common,
         onPage: (p) => {
           onPage(p);
+          if (checking) checking.done = p.index;
           checkProgress(server, c.id, p.index, `Checking ${p.route} in the browser`);
         },
         onResult,
@@ -875,6 +880,7 @@ async function scan(check?: {
         );
     }
   } finally {
+    checking = null;
     clearInterval(tick);
     await session.detach();
     // A whole-site scan ends back on the page it started from: that was breakhound, not the developer.
@@ -1972,6 +1978,17 @@ for (const [button, mode] of [
 
 session.onHidden = (hidden) => {
   state.paused = hidden;
+  // The agent waiting on this check hears why it isn't moving, and can ask the developer.
+  if (checking) {
+    checkProgress(
+      checking.server,
+      checking.id,
+      checking.done,
+      hidden
+        ? "Paused: the breakhound tab in the developer's Chrome is hidden (another tab in front, or the window covered or minimized), and Chrome doesn't draw hidden tabs. Ask the developer to bring that tab into view; the check carries on by itself then."
+        : 'Checking again: the tab is back in view',
+    );
+  }
   if (hidden) {
     notify(
       'Paused while the tab is out of view. Chrome stops drawing hidden tabs, so breakhound waits, and carries on by itself when you switch back to it.',

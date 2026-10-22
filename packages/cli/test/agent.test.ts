@@ -2,46 +2,16 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runMcpServer } from '../src/mcp';
 import { CSS, git, makeRepo } from './repo';
+import { StreamTransport } from './transport';
 
 /**
  * The whole fix loop the way a coding agent drives it over MCP, on a made-up
  * app in a throwaway git repo: scan, fix, verify, checkpoint, catch a
  * regression, and undo one route's fix.
  */
-
-/** An MCP client transport over a pair of in-memory streams. */
-class StreamTransport implements Transport {
-  onclose?: () => void;
-  onerror?: (error: Error) => void;
-  onmessage?: (message: JSONRPCMessage) => void;
-  private buffer = '';
-  constructor(
-    private readonly toServer: PassThrough,
-    private readonly fromServer: PassThrough,
-  ) {}
-  async start(): Promise<void> {
-    this.fromServer.on('data', (chunk: Buffer) => {
-      this.buffer += chunk.toString();
-      for (let i = this.buffer.indexOf('\n'); i !== -1; i = this.buffer.indexOf('\n')) {
-        const line = this.buffer.slice(0, i);
-        this.buffer = this.buffer.slice(i + 1);
-        if (line.trim()) this.onmessage?.(JSON.parse(line));
-      }
-    });
-  }
-  async send(message: JSONRPCMessage): Promise<void> {
-    this.toServer.write(`${JSON.stringify(message)}\n`);
-  }
-  async close(): Promise<void> {
-    this.toServer.end();
-    this.onclose?.();
-  }
-}
 
 const root = makeRepo();
 const toServer = new PassThrough();

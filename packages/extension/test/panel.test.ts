@@ -468,6 +468,64 @@ describe('the DevTools panel', () => {
     }
   });
 
+  it('tells the agent why its check is paused while the tab is hidden, then finishes', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'paused-shop' }));
+    writeFileSync(join(root, 'breakhound.config.json'), JSON.stringify({ baseUrl: origin }));
+    const bridge = await startBridge({
+      root,
+      version: '1.0.0',
+      loadConfig: async () => (await loadConfig(root)).config,
+    });
+    if (!bridge) throw new Error('No free port for the bridge');
+    try {
+      const { site, panel } = await open('bug-fixed-width.html');
+      await scanned(panel);
+      await panel.click('#send');
+      await expect.poll(() => panel.textContent('#notice-text')).toContain('paused-shop');
+
+      // From here the tab is hidden the way Chrome hides one: it says so, and draws no frames.
+      await site.addInitScript(() => {
+        const held = () => !localStorage.getItem('breakhound-test-shown');
+        Object.defineProperty(document, 'visibilityState', {
+          get: () => (held() ? 'hidden' : 'visible'),
+        });
+        const raf = window.requestAnimationFrame.bind(window);
+        window.requestAnimationFrame = (cb) => {
+          const go = () => (held() ? setTimeout(go, 100) : raf(cb));
+          go();
+          return 0;
+        };
+      });
+      const heard: string[] = [];
+      const { config } = await loadConfig(root);
+      const verified = runVerify({
+        cwd: root,
+        config,
+        version: '1.0.0',
+        quiet: true,
+        scanPages: (pages, widths) =>
+          bridge.scanInBrowser(pages, widths, origin, (_done, message) => heard.push(message)),
+      });
+      await expect
+        .poll(() => heard.some((m) => m.startsWith('Paused: the breakhound tab')), {
+          timeout: 30_000,
+        })
+        .toBe(true);
+      expect(heard.find((m) => m.startsWith('Paused'))).toContain('Ask the developer');
+
+      // Back in view: the check carries on by itself.
+      await site.evaluate(() => localStorage.setItem('breakhound-test-shown', '1'));
+      const v = await verified;
+      expect(v.regressions).toEqual([]);
+      expect(heard).toContain('Checking again: the tab is back in view');
+      await site.close();
+      await panel.close();
+    } finally {
+      await bridge.close();
+    }
+  }, 120_000);
+
   it('keeps the menu asking which project inside a narrow panel', async () => {
     // A project with no baseUrl, so the panel can't tell this page is its own, and asks.
     const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));

@@ -33,6 +33,8 @@ How to fix issues with it:
 5. When verify is clean for a route, checkpoint it. That commits the fix on its own, so it can be undone later with undo.
 Before finishing, run verify with no routes to check every page.
 
+scan and verify answer within about 45 seconds. When one says it's still running, it carries on: call it again with the same arguments to get its result, rather than something else. It says what it's waiting for; if that's the developer's browser tab, ask them to bring it into view.
+
 Issues sent from the extension are checked again in the developer's own browser: verify asks the open breakhound panel to scan the pages, so their login and browser carry over. If no panel is open, verify says so; ask the developer to open it rather than calling scan, which replaces their issues with a headless scan.`;
 
 /** Offered to clients as a ready-made prompt (a slash command in Claude Code). */
@@ -50,8 +52,34 @@ interface Tool {
   name: string;
   description: string;
   inputSchema: Json;
+  /**
+   * `read`: only reads what's on disk, so it answers at once, even while a scan runs.
+   * `long`: scan and verify, which can outlast the time an agent waits for an answer (see Job).
+   * Anything else changes the project, one call at a time.
+   */
+  kind?: 'read' | 'long';
   run(args: Json, ctx: ToolContext): Promise<ToolResult>;
 }
+
+/**
+ * A scan or verify, which can outlast the time an agent's client waits for an answer (often 60s):
+ * when the developer's browser tab is hidden, say, or a big app is scanned. It carries on after
+ * the call has answered "still running", and the same call again picks it up.
+ */
+interface Job {
+  /** The tool and its arguments: the same call again collects this job. */
+  key: string;
+  name: string;
+  label: string;
+  startedAt: number;
+  /** The last progress it reported. */
+  latest: string;
+  finished: boolean;
+  done: Promise<ToolResult>;
+}
+
+/** Comfortably under the 60s many MCP clients give a call before giving up on it. */
+const REPLY_WITHIN_MS = 45_000;
 
 interface ToolResult {
   content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[];
@@ -139,6 +167,7 @@ export function createTools(): Tool[] {
   return [
     {
       name: 'scan',
+      kind: 'long',
       description:
         'Find the app (starting its dev server if needed), discover its routes and scan each one at every width from 320 to 1920px in a headless browser. Returns every issue with its id. The result is the baseline that verify compares with, replacing any issues the developer sent from the browser extension, so check list_issues first. Takes from seconds to a few minutes on large apps.',
       inputSchema: {
@@ -167,6 +196,7 @@ export function createTools(): Tool[] {
     },
     {
       name: 'list_routes',
+      kind: 'read',
       description: 'Routes from the last scan, with their status and number of issues.',
       inputSchema: { type: 'object', properties: {} },
       async run(_args, ctx) {
@@ -176,6 +206,7 @@ export function createTools(): Tool[] {
     },
     {
       name: 'list_issues',
+      kind: 'read',
       description:
         'Issues from the last scan or verify, each listed once even when it shows up on several routes. Filter by route or severity.',
       inputSchema: {
@@ -196,6 +227,7 @@ export function createTools(): Tool[] {
     },
     {
       name: 'get_issue',
+      kind: 'read',
       description:
         'Everything about one issue: the widths, the element and where it is in the code (when known), measurements, computed styles, a likely fix, every page it is on, and a screenshot.',
       inputSchema: {
@@ -227,6 +259,7 @@ export function createTools(): Tool[] {
     },
     {
       name: 'verify',
+      kind: 'long',
       description:
         'Scan routes again and compare with the baseline from scan: which issues are fixed, which are still there, and which are new (a change broke something, maybe at another width or on another route). Pass the routes you changed for a quick check, and nothing to check every route before you finish.',
       inputSchema: {
@@ -430,8 +463,10 @@ export async function runMcpServer(
   let nextId = 1;
   let clientCanListRoots = false;
   let root: string | null = process.env.BREAKHOUND_ROOT ?? null;
-  // One tool at a time: two scans at once would fight over the same files.
+  // One change at a time: two scans at once would fight over the same files.
   let queue: Promise<unknown> = Promise.resolve();
+  let job: Job | null = null;
+  const replyWithinMs = Number(process.env.BREAKHOUND_REPLY_WITHIN_MS) || REPLY_WITHIN_MS;
 
   const send = (message: Json) =>
     io.output.write(`${JSON.stringify({ jsonrpc: '2.0', ...message })}\n`);
@@ -467,12 +502,8 @@ export async function runMcpServer(
     return root;
   }
 
-  async function callTool(id: unknown, params: Json): Promise<void> {
-    const tool = tools.find((t) => t.name === params.name);
-    if (!tool) {
-      send({ id, error: { code: -32602, message: `Unknown tool: ${String(params.name)}` } });
-      return;
-    }
+  /** Runs a tool and says how it went; never throws. */
+  async function runTool(tool: Tool, params: Json, onProgress?: (message: string) => void) {
     const token = (params._meta as Json | undefined)?.progressToken;
     try {
       const dir = await projectRoot();
@@ -485,6 +516,7 @@ export async function runMcpServer(
           config,
           bridge,
           progress(done, message) {
+            onProgress?.(message);
             if (token !== undefined)
               send({
                 method: 'notifications/progress',
@@ -495,12 +527,96 @@ export async function runMcpServer(
       );
       if (warnings.length)
         result.content.push({ type: 'text', text: `Config warnings: ${warnings.join(' ')}` });
-      send({ id, result });
+      return result;
     } catch (error) {
       // The guard shut the dev server down; the next call starts it again.
       if (error instanceof MemoryError) server.current = null;
-      send({ id, result: text(error instanceof Error ? error.message : String(error), true) });
+      return text(error instanceof Error ? error.message : String(error), true);
     }
+  }
+
+  /** What a scan or verify still running is doing, for whoever asks meanwhile. */
+  const running = (j: Job) =>
+    `${j.label} has been running for ${Math.round((Date.now() - j.startedAt) / 1000)}s${j.latest ? ` (${j.latest})` : ''}.`;
+
+  /**
+   * Waits for the job, but not past the time an agent waits for an answer (often 60s): then says
+   * it's still running. The job carries on, and the same call again picks it up.
+   */
+  async function collect(j: Job): Promise<ToolResult> {
+    const late = new Promise<null>((r) => setTimeout(() => r(null), replyWithinMs).unref());
+    const result = await Promise.race([j.done, late]);
+    if (result) {
+      if (job === j) job = null;
+      return result;
+    }
+    return text(
+      `Still running: ${running(j)} It carries on by itself. Call ${j.name} again with the same arguments to get its result; list_issues and get_issue answer meanwhile.`,
+    );
+  }
+
+  async function callTool(id: unknown, params: Json): Promise<void> {
+    const tool = tools.find((t) => t.name === params.name);
+    if (!tool) {
+      send({ id, error: { code: -32602, message: `Unknown tool: ${String(params.name)}` } });
+      return;
+    }
+    const key = `${tool.name} ${JSON.stringify(params.arguments ?? {})}`;
+    const busy = job && !job.finished ? job : null;
+    if (tool.kind === 'read') {
+      const result = await runTool(tool, params);
+      // What's on disk is from before the scan or verify still running.
+      if (busy)
+        result.content.push({
+          type: 'text',
+          text: `Note: ${running(busy)} Call ${busy.name} again with the same arguments for its result.`,
+        });
+      send({ id, result });
+      return;
+    }
+    if (job?.key === key) {
+      send({ id, result: await collect(job) });
+      return;
+    }
+    if (busy) {
+      send({
+        id,
+        result: text(
+          `Not yet: ${running(busy)} Call ${busy.name} again with the same arguments to get its result first.`,
+          true,
+        ),
+      });
+      return;
+    }
+    if (tool.kind !== 'long') {
+      // A result nobody came back for is over once something else changes the project.
+      job = null;
+      queue = queue.then(() => runTool(tool, params));
+      send({ id, result: await (queue as Promise<ToolResult>) });
+      return;
+    }
+    const args = (params.arguments as Json | undefined) ?? {};
+    const routes = strings(args.routes);
+    const j: Job = {
+      key,
+      name: tool.name,
+      label: `${tool.name}${routes.length ? ` of ${routes.join(', ')}` : ''}`,
+      startedAt: Date.now(),
+      latest: '',
+      finished: false,
+      done: Promise.resolve(text('')),
+    };
+    j.done = queue.then(() =>
+      runTool(tool, params, (message) => {
+        j.latest = message;
+      }),
+    );
+    j.done.then(() => {
+      j.finished = true;
+    });
+    queue = j.done;
+    job = j;
+    send({ id, result: await collect(j) });
   }
 
   function handle(message: Json): void {
@@ -584,7 +700,7 @@ export async function runMcpServer(
         });
         return;
       case 'tools/call':
-        queue = queue.then(() => callTool(id, params));
+        void callTool(id, params);
         return;
       default:
         send({ id, error: { code: -32601, message: `Method not found: ${String(method)}` } });
