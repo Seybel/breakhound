@@ -529,6 +529,24 @@ function hideMenu(): void {
   ui.agentMenu.hidden = true;
 }
 
+/**
+ * Keeps the menu inside the panel. It opens leftwards from the button's right edge, unless that
+ * runs past the panel's left side (the toolbar wrapped, so the button sits at the left): then
+ * rightwards from its left edge, moved in if it's still too wide.
+ */
+function placeMenu(): void {
+  const menu = ui.agentMenu;
+  if (menu.hidden) return;
+  const margin = 8;
+  menu.style.left = '';
+  menu.style.right = '';
+  if (menu.getBoundingClientRect().left >= margin) return;
+  menu.style.right = 'auto';
+  menu.style.left = '0';
+  const over = menu.getBoundingClientRect().right - (innerWidth - margin);
+  if (over > 0) menu.style.left = `${-over}px`;
+}
+
 /** Asks which project to send to, when the page's own one can't be told. */
 function pickProject(servers: AgentServer[], onPick: (server: AgentServer) => void): void {
   ui.agentMenu.replaceChildren(
@@ -548,6 +566,7 @@ function pickProject(servers: AgentServer[], onPick: (server: AgentServer) => vo
     }),
   );
   ui.agentMenu.hidden = false;
+  placeMenu();
   (ui.agentMenu.querySelector('button') as HTMLButtonElement | null)?.focus();
 }
 
@@ -1117,6 +1136,8 @@ function renderToolbar(): void {
   ui.send.hidden = ui.copyAll.hidden;
   ui.send.disabled = agent.sending;
   label(ui.send, 'send', agent.sending ? 'Sending' : 'Send to agent');
+  // The buttons change size and can wrap differently, taking an open menu's button with them.
+  placeMenu();
 }
 
 /** The pages of a whole-site scan, to pick which one the timeline and issues show. */
@@ -1927,6 +1948,7 @@ ui.agent.addEventListener('click', () => {
 addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideMenu();
 });
+addEventListener('resize', placeMenu);
 addEventListener('click', (e) => {
   const target = e.target as Node;
   if (

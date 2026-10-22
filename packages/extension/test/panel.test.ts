@@ -468,6 +468,40 @@ describe('the DevTools panel', () => {
     }
   });
 
+  it('keeps the menu asking which project inside a narrow panel', async () => {
+    // A project with no baseUrl, so the panel can't tell this page is its own, and asks.
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'another-shop' }));
+    const bridge = await startBridge({
+      root,
+      version: '1.0.0',
+      loadConfig: async () => (await loadConfig(root)).config,
+    });
+    if (!bridge) throw new Error('No free port for the bridge');
+    try {
+      const { site, panel } = await open('bug-fixed-width.html');
+      await scanned(panel);
+      // Narrow enough that the toolbar wraps and Send to agent sits at the left.
+      await panel.setViewportSize({ width: 380, height: 700 });
+      await panel.click('#send');
+      await panel.waitForSelector('#agent-menu:not([hidden])');
+      const inside = async () =>
+        panel.evaluate(() => {
+          const r = (document.getElementById('agent-menu') as HTMLElement).getBoundingClientRect();
+          return r.left >= 0 && r.right <= window.innerWidth;
+        });
+      expect(await inside()).toBe(true);
+      expect(await panel.textContent('#agent-menu')).toContain('another-shop');
+      // And when the panel is resized while it is open.
+      await panel.setViewportSize({ width: 600, height: 700 });
+      await expect.poll(inside).toBe(true);
+      await site.close();
+      await panel.close();
+    } finally {
+      await bridge.close();
+    }
+  });
+
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');
     await scanned(panel);
