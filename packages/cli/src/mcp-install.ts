@@ -190,21 +190,24 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
   }
 
   const changes: { client: Client; next: string }[] = [];
+  let alreadySetUp = false;
   for (const client of clients) {
     const current = existsSync(client.file) ? readFileSync(client.file, 'utf8') : null;
     try {
       const next = client.update(current);
-      if (next === null)
+      if (next === null) {
+        alreadySetUp = true;
         console.log(
           `${styleText('green', '✔')} ${client.name}: already set up in ${show(client.file, cwd)}`,
         );
-      else changes.push({ client, next });
+      } else changes.push({ client, next });
     } catch (error) {
       console.log(`${styleText('yellow', '!')} ${client.name}: ${(error as Error).message}`);
     }
   }
   if (!changes.length) {
-    console.log(`\n${NOT_SHOWING_UP}`);
+    // Only for an agent it's in: one whose settings couldn't be changed has nothing to switch on.
+    if (alreadySetUp) console.log(`\n${NOT_SHOWING_UP}`);
     return 0;
   }
 

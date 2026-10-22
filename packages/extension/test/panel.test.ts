@@ -624,9 +624,12 @@ describe('the DevTools panel', () => {
       });
     let bridge = await start();
     if (!bridge) throw new Error('No free port for the bridge');
+    let held: Server | null = null;
+    let other: Awaited<ReturnType<typeof startBridge>> = null;
     try {
-      const { site, panel } = await open('clean-responsive.html');
+      const { site, panel } = await open('bug-fixed-width.html');
       await panel.waitForSelector('#agent:not([hidden])');
+      await scanned(panel);
       // The agent quits, or the project is closed in it.
       await bridge.close();
       await panel.click('#agent');
@@ -643,15 +646,41 @@ describe('the DevTools panel', () => {
       await context.unroute('https://seybel.github.io/**');
       // It comes back: the notice no longer holds.
       bridge = await start();
+      if (!bridge) throw new Error('No free port for the bridge');
       await panel.waitForSelector('#agent:not(.offline)', { timeout: 20_000 });
+      expect(await panel.isHidden('#notice')).toBe(true);
+
+      // Lost again, and something else answers on its port, so it doesn't come back by itself.
+      const { port } = bridge;
+      await bridge.close();
+      bridge = null;
+      held = createServer((_req, res) => res.writeHead(404).end());
+      await new Promise<void>((r) => held?.listen(port, '127.0.0.1', r));
+      // Sending says what was lost, not how to set up an agent for the first time.
+      await panel.click('#send');
+      await expect.poll(() => panel.textContent('#notice-text')).toContain('Lost touch');
+      // Picking another project from the chip is back in touch too: the notice goes.
+      const otherRoot = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
+      writeFileSync(join(otherRoot, 'package.json'), JSON.stringify({ name: 'other-shop' }));
+      other = await startBridge({
+        root: otherRoot,
+        version: '1.0.0',
+        loadConfig: async () => (await loadConfig(otherRoot)).config,
+      });
+      await panel.click('#agent');
+      await panel.click('#agent-menu button:has-text("other-shop")');
+      await panel.waitForSelector('#agent:not(.offline)');
+      expect(await panel.textContent('#agent')).toContain('other-shop');
       expect(await panel.isHidden('#notice')).toBe(true);
       await site.close();
       await panel.close();
     } finally {
       await bridge?.close();
+      await other?.close();
+      held?.close();
       for (const url of blocked) await context.unroute(url);
     }
-  }, 60_000);
+  }, 120_000);
 
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');

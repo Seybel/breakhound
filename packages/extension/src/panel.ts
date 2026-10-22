@@ -543,11 +543,20 @@ function lostTouch(server: AgentServer): string {
   return `Lost touch with your agent in ${server.root}. ${SWITCHED_ON} breakhound keeps looking for it.`;
 }
 
-/** Back in touch: a notice saying it was lost no longer holds. */
-function backInTouch(server: AgentServer): void {
+/** The notice saying the panel lost touch with the agent, while it's up. */
+let lostNotice: string | null = null;
+
+function showLostTouch(server: AgentServer): void {
+  lostNotice = lostTouch(server);
+  notify(lostNotice, 'note', howToCheck);
+}
+
+/** Back in touch, with this project or another: a notice saying it was lost no longer holds. */
+function backInTouch(): void {
   agent.online = true;
   renderAgent();
-  if (!ui.notice.hidden && ui.noticeText.textContent === lostTouch(server)) notify(null);
+  if (lostNotice && !ui.notice.hidden && ui.noticeText.textContent === lostNotice) notify(null);
+  lostNotice = null;
 }
 
 function hideMenu(): void {
@@ -599,8 +608,8 @@ function pickProject(servers: AgentServer[], onPick: (server: AgentServer) => vo
 function listen(server: AgentServer): void {
   agent.listening?.abort();
   const stop = new AbortController();
-  Object.assign(agent, { listening: stop, server, online: true });
-  renderAgent();
+  Object.assign(agent, { listening: stop, server });
+  backInTouch();
   void (async () => {
     let current = server;
     while (!stop.signal.aborted) {
@@ -611,7 +620,7 @@ function listen(server: AgentServer): void {
           continue;
         }
         const check = await nextCheck(current, origin, stop.signal);
-        if (!agent.online) backInTouch(current);
+        if (!agent.online) backInTouch();
         if (check) await runCheck(current, check);
       } catch {
         if (stop.signal.aborted) return;
@@ -623,7 +632,7 @@ function listen(server: AgentServer): void {
         if (again) {
           current = again;
           agent.server = again;
-          backInTouch(again);
+          backInTouch();
         }
       }
     }
@@ -673,6 +682,13 @@ async function sendToAgent(): Promise<void> {
   renderToolbar();
   try {
     const servers = byProject(await findServers());
+    if (!servers.length && agent.server) {
+      // It was connected: the agent quit, or the project was closed in it.
+      agent.online = false;
+      renderAgent();
+      showLostTouch(agent.server);
+      return;
+    }
     if (!servers.length) {
       notify(
         `No coding agent is connected to breakhound yet. In your project, run ${SETUP_COMMAND} once, then restart your agent (Claude Code, Cursor, Codex…).\nAlready done? ${SWITCHED_ON}\nUntil then, Copy prompt works with any agent.`,
@@ -1962,7 +1978,7 @@ ui.agent.addEventListener('click', () => {
     if (!projects.length) {
       agent.online = false;
       renderAgent();
-      if (agent.server) notify(lostTouch(agent.server), 'note', howToCheck);
+      if (agent.server) showLostTouch(agent.server);
       return;
     }
     pickProject(projects, (server) => {

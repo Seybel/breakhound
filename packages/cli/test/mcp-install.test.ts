@@ -67,10 +67,23 @@ describe('mcp install', () => {
     expect(codex?.update(next)).toBeNull();
   });
 
-  it('leaves a config with comments alone and says what to add', () => {
+  it('leaves a config with comments alone and says what to add', async () => {
     const project = temp('proj');
     const vscode = allClients(project).find((c) => c.id === 'vscode');
     expect(() => vscode?.update('{ // mine\n "servers": {} }')).toThrow(/isn't plain JSON/);
+
+    // Nothing was added, so there's nothing to switch on in the agent.
+    mkdirSync(join(project, '.vscode'));
+    writeFileSync(join(project, '.vscode/mcp.json'), '{ // mine\n "servers": {} }');
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await installMcp(project, { clients: ['vscode'], yes: true, home: temp('home') });
+      const said = log.mock.calls.flat().join('\n');
+      expect(said).toContain("isn't plain JSON");
+      expect(said).not.toContain('Not showing up?');
+    } finally {
+      log.mockRestore();
+    }
   });
 
   it('starts npx through cmd on Windows', () => {
