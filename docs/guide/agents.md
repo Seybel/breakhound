@@ -8,7 +8,7 @@ breakhound doesn't edit your code: your own agent does, and breakhound checks it
 npx @seybel/breakhound mcp install
 ```
 
-It finds Claude Code, Cursor, VS Code, Antigravity, Windsurf and Codex, shows what it will add to their MCP settings, and asks first. Then ask your agent to fix the responsive issues. It can:
+It finds Claude Code, Cursor, VS Code, Antigravity, Windsurf and Codex, shows what it will add to their MCP settings, and asks first. It sets them to start `@seybel/breakhound@latest`, so each time your agent starts breakhound it gets the newest version, rather than whichever one npx cached first. Then ask your agent to fix the responsive issues. It can:
 
 | Tool | What it does |
 |---|---|
@@ -41,6 +41,8 @@ Setting it up adds breakhound to your agent's MCP settings, but your agent decid
 | Codex | `~/.codex/config.toml` | Start a new session in the project folder. `/mcp` lists the servers running in it. |
 
 **Your agent was restarted.** Agents start their MCP servers when a session or window opens, so one added while yours was open shows up after a restart, or the refresh above.
+
+**It's the latest breakhound.** Hover over the agent chip in the extension's toolbar: it says which version your agent runs. Set up before 1.0.10? Your agent may still be on the version npx first cached. Run `npx @seybel/breakhound@latest mcp install` once in the project to move it onto the latest, then restart your agent.
 
 Once it's running, the breakhound extension shows a chip with the project's name in its toolbar.
 

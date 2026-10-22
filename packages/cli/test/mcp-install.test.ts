@@ -61,7 +61,7 @@ describe('mcp install', () => {
     const toml =
       '[mcp_servers.breakhound]\ncommand = "npx"\nargs = ["-y", "breakhound", "mcp"]\n\n[mcp_servers.other]\ncommand = "other"\n';
     const next = codex?.update(toml) ?? '';
-    expect(next).toContain('"@seybel/breakhound"');
+    expect(next).toContain('"@seybel/breakhound@latest"');
     expect(next).not.toContain('"breakhound"');
     expect(next).toContain('[mcp_servers.other]\ncommand = "other"');
     expect(codex?.update(next)).toBeNull();
@@ -86,10 +86,71 @@ describe('mcp install', () => {
     }
   });
 
+  it('moves an entry an earlier version wrote onto the latest, keeping what was added to it', async () => {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: VS Code variable.
+    const workspace = '${workspaceFolder}';
+    const project = temp('proj');
+    const home = temp('home');
+    // As 1.0.10 and before wrote it, with no version, so npx kept whatever it had cached.
+    const before = { command: 'npx', args: ['-y', '@seybel/breakhound', 'mcp'] };
+    mkdirSync(join(project, '.cursor'));
+    writeFileSync(
+      join(project, '.cursor/mcp.json'),
+      JSON.stringify({ mcpServers: { breakhound: { ...before, env: { DEBUG: '1' } } } }),
+    );
+    mkdirSync(join(project, '.vscode'));
+    writeFileSync(
+      join(project, '.vscode/mcp.json'),
+      JSON.stringify({
+        servers: { breakhound: { type: 'stdio', ...before, cwd: workspace } },
+      }),
+    );
+    mkdirSync(join(home, '.codex'));
+    writeFileSync(
+      join(home, '.codex/config.toml'),
+      '[mcp_servers.breakhound]\ncommand = "npx"\nargs = ["-y", "@seybel/breakhound", "mcp"]\nenv = { DEBUG = "1" }\n',
+    );
+
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await installMcp(project, { clients: ['cursor', 'vscode', 'codex'], yes: true, home });
+      const said = log.mock.calls.flat().join('\n');
+      expect(said).toContain('will update its MCP server');
+      expect(said).toContain('Cursor: updated in');
+    } finally {
+      log.mockRestore();
+    }
+    const cursor = JSON.parse(readFileSync(join(project, '.cursor/mcp.json'), 'utf8'));
+    expect(cursor.mcpServers.breakhound).toEqual({ ...serverCommand(), env: { DEBUG: '1' } });
+    const vscode = JSON.parse(readFileSync(join(project, '.vscode/mcp.json'), 'utf8'));
+    expect(vscode.servers.breakhound).toMatchObject({ type: 'stdio', cwd: workspace });
+    expect(vscode.servers.breakhound.args).toEqual(serverCommand().args);
+    const toml = readFileSync(join(home, '.codex/config.toml'), 'utf8');
+    expect(toml).toContain('"@seybel/breakhound@latest"');
+    expect(toml).toContain('env = { DEBUG = "1" }');
+
+    // Done once: the next run finds nothing to change.
+    for (const client of allClients(project, home).filter((c) =>
+      ['cursor', 'vscode', 'codex'].includes(c.id),
+    )) {
+      expect(client.update(readFileSync(client.file, 'utf8'))).toBeNull();
+    }
+  });
+
+  it('leaves an entry pinned to a version alone: that was a choice', () => {
+    const claude = allClients(temp('proj'), temp('home')).find((c) => c.id === 'claude');
+    const pinned = JSON.stringify({
+      mcpServers: {
+        breakhound: { command: 'npx', args: ['-y', '@seybel/breakhound@1.0.4', 'mcp'] },
+      },
+    });
+    expect(claude?.update(pinned)).toBeNull();
+  });
+
   it('starts npx through cmd on Windows', () => {
     expect(serverCommand('win32')).toEqual({
       command: 'cmd',
-      args: ['/c', 'npx', '-y', '@seybel/breakhound', 'mcp'],
+      args: ['/c', 'npx', '-y', '@seybel/breakhound@latest', 'mcp'],
     });
   });
 });

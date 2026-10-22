@@ -2,6 +2,8 @@
 
 ## 1.0.10
 
+- `mcp install` sets your agent to start `@seybel/breakhound@latest`, so it gets the newest breakhound each time it starts it. Before, npx kept using whichever version it cached first, so an agent could stay on an old breakhound while the extension updated. Run `npx @seybel/breakhound@latest mcp install` once to move an earlier setup onto the latest; anything you added to its entry stays, and an entry pinned to a version is left alone.
+- Hovering over the agent chip in the extension says which breakhound your agent runs.
 - A month or week calendar whose days run out of room is reported once, as the calendar, with the width where it starts to fit. Its likely fix is one that works for calendars: let it scroll sideways inside its own box below that width, or show the days as a list there. Before, each day was its own issue, with fixes (let it shrink, use fewer columns) that squeeze the days further. A calendar is recognised by its row of weekday names, in the page's language too; a date picker is left as it was.
 - An overlap in a grid whose columns already shrink no longer suggests `minmax(0, 1fr)` columns, only fewer columns.
 - **Send to agent** works when your project's breakhound is older than the extension (the extension updates by itself; the copy your agent runs may not have yet). The extension sends only checks that version knows, and a newer breakhound says which checks it knows. Before, the whole scan was refused with "Bad issue".

@@ -24,18 +24,35 @@ export interface Client {
 
 const SERVER_NAME = 'breakhound';
 const PACKAGE = '@seybel/breakhound';
+/**
+ * npx keeps using a copy it has cached, so an agent could run an old breakhound for good, while
+ * the extension updates by itself. With @latest, npx checks for a newer one each time it starts.
+ */
+const LATEST = `${PACKAGE}@latest`;
 
 /**
  * An entry that starts the unscoped `breakhound` package from npm, which is someone else's
  * tool: written by an early build of this one, it's replaced rather than left in place.
  */
 function startsOtherPackage(args: unknown): boolean {
-  return Array.isArray(args) && args.includes('breakhound') && !args.includes(PACKAGE);
+  return (
+    Array.isArray(args) &&
+    args.includes('breakhound') &&
+    !args.some((a) => typeof a === 'string' && a.startsWith(PACKAGE))
+  );
 }
 
-/** npx uses the project's own breakhound when it's installed, the latest otherwise. */
+/**
+ * The entry an earlier breakhound wrote, with no version, so npx kept whichever it had cached.
+ * One pinned to a version (`@seybel/breakhound@1.0.4`) was the developer's choice, and stays.
+ */
+function wroteUntagged(args: unknown): boolean {
+  return Array.isArray(args) && args.includes(PACKAGE) && args.includes('mcp');
+}
+
+/** The latest breakhound, checked for each time the agent starts it. */
 export function serverCommand(platform = process.platform): { command: string; args: string[] } {
-  const args = ['-y', PACKAGE, 'mcp'];
+  const args = ['-y', LATEST, 'mcp'];
   // Windows can't start npx (a .cmd file) directly.
   return platform === 'win32'
     ? { command: 'cmd', args: ['/c', 'npx', ...args] }
@@ -64,9 +81,16 @@ function jsonClient(
           );
         }
       }
-      const existing = data[key]?.[SERVER_NAME] as { args?: unknown } | undefined;
-      if (existing && !startsOtherPackage(existing.args)) return null;
-      data[key] = { ...data[key], [SERVER_NAME]: entry };
+      const existing = data[key]?.[SERVER_NAME] as Record<string, unknown> | undefined;
+      if (existing && !startsOtherPackage(existing.args) && !wroteUntagged(existing.args)) {
+        return null;
+      }
+      // One written before keeps anything added to it since, like env.
+      const next =
+        existing && wroteUntagged(existing.args)
+          ? { ...existing, command: entry.command, args: entry.args }
+          : entry;
+      data[key] = { ...data[key], [SERVER_NAME]: next };
       return `${JSON.stringify(data, null, 2)}\n`;
     },
   };
@@ -84,6 +108,11 @@ function codexClient(file: string): Client {
       const table = /^\[mcp_servers\.breakhound\]\n(?:(?!\[)[^\n]*\n?)*/m;
       const found = current?.match(table)?.[0];
       if (found) {
+        // Written before, with no version: only its args change, so anything added stays.
+        if (found.includes(`"${PACKAGE}"`)) {
+          const line = `args = ${JSON.stringify(args).replaceAll(',', ', ')}`;
+          return (current as string).replace(table, found.replace(/^args = .*$/m, line));
+        }
         if (found.includes(PACKAGE) || !/["']breakhound["']/.test(found)) return null;
         return (current as string).replace(table, `${block}${found.endsWith('\n\n') ? '\n' : ''}`);
       }
@@ -189,7 +218,8 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
     return 1;
   }
 
-  const changes: { client: Client; next: string }[] = [];
+  /** `updating`: breakhound was in there already, as an earlier version wrote it. */
+  const changes: { client: Client; next: string; updating: boolean }[] = [];
   let alreadySetUp = false;
   for (const client of clients) {
     const current = existsSync(client.file) ? readFileSync(client.file, 'utf8') : null;
@@ -200,7 +230,10 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
         console.log(
           `${styleText('green', '✔')} ${client.name}: already set up in ${show(client.file, cwd)}`,
         );
-      } else changes.push({ client, next });
+      } else {
+        const updating = !!current && /["']@?(?:seybel\/)?breakhound["']/.test(current);
+        changes.push({ client, next, updating });
+      }
     } catch (error) {
       console.log(`${styleText('yellow', '!')} ${client.name}: ${(error as Error).message}`);
     }
@@ -211,10 +244,20 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
     return 0;
   }
 
-  console.log('\nbreakhound will add its MCP server to:\n');
   const { command, args } = serverCommand();
-  for (const { client } of changes) {
-    console.log(`  ${client.name.padEnd(12)} ${show(client.file, cwd)}`);
+  const adding = changes.filter((c) => !c.updating);
+  const updating = changes.filter((c) => c.updating);
+  if (adding.length) {
+    console.log('\nbreakhound will add its MCP server to:\n');
+    for (const { client } of adding)
+      console.log(`  ${client.name.padEnd(12)} ${show(client.file, cwd)}`);
+  }
+  if (updating.length) {
+    console.log(
+      '\nbreakhound will update its MCP server, so your agent always starts the latest, in:\n',
+    );
+    for (const { client } of updating)
+      console.log(`  ${client.name.padEnd(12)} ${show(client.file, cwd)}`);
   }
   console.log(styleText('dim', `\n  The server runs: ${command} ${args.join(' ')}\n`));
 
@@ -224,17 +267,21 @@ export async function installMcp(cwd: string, options: InstallOptions = {}): Pro
       return 1;
     }
     const rl = createInterface({ input: process.stdin, output: process.stdout });
-    const answer = (await rl.question('Add it? [Y/n] ')).trim().toLowerCase();
+    const answer = (await rl.question(adding.length ? 'Add it? [Y/n] ' : 'Update it? [Y/n] '))
+      .trim()
+      .toLowerCase();
     rl.close();
     if (answer && answer !== 'y' && answer !== 'yes') {
       console.log('Nothing changed.');
       return 0;
     }
   }
-  for (const { client, next } of changes) {
+  for (const { client, next, updating } of changes) {
     mkdirSync(dirname(client.file), { recursive: true });
     writeFileSync(client.file, next);
-    console.log(`${styleText('green', '✔')} ${client.name}: added to ${show(client.file, cwd)}`);
+    console.log(
+      `${styleText('green', '✔')} ${client.name}: ${updating ? 'updated in' : 'added to'} ${show(client.file, cwd)}`,
+    );
   }
   console.log(
     `\nRestart your agent (or reload its MCP servers), then ask it to "fix the responsive issues breakhound finds".`,
