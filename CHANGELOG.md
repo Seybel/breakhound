@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.10
+
+- A month or week calendar whose days run out of room is reported once, as the calendar, with the width where it starts to fit. Its likely fix is one that works for calendars: let it scroll sideways inside its own box below that width, or show the days as a list there. Before, each day was its own issue, with fixes (let it shrink, use fewer columns) that squeeze the days further. A calendar is recognised by its row of weekday names, in the page's language too; a date picker is left as it was.
+- An overlap in a grid whose columns already shrink no longer suggests `minmax(0, 1fr)` columns, only fewer columns.
+
 ## 1.0.9
 
 - The extension always opens on **This page**. Before, it remembered **Whole site** from the last time, so right-clicking **Scan with breakhound** could start a whole-site scan.
