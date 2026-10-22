@@ -382,7 +382,8 @@ svg.icon {
 .send-wrap {
   position: relative;
 }
-.send-wrap:not(:has(> button:not([hidden]))) {
+/* Hidden with Send to agent, unless the agent chip opened the menu in it. */
+.send-wrap:not(:has(> button:not([hidden]), > .menu:not([hidden]))) {
   display: none;
 }
 .menu {

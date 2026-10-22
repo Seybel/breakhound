@@ -502,6 +502,38 @@ describe('the DevTools panel', () => {
     }
   });
 
+  it('opens the project menu from the agent chip before anything is scanned', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'breakhound-project-'));
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'chip-shop' }));
+    writeFileSync(join(root, 'breakhound.config.json'), JSON.stringify({ baseUrl: origin }));
+    const bridge = await startBridge({
+      root,
+      version: '1.0.0',
+      loadConfig: async () => (await loadConfig(root)).config,
+    });
+    if (!bridge) throw new Error('No free port for the bridge');
+    try {
+      // Send to agent is hidden until there's something to send; the chip still opens the menu.
+      const { site, panel } = await open('clean-responsive.html');
+      await panel.waitForSelector('#agent:not([hidden])');
+      expect(await panel.isHidden('#send')).toBe(true);
+      await panel.click('#agent');
+      await panel.waitForSelector('#agent-menu:not([hidden])');
+      expect(await panel.isVisible('#agent-menu')).toBe(true);
+      expect(await panel.textContent('#agent-menu')).toContain('chip-shop');
+      expect(
+        await panel.evaluate(() => {
+          const r = (document.getElementById('agent-menu') as HTMLElement).getBoundingClientRect();
+          return r.left >= 0 && r.right <= window.innerWidth;
+        }),
+      ).toBe(true);
+      await site.close();
+      await panel.close();
+    } finally {
+      await bridge.close();
+    }
+  });
+
   it('says so when a page has nothing wrong', async () => {
     const { site, panel } = await open('clean-responsive.html');
     await scanned(panel);
