@@ -517,8 +517,15 @@ describe('the DevTools panel', () => {
       const { site, panel } = await open('clean-responsive.html');
       await panel.waitForSelector('#agent:not([hidden])');
       expect(await panel.isHidden('#send')).toBe(true);
+      const chipAt = () =>
+        panel.evaluate(
+          () => (document.getElementById('agent') as HTMLElement).getBoundingClientRect().left,
+        );
+      const before = await chipAt();
       await panel.click('#agent');
       await panel.waitForSelector('#agent-menu:not([hidden])');
+      // Opening it doesn't move the chip.
+      expect(await chipAt()).toBeCloseTo(before, 0);
       expect(await panel.isVisible('#agent-menu')).toBe(true);
       expect(await panel.textContent('#agent-menu')).toContain('chip-shop');
       expect(
