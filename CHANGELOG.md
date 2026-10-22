@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9
+
+- The extension always opens on **This page**. Before, it remembered **Whole site** from the last time, so right-clicking **Scan with breakhound** could start a whole-site scan.
+- The extension's start button and heading say what it's about to scan: **Scan this page** or **Scan whole site**.
+
 ## 1.0.8
 
 - The extension no longer reports false issues on pages that adjust their layout in a resize handler (a debounced resize, say) when scanning without **Reload first**. It now waits for those handlers the way the CLI does, so both find the same issues.
