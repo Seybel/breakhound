@@ -141,6 +141,15 @@ function name(rec: ElementRecord): string {
 }
 
 /** The likely fix, from how the two are laid out next to each other. */
+/** The grid's items stay inside it, so its columns already shrink with it. */
+function itemsFit(grid: ElementRecord): boolean {
+  const { left, right } = grid.rect;
+  return Array.from(grid.el.children).every((child) => {
+    const r = child.getBoundingClientRect();
+    return r.width === 0 || (r.left >= left - 1 && r.right <= right + 1);
+  });
+}
+
 function suggestionFor(g: Group): string {
   if (g.spill?.direction === 'down') {
     return `The content of ${name(g.spill.box)} is taller than its box at this width and runs down over what comes next. Its height is fixed (height or max-height) and the content no longer fits once it wraps; use min-height instead, or let it grow with its content.`;
@@ -154,7 +163,11 @@ function suggestionFor(g: Group): string {
     return `They sit side by side in the flex row ${name(lca)}, which runs out of room at this width. Let the row wrap (flex-wrap: wrap), let the item that should give way shrink (min-width: 0), or stack them below this width with a media query.`;
   }
   if (lca && display.includes('grid')) {
-    return `They share the grid ${name(lca)}, whose columns are too narrow here for what is in them. Use minmax(0, 1fr) columns so items can shrink, or switch to fewer columns below this width.`;
+    // Its items sticking out of it: the columns won't shrink below their content.
+    if (!itemsFit(lca)) {
+      return `They share the grid ${name(lca)}, whose columns are too narrow here for what is in them. Use minmax(0, 1fr) columns so items can shrink, or switch to fewer columns below this width.`;
+    }
+    return `They share the grid ${name(lca)}, whose columns have already shrunk as far as they go and are too narrow here for what is in them. Switch to fewer columns below this width.`;
   }
   return 'These two areas stop making room for each other at this width. Stack them earlier with a media query, or let the narrower one shrink (min-width: 0).';
 }

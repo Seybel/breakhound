@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Six columns of categories kept on small screens</title>
+<style>
+* { box-sizing: border-box; } body { margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.4; }
+main { padding: 16px; }
+/* Six columns that shrink with the screen, so the longer names run into the next one. */
+.categories { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.categories a { padding: 8px 0; font-size: 15px; white-space: nowrap; color: #224; }
+</style>
+</head>
+<body>
+<main>
+<h1>Shop</h1>
+<nav class="categories" aria-label="Categories"><a href="#" data-bh-expect="overlap@320-485">Accessories</a><a href="#">Electronics</a><a href="#">Furniture</a><a href="#">Groceries</a><a href="#">Stationery</a><a href="#">Toys</a></nav>
+</main>
+</body>
+</html>
