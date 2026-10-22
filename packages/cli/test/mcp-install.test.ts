@@ -137,6 +137,19 @@ describe('mcp install', () => {
     }
   });
 
+  it('keeps the command of an entry written on another system, which may be shared', () => {
+    const cursor = allClients(temp('proj'), temp('home')).find((c) => c.id === 'cursor');
+    // Written on Windows, where npx starts through cmd, and committed with the project.
+    const windows = { command: 'cmd', args: ['/c', 'npx', '-y', '@seybel/breakhound', 'mcp'] };
+    const next = JSON.parse(
+      cursor?.update(JSON.stringify({ mcpServers: { breakhound: windows } })) ?? '{}',
+    );
+    expect(next.mcpServers.breakhound).toEqual({
+      command: 'cmd',
+      args: ['/c', 'npx', '-y', '@seybel/breakhound@latest', 'mcp'],
+    });
+  });
+
   it('leaves an entry pinned to a version alone: that was a choice', () => {
     const claude = allClients(temp('proj'), temp('home')).find((c) => c.id === 'claude');
     const pinned = JSON.stringify({

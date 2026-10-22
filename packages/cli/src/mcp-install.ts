@@ -50,6 +50,8 @@ function wroteUntagged(args: unknown): boolean {
   return Array.isArray(args) && args.includes(PACKAGE) && args.includes('mcp');
 }
 
+const toLatest = (args: unknown[]) => args.map((a) => (a === PACKAGE ? LATEST : a));
+
 /** The latest breakhound, checked for each time the agent starts it. */
 export function serverCommand(platform = process.platform): { command: string; args: string[] } {
   const args = ['-y', LATEST, 'mcp'];
@@ -85,10 +87,11 @@ function jsonClient(
       if (existing && !startsOtherPackage(existing.args) && !wroteUntagged(existing.args)) {
         return null;
       }
-      // One written before keeps anything added to it since, like env.
+      // One written before gets @latest and nothing else: these files are often shared, so
+      // its command stays (cmd on Windows), and so does anything added to it, like env.
       const next =
         existing && wroteUntagged(existing.args)
-          ? { ...existing, command: entry.command, args: entry.args }
+          ? { ...existing, args: toLatest(existing.args as unknown[]) }
           : entry;
       data[key] = { ...data[key], [SERVER_NAME]: next };
       return `${JSON.stringify(data, null, 2)}\n`;
@@ -108,10 +111,9 @@ function codexClient(file: string): Client {
       const table = /^\[mcp_servers\.breakhound\]\n(?:(?!\[)[^\n]*\n?)*/m;
       const found = current?.match(table)?.[0];
       if (found) {
-        // Written before, with no version: only its args change, so anything added stays.
+        // Written before, with no version: it gets @latest and nothing else changes.
         if (found.includes(`"${PACKAGE}"`)) {
-          const line = `args = ${JSON.stringify(args).replaceAll(',', ', ')}`;
-          return (current as string).replace(table, found.replace(/^args = .*$/m, line));
+          return (current as string).replace(table, found.replace(`"${PACKAGE}"`, `"${LATEST}"`));
         }
         if (found.includes(PACKAGE) || !/["']breakhound["']/.test(found)) return null;
         return (current as string).replace(table, `${block}${found.endsWith('\n\n') ? '\n' : ''}`);
