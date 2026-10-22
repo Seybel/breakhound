@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -86,6 +86,16 @@ describe('an agent fixing issues over MCP', () => {
       'verify',
     ]);
     expect(client.getInstructions()).toContain('verify');
+  });
+
+  it("introduces itself with breakhound's icon, which the SDK accepts", async () => {
+    const info = client.getServerVersion() as { name: string; icons?: { src: string }[] };
+    expect(info.name).toBe('breakhound');
+    // The extension's own icon, so the two can't drift apart.
+    const png = readFileSync(
+      join(import.meta.dirname, '../../extension/static/icons/128.png'),
+    ).toString('base64');
+    expect(info.icons?.[0]?.src).toBe(`data:image/png;base64,${png}`);
   });
 
   it('offers a fix prompt that starts from issues sent from the browser', async () => {

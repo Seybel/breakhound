@@ -9,6 +9,7 @@ import { type AppServer, resolveServer } from './app';
 import { type Bridge, NoPanelError, startBridge } from './bridge';
 import { type BreakhoundConfig, loadConfig } from './config';
 import { guard, MemoryError, parseMemoryLimit } from './guard';
+import { ICON_PNG } from './icon';
 import { readLastResult, runScan } from './scan';
 import { checkpoint, listCheckpoints, undo } from './session';
 import { formatVerify, readBaseline, runVerify, severitiesAtOrAbove, verifyPassed } from './verify';
@@ -528,7 +529,13 @@ export async function runMcpServer(
           result: {
             protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
             capabilities: { tools: { listChanged: false }, prompts: { listChanged: false } },
-            serverInfo: { name: 'breakhound', version: VERSION },
+            serverInfo: {
+              name: 'breakhound',
+              version: VERSION,
+              // Shown beside the server by clients that show icons. No sizes: some clients' older
+              // schemas expect another shape for it, and an icon isn't worth a failed connection.
+              icons: [{ src: ICON_PNG, mimeType: 'image/png' }],
+            },
             instructions: INSTRUCTIONS,
           },
         });
